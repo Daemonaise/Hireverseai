@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useTransition, useRef, useEffect, useCallback, useMemo } from 'react';
@@ -103,9 +104,11 @@ export function AiMatcher() {
          console.log("AI Idea Generation Result:", result);
          if (result.status === 'error') {
              // Use the error reasoning provided by the flow, or a default message
-             throw new Error(result.reasoning || "Failed to generate idea.");
+             // throw new Error(result.reasoning || "Failed to generate idea."); // Removed throw
+             setIdeaError(result.reasoning || "Failed to generate idea."); // Set error state instead
+         } else {
+             setGeneratedIdea(result);
          }
-         setGeneratedIdea(result);
      } catch (err: any) {
          console.error('Error generating project idea:', err);
          const message = err.message || 'An unexpected error occurred while generating the idea.';
@@ -595,7 +598,7 @@ export function AiMatcher() {
               )}
           </div>
          <DialogFooter className="sm:justify-start">
-             {generatedIdea && (
+             {generatedIdea && !ideaError && ( // Only show "Use Idea" if generation was successful
                  <Button
                      onClick={() => {
                          form.setValue('projectBrief', generatedIdea.idea + (generatedIdea.details ? `\n\n${generatedIdea.details}` : ''));
@@ -616,4 +619,5 @@ export function AiMatcher() {
      </> // Close Fragment
   );
 }
+
 
