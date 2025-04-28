@@ -1,215 +1,107 @@
-
-
+'use server';
 /**
- * @fileOverview Defines the Genkit AI instance, external AI calls, and project decomposition.
+ * @fileOverview Defines the Genkit AI instance, external AI calls, and intelligent project decomposition with dynamic model selection.
  */
 
-import { genkit } from 'genkit'; // Removed defineSchema import
+import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
-import { z } from 'genkit'; // Use genkit's Zod export
-import fetch from 'node-fetch'; // Ensure fetch is available server-side
+import { z } from 'genkit';
+import fetch from 'node-fetch'; // Keep fetch if needed elsewhere, but callAI is removed
 
 // --- Environment Variables ---
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY; // Keep for future use or other direct calls
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY; // Keep for future use or other direct calls
+// Keep these for potential future plugin integration
+// const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+// const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 if (!GOOGLE_API_KEY) {
-  console.warn("Missing GOOGLE_API_KEY in environment variables. AI calls might fail.");
-}
-if (!OPENAI_API_KEY) {
-    console.warn("Missing OPENAI_API_KEY in environment variables. GPT-4o calls will fail.");
-}
-if (!ANTHROPIC_API_KEY) {
-    console.warn("Missing ANTHROPIC_API_KEY in environment variables. Claude-3 calls will fail.");
+  console.warn("Missing GOOGLE_API_KEY in environment variables.");
 }
 
-
-// --- Genkit (Google AI) Initialization ---
+// --- Genkit (Google Gemini) Initialization ---
 export const ai = genkit({
-  plugins: [
-     googleAI({ apiKey: GOOGLE_API_KEY }),
-     // Add other plugins here if/when available and installed, e.g.:
-     // openAI({ apiKey: OPENAI_API_KEY }),
-     // anthropic({ apiKey: ANTHROPIC_API_KEY }),
-  ],
-  // Default model can be specified here or in each prompt/flow
-  model: 'googleai/gemini-1.5-flash-latest', // Using latest flash model
-  logLevel: 'debug',
-  enableTracing: true,
+  promptDir: './prompts', // This might not be used if prompts are defined inline
+  plugins: [googleAI({ apiKey: GOOGLE_API_KEY })],
+  // Set a sensible default model
+  // model: 'googleai/gemini-1.5-flash-latest', // Use a specific Gemini model if preferred
 });
 
-
-// --- Project Decomposition Prompt (Example using Gemini via Genkit) ---
-// This is an example and might be replaced by decompose-project.ts flow
-// Define Zod schemas directly without defineSchema
-const projectBriefSchema = z.object({ brief: z.string() });
-
-const projectDecompositionOutputSchema = z.string().describe('Decomposed project steps in markdown format.');
-
+// --- Project Decomposition Prompt for Gemini (Example, keep if used elsewhere directly) ---
+const PROJECT_DECOMPOSITION_PROMPT_TEXT = `
+Decompose the following project brief into concrete steps required to get it done. Return your response in markdown format.
+Project Brief: {{{brief}}}
+`;
 
 const projectDecompositionPrompt = ai.definePrompt({
   name: 'projectDecompositionPrompt',
-  model: 'googleai/gemini-1.5-flash-latest', // Specify model
-  // Pass Zod schemas directly
-  input: { schema: projectBriefSchema },
-  output: { schema: projectDecompositionOutputSchema },
-  prompt: `
-Decompose the following project brief into concrete steps required to get it done. Return your response in markdown format.
-Project Brief: {{{brief}}}
-`,
+  input: { schema: z.object({ brief: z.string() }) },
+  output: { schema: z.string().describe('Decomposed project steps in markdown format.') },
+  prompt: PROJECT_DECOMPOSITION_PROMPT_TEXT,
+  // Specify model explicitly if not relying on genkit default
+  config: { model: 'googleai/gemini-1.5-flash-latest' }
 });
 
-// --- Main Functions ---
+// --- Decompose Project Brief (Gemini - Example Function) ---
 
-/**
- * Decomposes a project brief using the default Genkit configured model (Gemini).
- * @param brief - The project brief string.
- * @returns Decomposed steps or an error message.
- * @deprecated Use decomposeProject flow in src/ai/flows/decompose-project.ts instead.
- */
 export async function decomposeProjectBrief(brief: string): Promise<string> {
-  console.warn("decomposeProjectBrief is deprecated. Use the decomposeProject flow instead.");
   try {
-    const { output } = await projectDecompositionPrompt({ brief });
+    const { output } = await projectDecompositionPrompt({ brief }); // Use default model from prompt definition
     return output ?? "Failed to decompose project brief.";
   } catch (e: any) {
-    console.error(`Error during decomposition: ${e.message}`);
-    // Provide more context on the error if possible
-    if (e.message?.includes('API key')) {
-         return "Failed to decompose project brief due to an API key issue with the configured AI provider.";
-    }
-     if (e.message?.includes('INVALID_ARGUMENT')) {
-         return "Failed to decompose project brief. There might be an issue with the input format or prompt configuration.";
-    }
-    return `Failed to decompose project brief. Error: ${e.message}`;
+    console.error(`Error during decomposition:`, e.message);
+    return "Failed to decompose project brief.";
   }
 }
 
-/**
- * Placeholder function to get a user-specific model ID.
- * Fine-tuning logic would go here.
- * @param userId - The ID of the user (e.g., freelancer).
- * @returns A model identifier string or undefined.
- */
+// --- Placeholder for user-specific model (Not implemented) ---
+// Made async to comply with 'use server' export rules
 export async function getUserSpecificModel(userId: string): Promise<string | undefined> {
-  console.log(`Checking for user-specific model for user ${userId}...`);
-  // TODO: Implement logic to fetch user-specific fine-tuned model ID from Firestore/DB
-  // Example check:
-  // if (userId === 'test-freelancer-finetune') return 'your-fine-tuned-model-id';
-  return undefined; // Always return undefined as fine-tuning is not implemented
+  console.log(`Checking for user-specific model for user ${userId}... (not implemented)`);
+  // In a real implementation, this would query Firestore or another DB
+  // for a fine-tuned model ID associated with the userId.
+  // Example:
+  // const userProfile = await getUserProfile(userId);
+  // if (userProfile?.fineTunedModelId) return userProfile.fineTunedModelId;
+  return undefined; // Default: No user-specific model found
 }
 
 
-/**
- * Calls a specified AI model with a given prompt.
- * Currently only supports Gemini via Genkit. Direct calls to OpenAI/Anthropic are kept for reference.
- * @param model - The model to call ('gemini', 'gpt-4o', 'claude-3').
- * @param prompt - The text prompt for the AI.
- * @returns The AI's response as a string or an error message.
- */
-export async function callAI(model: 'gemini' | 'gpt-4o' | 'claude-3', prompt: string): Promise<string> {
-  try {
-    if (model === 'gemini') {
-      // Using a generic prompt structure for demonstration.
-      // You might want more specific prompts for different use cases.
-      console.log("Calling Gemini via Genkit generic text prompt...");
-      const genericPrompt = ai.definePrompt({
-          name: 'genericGeminiPrompt',
-          model: 'googleai/gemini-1.5-flash-latest', // Ensure model is specified
-          input: { schema: z.string() },
-          output: { schema: z.string() },
-          prompt: `{{{input}}}`, // Simple passthrough prompt
-      });
+// --- Smart Model Chooser based on Prompt Content ---
+// Returns a Genkit-compatible model string.
+// Note: Currently only returns Gemini as other plugins are not configured.
+// Made async to comply with 'use server' export rules
+export async function chooseModelBasedOnPrompt(promptContent: string): Promise<string> {
+  const promptLength = promptContent.length;
+  const promptLower = promptContent.toLowerCase();
 
-      const { output } = await genericPrompt(prompt);
-      return output ?? `Failed to generate response with Gemini for prompt: ${prompt.substring(0, 50)}...`;
-    }
+  // Example logic (adjust thresholds and keywords as needed)
+   if (promptLower.includes('graphic design') || promptLower.includes('visual critique') || promptLower.includes('logo') || promptLower.includes('illustration')) {
+      // TODO: Uncomment and use when OpenAI plugin is configured
+      // return 'openai/gpt-4o'; // Hypothetical model name
+      console.warn("OpenAI plugin not configured, defaulting to Gemini for graphic design task.");
+      return 'googleai/gemini-1.5-flash-latest';
+   }
 
-    // --- Direct API calls (kept for reference, ensure keys are set) ---
-    if (model === 'gpt-4o') {
-      if (!OPENAI_API_KEY) return "Error: OpenAI API Key not configured.";
-      console.log("Calling OpenAI GPT-4o directly...");
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
-        }),
-      });
-
-      if (!response.ok) {
-           const errorData = await response.json();
-           console.error("OpenAI API Error:", errorData);
-           throw new Error(`OpenAI API request failed with status ${response.status}: ${errorData.error?.message || response.statusText}`);
-      }
-
-      const data = await response.json() as any;
-      return data.choices?.[0]?.message?.content ?? "Failed to generate with GPT-4o.";
-    }
-
-    if (model === 'claude-3') {
-      if (!ANTHROPIC_API_KEY) return "Error: Anthropic API Key not configured.";
-      console.log("Calling Anthropic Claude-3 directly...");
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'claude-3-opus-20240229', // Or another Claude model
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: prompt }],
-        }),
-      });
-
-        if (!response.ok) {
-           const errorData = await response.json();
-           console.error("Anthropic API Error:", errorData);
-           throw new Error(`Anthropic API request failed with status ${response.status}: ${errorData.error?.message || response.statusText}`);
-        }
-
-      const data = await response.json() as any;
-      return data.content?.[0]?.text ?? "Failed to generate with Claude-3.";
-    }
-
-    return "Invalid model selection.";
-  } catch (error: any) {
-    console.error(`Error calling AI model '${model}':`, error);
-    // Provide more specific error message if possible
-    return `Error during AI generation (${model}): ${error.message}`;
+  if (promptLength > 2000 || promptLower.includes('technical') || promptLower.includes('architecture') || promptLower.includes('code') || promptLower.includes('complex problem')) {
+     // TODO: Uncomment and use when Anthropic plugin is configured
+     // return 'anthropic/claude-3-opus-20240229'; // Hypothetical model name
+     console.warn("Anthropic plugin not configured, defaulting to Gemini for complex/long task.");
+     return 'googleai/gemini-1.5-flash-latest'; // Use a more capable Gemini model for complex tasks
   }
+
+  if (promptLower.includes('creative writing') || promptLower.includes('story') || promptLower.includes('ad copy') || promptLower.includes('marketing slogan')) {
+     // TODO: Uncomment and use when OpenAI plugin is configured
+     // return 'openai/gpt-4o'; // Hypothetical model name
+      console.warn("OpenAI plugin not configured, defaulting to Gemini for creative writing task.");
+      return 'googleai/gemini-1.5-flash-latest';
+  }
+
+  // Default to Gemini Flash for general tasks or shorter prompts
+  return 'googleai/gemini-1.5-flash-latest';
 }
 
+// --- Removed callAI function ---
+// The logic is now intended to be used within each flow by calling chooseModelBasedOnPrompt
+// and passing the result to the ai.definePrompt call.
 
-// --- Direct External API Call Functions (Keep for reference or potential direct use) ---
-// Note: These are effectively duplicates of the logic within callAI now.
 
-/**
- * Directly calls OpenAI GPT-4o API.
- * @param prompt - The prompt string.
- * @returns The response content or 'No response.'.
- * @deprecated Prefer using callAI function or Genkit plugins when available.
- */
-export async function callOpenAIGpt4o(prompt: string): Promise<string> {
-   console.warn("Direct callOpenAIGpt4o is deprecated. Use callAI('gpt-4o', prompt).");
-   return callAI('gpt-4o', prompt);
-}
-
-/**
- * Directly calls Anthropic Claude-3 API.
- * @param prompt - The prompt string.
- * @returns The response content or 'No response.'.
- * @deprecated Prefer using callAI function or Genkit plugins when available.
- */
-export async function callAnthropic(prompt: string): Promise<string> {
-  console.warn("Direct callAnthropic is deprecated. Use callAI('claude-3', prompt).");
-  return callAI('claude-3', prompt);
-}

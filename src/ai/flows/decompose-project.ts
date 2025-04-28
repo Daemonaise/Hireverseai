@@ -1,33 +1,32 @@
-
-
+'use server';
 /**
  * @fileOverview Decomposes a project brief into a list of actionable microtasks.
- * Uses the default Google AI model.
+ * Uses dynamic model selection based on the project brief.
  *
  * Exports:
  * - decomposeProject - Function to decompose a project into microtasks.
  */
 
-import { ai } from '@/ai/ai-instance'; // Import the configured 'ai' instance
+import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import chooseModelBasedOnPrompt
 import { z } from 'genkit';
 import {
-    DecomposeProjectInputSchema,
-    type DecomposeProjectInput,
-    DecomposeProjectOutputSchema,
-    type Microtask, // Import Microtask type for internal use
-    MicrotaskSchema, // Import MicrotaskSchema for prompt definition
-} from '@/ai/schemas/decompose-project-schema'; // Import schemas/types
-import { updateProjectMicrotasks, updateProjectStatus } from '@/services/firestore'; // Import Firestore service
-import type { ProjectStatus } from '@/types/project'; // Import ProjectStatus type
+    DecomposeProjectInputSchema, // Import schema definition
+    type DecomposeProjectInput, // Export type only
+    DecomposeProjectOutputSchema, // Import schema definition
+    type DecomposeProjectOutput, // Export type only
+    MicrotaskSchema, // Import schema definition
+    type Microtask, // Export type only
+} from '@/ai/schemas/decompose-project-schema';
+import { updateProjectMicrotasks, updateProjectStatus } from '@/services/firestore';
+import type { ProjectStatus } from '@/types/project';
 
-
-// Define the prompt structure outside the flow, using the imported MicrotaskSchema
-// Modify the estimatedHours within the prompt's expected output schema
-const decompositionPromptDefinition = ai.definePrompt({
-    name: `projectDecompositionPrompt`, // Generic name
+// Define the prompt structure generator function
+// Keep internal, do not export
+const createDecompositionPrompt = (modelName: string) => ai.definePrompt({
+    name: `projectDecompositionPrompt_${modelName.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name
     input: { schema: DecomposeProjectInputSchema },
-    // Use the imported schema which now has .min(0.1) in the Zod definition
     output: { schema: DecomposeProjectOutputSchema },
+    model: modelName, // Use the dynamically selected model
     prompt: `You are an expert AI Project Manager specializing in breaking down complex project briefs into a series of clear, actionable, and sequential microtasks.
 
 Project Brief:
@@ -50,46 +49,38 @@ Ensure the generated IDs are unique within this project.
 Ensure 'estimatedHours', if provided, is a positive number greater than 0.
 `,
     config: {
-        temperature: 0.5, // Moderate temperature for structured but slightly flexible decomposition
+        temperature: 0.5,
     },
-     // Model defaults to the one configured in ai-instance.ts
 });
 
+// Export only the async wrapper function and types
+export type { DecomposeProjectInput, DecomposeProjectOutput, Microtask };
 
-// 'use server'; - Not needed here, it's a standard async function
 /**
  * Decomposes a project brief into microtasks using an AI model and updates the project in Firestore.
  * @param input - The project details (ID, brief, skills).
  * @returns The generated list of microtasks.
  */
-export async function decomposeProject(input: DecomposeProjectInput): Promise<z.infer<typeof DecomposeProjectOutputSchema>> {
-     // Update project status to 'decomposing' before starting
+export async function decomposeProject(input: DecomposeProjectInput): Promise<DecomposeProjectOutput> {
      await updateProjectStatus(input.projectId, 'decomposing');
      try {
         const result = await decomposeProjectFlow(input);
-        // Update project in Firestore with the decomposed microtasks and set status to 'decomposed'
         await updateProjectMicrotasks(input.projectId, result.microtasks);
-        // Note: Status is updated within updateProjectMicrotasks now
-        // await updateProjectStatus(input.projectId, 'decomposed');
         console.log(`Project ${input.projectId} successfully decomposed into ${result.microtasks.length} microtasks.`);
         return result;
      } catch (error: any) {
          console.error(`Error during decomposition or update for project ${input.projectId}:`, error);
          if (error.message?.includes('API key')) {
-             console.error(`Ensure your GOOGLE_API_KEY is valid and has permissions.`);
+             console.error(`Ensure your GOOGLE_API_KEY (or other configured keys) is valid and has permissions.`);
          } else if (error.message?.includes('INVALID_ARGUMENT')) {
              console.error(`Invalid argument error during decomposition for project ${input.projectId}. Check prompt/schema. Error:`, error.details);
          }
-         // Optionally revert status back to 'pending' or set an 'error' status
          await updateProjectStatus(input.projectId, 'pending'); // Revert status on failure
-         // Return a valid empty structure instead of throwing to avoid breaking caller if needed
-         // throw error; // Re-throw the error to be handled by the caller
-          return { microtasks: [] }; // Return empty array on error
+         return { microtasks: [] }; // Return empty array on error
      }
 }
 
-
-// Define the internal Genkit flow
+// Keep internal, do not export
 const decomposeProjectFlow = ai.defineFlow<
   typeof DecomposeProjectInputSchema,
   typeof DecomposeProjectOutputSchema
@@ -100,63 +91,55 @@ const decomposeProjectFlow = ai.defineFlow<
     outputSchema: DecomposeProjectOutputSchema,
   },
   async (input) => {
-    console.log(`Decomposing project ${input.projectId} using default model`);
+    // Choose model based on the project brief content - Await the async function
+    const selectedModel = await chooseModelBasedOnPrompt(input.projectBrief);
+    console.log(`Decomposing project ${input.projectId} using model: ${selectedModel}`);
 
     try {
-        // Call the prompt definition using the default model
-        const { output } = await decompositionPromptDefinition(
-            input
-            // No model override needed
-        );
+        // Create the specific prompt definition for this brief and model
+        const decompositionPrompt = createDecompositionPrompt(selectedModel);
+
+        // Call the dynamically created prompt definition
+        const { output } = await decompositionPrompt(input);
 
         if (!output || !output.microtasks || output.microtasks.length === 0) {
-             console.error(`Failed to generate valid microtask output for project ${input.projectId}:`, output);
-             // Throw specific error that can be caught by the wrapper function
-             throw new Error(`AI failed to decompose project ${input.projectId}. No microtasks were generated.`);
+             console.error(`Failed to generate valid microtask output for project ${input.projectId} using ${selectedModel}:`, output);
+             throw new Error(`AI (${selectedModel}) failed to decompose project ${input.projectId}. No microtasks were generated.`);
         }
 
-        // Basic validation (e.g., ensure IDs are unique, hours are valid) - can be enhanced
+        // Validation logic remains the same
         const taskIds = new Set();
         const validatedMicrotasks: Microtask[] = [];
         output.microtasks.forEach((task, index) => {
-             let currentTask = {...task}; // Clone task to modify if needed
-
+             let currentTask = {...task};
              if (!currentTask.id || taskIds.has(currentTask.id)) {
                 console.warn(`Duplicate or missing ID found for task at index ${index}. Assigning fallback ID.`);
-                currentTask.id = `task-${String(index + 1).padStart(3, '0')}`; // Assign a fallback ID
+                currentTask.id = `task-${String(index + 1).padStart(3, '0')}`;
              }
              taskIds.add(currentTask.id);
-
-             // Ensure dependencies exist within the generated list
              if (currentTask.dependencies) {
                  currentTask.dependencies = currentTask.dependencies.filter(depId => taskIds.has(depId));
              }
-
-              // Validate estimatedHours (ensure it's > 0 if present)
              if (currentTask.estimatedHours !== undefined && currentTask.estimatedHours <= 0) {
                 console.warn(`Invalid estimatedHours (${currentTask.estimatedHours}) for task ${currentTask.id}. Setting to undefined.`);
-                currentTask.estimatedHours = undefined; // Remove invalid estimate
+                currentTask.estimatedHours = undefined;
              }
-
              validatedMicrotasks.push(currentTask);
         });
 
-        // Return the validated microtasks
         const validatedOutput = { microtasks: validatedMicrotasks };
-
-        console.log(`Generated ${validatedOutput.microtasks.length} microtasks for project ${input.projectId}`);
+        console.log(`Generated ${validatedOutput.microtasks.length} microtasks for project ${input.projectId} using ${selectedModel}`);
         return validatedOutput;
 
     } catch (error: any) {
-         console.error(`Error in decomposeProjectFlow for project ${input.projectId}:`, error);
-          if (error.message?.includes('API key')) {
-             console.error(`Ensure your GOOGLE_API_KEY is valid and has permissions.`);
+         console.error(`Error in decomposeProjectFlow for project ${input.projectId} using ${selectedModel}:`, error);
+         if (error.message?.includes('API key')) {
+             console.error(`Ensure your GOOGLE_API_KEY (or other configured keys) is valid and has permissions.`);
          } else if (error.message?.includes('INVALID_ARGUMENT')) {
-             console.error(`Invalid argument error during decomposition flow for project ${input.projectId}. Check prompt/schema. Error:`, error.details);
+             console.error(`Invalid argument error during decomposition flow for project ${input.projectId} using ${selectedModel}. Check prompt/schema. Error:`, error.details);
          }
          const errorMessage = error instanceof Error ? error.message : String(error);
-          // Re-throw to be caught by the wrapper
-         throw new Error(`Error decomposing project ${input.projectId}: ${errorMessage}`);
+         throw new Error(`Error decomposing project ${input.projectId} with ${selectedModel}: ${errorMessage}`);
     }
   }
 );

@@ -1,28 +1,31 @@
-
-
+'use server';
 /**
  * @fileOverview Generates skill test questions for freelancers based on their selected skills.
- * Uses the default Google AI model.
+ * Uses dynamic model selection based on the skill.
  *
  * Exports:
  * - administerSkillTest - A function that generates test questions.
  */
 
-import { ai } from '@/ai/ai-instance'; // Import the configured 'ai' instance
+import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import chooseModelBasedOnPrompt
 import { z } from 'genkit';
 import {
-  AdministerSkillTestInputSchema,
-  type AdministerSkillTestInput,
-  AdministerSkillTestOutputSchema,
-  QuestionSchema,
-  type Question,
+  AdministerSkillTestInputSchema, // Import schema definition
+  type AdministerSkillTestInput, // Export type only
+  AdministerSkillTestOutputSchema, // Import schema definition
+  type AdministerSkillTestOutput, // Export type only
+  QuestionSchema, // Import schema definition
+  type Question, // Export type only
 } from '@/ai/schemas/administer-skill-test-schema';
 
-// Define the prompt structure outside the loop
-const skillQuestionPromptDefinition = ai.definePrompt({
-    name: `skillQuestionPrompt`, // Generic name
+// Define the prompt structure generator function - returns a prompt definition
+// This allows setting the model dynamically per skill.
+// Keep internal, do not export
+const createSkillQuestionPrompt = (modelName: string) => ai.definePrompt({
+    name: `skillQuestionPrompt_${modelName.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name based on model
     input: { schema: z.object({ skill: z.string(), freelancerId: z.string() }) },
     output: { schema: QuestionSchema }, // Expect a single Question object
+    model: modelName, // Use the dynamically selected model
     prompt: `You are an expert AI hiring assistant specializing in creating skill assessment questions.
 Generate exactly ONE practical and relevant test question for a freelancer (ID: {{{freelancerId}}}) claiming to have the following skill: {{{skill}}}.
 The question should effectively probe their proficiency in this specific skill. Ensure the output only contains the questionText and the skillTested ("{{{skill}}}").
@@ -34,14 +37,16 @@ Output format MUST follow the provided schema with 'questionText' and 'skillTest
     config: {
         temperature: 0.7, // Adjust creativity/focus as needed
     }
-    // Model defaults to the one configured in ai-instance.ts (gemini-1.5-flash-latest)
 });
 
-// 'use server'; - This is not required here as it's a standard async function
-export async function administerSkillTest(input: AdministerSkillTestInput): Promise<z.infer<typeof AdministerSkillTestOutputSchema>> {
+// Export only the async wrapper function and types
+export type { AdministerSkillTestInput, AdministerSkillTestOutput, Question };
+
+export async function administerSkillTest(input: AdministerSkillTestInput): Promise<AdministerSkillTestOutput> {
   return administerSkillTestFlow(input);
 }
 
+// Keep internal, do not export
 const administerSkillTestFlow = ai.defineFlow<
   typeof AdministerSkillTestInputSchema,
   typeof AdministerSkillTestOutputSchema
@@ -53,70 +58,63 @@ const administerSkillTestFlow = ai.defineFlow<
   },
   async (input) => {
     const testId = `test_${input.freelancerId}_${Date.now()}`;
-    const questions: Question[] = []; // Use the imported Question type
-    const generationPromises: Promise<void>[] = []; // Store promises for concurrent generation
+    const questions: Question[] = [];
+    const generationPromises: Promise<void>[] = [];
 
-    console.log(`Generating test for Freelancer ${input.freelancerId} with skills: ${input.skills.join(', ')} using default model.`);
+    console.log(`Generating test for Freelancer ${input.freelancerId} with skills: ${input.skills.join(', ')} using dynamic model selection.`);
 
     for (const skill of input.skills) {
-        // Define the generation task as an async function
         const generateQuestionForSkill = async () => {
             try {
-                console.log(`Generating question for skill: ${skill}`);
+                // Choose the model based on the skill - Await the async function
+                const selectedModel = await chooseModelBasedOnPrompt(skill);
+                console.log(`Generating question for skill: ${skill} using model: ${selectedModel}`);
 
-                // Call the prompt definition using the default model
-                const { output: question } = await skillQuestionPromptDefinition(
+                // Create the specific prompt definition for this skill and model
+                const skillQuestionPrompt = createSkillQuestionPrompt(selectedModel);
+
+                // Call the dynamically created prompt definition
+                const { output: question } = await skillQuestionPrompt(
                     { skill: skill, freelancerId: input.freelancerId }
-                    // No model override needed, uses default from 'ai' instance
                 );
 
                 if (question && question.questionText && question.skillTested) {
-                    // Ensure the skillTested matches the input skill, sometimes models might hallucinate
-                    question.skillTested = skill;
+                    question.skillTested = skill; // Ensure correct skill is set
                     questions.push(question);
-                    console.log(`Successfully generated question for skill: ${skill}`);
+                    console.log(`Successfully generated question for skill: ${skill} using ${selectedModel}`);
                 } else {
-                    console.warn(`Failed to generate a valid question for skill: ${skill}. Output received:`, question);
-                    // Optionally, add a default placeholder question or skip
-                     questions.push({ questionText: `Placeholder question for ${skill} - generation failed. Describe your experience with ${skill}.`, skillTested: skill });
+                    console.warn(`Failed to generate a valid question for skill: ${skill} using ${selectedModel}. Output received:`, question);
+                    questions.push({ questionText: `Placeholder question for ${skill} - generation failed. Describe your experience with ${skill}.`, skillTested: skill });
                 }
             } catch (error: any) {
                 console.error(`Error generating question for skill "${skill}":`, error);
-                 if (error.message?.includes('API key')) {
-                    console.error(`Ensure your GOOGLE_API_KEY is valid and has permissions.`);
-                 } else if (error.message?.includes('INVALID_ARGUMENT')) {
+                if (error.message?.includes('API key')) {
+                    console.error(`Ensure your GOOGLE_API_KEY (or other configured keys) is valid and has permissions.`);
+                } else if (error.message?.includes('INVALID_ARGUMENT')) {
                      console.error(`Invalid argument error for skill "${skill}". Check prompt/schema. Error:`, error.details);
-                 }
-                // Optionally, add a default placeholder question or skip
-                questions.push({ questionText: `Placeholder question for ${skill} - error during generation. Describe your experience with ${skill}.`, skillTested: skill });
+                }
+                questions.push({ questionText: `Placeholder question for skill ${skill} - error during generation. Describe your experience with ${skill}.`, skillTested: skill });
             }
         };
-        // Add the promise to the array
         generationPromises.push(generateQuestionForSkill());
     }
 
-    // Wait for all question generation promises to complete
     await Promise.all(generationPromises);
 
-    // Ensure we have the expected number of questions, even if some failed
     if (questions.length !== input.skills.length) {
         console.warn(`Expected ${input.skills.length} questions, but generated ${questions.length}. Some generations might have failed.`);
-        // Potentially add more placeholders if needed, though the catch blocks should handle this.
     }
 
-     if (questions.length === 0 && input.skills.length > 0) {
+    if (questions.length === 0 && input.skills.length > 0) {
         console.error("Failed to generate any skill test questions for skills:", input.skills.join(', '));
-        // Consider returning an error or an empty test with a specific message
-        // throw new Error("Failed to generate any skill test questions.");
-         return {
+        return {
             testId: testId,
             instructions: 'Error: Could not generate test questions at this time.',
             questions: [],
         };
     }
 
-    // Structure the final output
-    const finalOutput: z.infer<typeof AdministerSkillTestOutputSchema> = {
+    const finalOutput: AdministerSkillTestOutput = {
         testId: testId,
         instructions: 'Please answer the following questions to the best of your ability, demonstrating your skills.',
         questions: questions,

@@ -1,32 +1,28 @@
-
-
+'use server';
 /**
  * @fileOverview Estimates the impact of a client's project change request on timeline and cost.
- * Uses the default Google AI model.
+ * Uses dynamic model selection based on the change description.
  *
  * Exports:
  * - estimateProjectChangeImpact - A function that handles the estimation process.
  */
 
-import { ai } from '@/ai/ai-instance'; // Import the configured 'ai' instance
+import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import chooseModelBasedOnPrompt
 import { z } from 'genkit';
 import {
-    RequestProjectChangeInputSchema,
-    type RequestProjectChangeInput, // Keep type import for internal use
-    RequestProjectChangeOutputSchema,
-    type RequestProjectChangeOutput, // Export output type
+    RequestProjectChangeInputSchema, // Import schema definition
+    type RequestProjectChangeInput, // Export type only
+    RequestProjectChangeOutputSchema, // Import schema definition
+    type RequestProjectChangeOutput, // Export type only
 } from '@/ai/schemas/request-project-change-schema';
 
-// 'use server'; - Not needed here, it's a standard async function
-export async function estimateProjectChangeImpact(input: RequestProjectChangeInput): Promise<RequestProjectChangeOutput> {
-  return estimateProjectChangeImpactFlow(input);
-}
-
-const prompt = ai.definePrompt({
-  name: 'estimateProjectChangeImpactPrompt',
+// Define prompt generator function
+// Keep internal, do not export
+const createEstimateChangePrompt = (modelName: string) => ai.definePrompt({
+  name: `estimateProjectChangeImpactPrompt_${modelName.replace(/[^a-zA-Z0-9]/g, '_')}`,
   input: { schema: RequestProjectChangeInputSchema },
   output: { schema: RequestProjectChangeOutputSchema },
-  // Model defaults to the one configured in ai-instance.ts
+  model: modelName, // Use dynamically selected model
   prompt: `You are an AI Project Manager analyzing a change request for an ongoing project.
 Your goal is to estimate the impact of this change on the project's timeline and cost, assuming fair US market rates for freelance work.
 
@@ -48,10 +44,18 @@ Analyze the change request in the context of the original project details.
 
 Return the result strictly following the output schema with 'estimatedNewTimeline', 'estimatedAdditionalCost' (non-negative), and 'impactAnalysis'.`,
   config: {
-    temperature: 0.4, // Slightly creative but grounded for estimation
+    temperature: 0.4,
   },
 });
 
+// Export only the async wrapper function and types
+export type { RequestProjectChangeInput, RequestProjectChangeOutput };
+
+export async function estimateProjectChangeImpact(input: RequestProjectChangeInput): Promise<RequestProjectChangeOutput> {
+  return estimateProjectChangeImpactFlow(input);
+}
+
+// Keep internal, do not export
 const estimateProjectChangeImpactFlow = ai.defineFlow<
   typeof RequestProjectChangeInputSchema,
   typeof RequestProjectChangeOutputSchema
@@ -62,26 +66,32 @@ const estimateProjectChangeImpactFlow = ai.defineFlow<
     outputSchema: RequestProjectChangeOutputSchema,
   },
   async (input) => {
-    console.log(`Estimating impact for change request on project ${input.projectId} using default model`);
+    // Choose model based on the change description content - Await the async function
+    const selectedModel = await chooseModelBasedOnPrompt(input.changeDescription);
+    console.log(`Estimating impact for change request on project ${input.projectId} using model: ${selectedModel}`);
+
      try {
-        // Call the prompt using the default model
-        const { output } = await prompt(input);
+        // Create the specific prompt definition
+        const estimateChangePrompt = createEstimateChangePrompt(selectedModel);
+
+        // Call the dynamically created prompt
+        const { output } = await estimateChangePrompt(input);
 
         if (!output || !output.estimatedNewTimeline || typeof output.estimatedAdditionalCost !== 'number' || output.estimatedAdditionalCost < 0 || !output.impactAnalysis) {
-            console.error("AI failed to provide valid change impact estimations for project:", input.projectId, "Output:", output);
-            throw new Error("AI failed to provide valid estimations for the project change request (check cost >= 0).");
+            console.error(`AI (${selectedModel}) failed to provide valid change impact estimations for project:`, input.projectId, "Output:", output);
+            throw new Error(`AI (${selectedModel}) failed to provide valid estimations for the project change request (check cost >= 0).`);
         }
 
-        console.log(`Estimation complete for project ${input.projectId}: Timeline - ${output.estimatedNewTimeline}, Add. Cost - $${output.estimatedAdditionalCost}`);
+        console.log(`Estimation complete using ${selectedModel} for project ${input.projectId}: Timeline - ${output.estimatedNewTimeline}, Add. Cost - $${output.estimatedAdditionalCost}`);
         return output;
      } catch (error: any) {
-         console.error(`Error estimating change impact for project ${input.projectId}:`, error);
+         console.error(`Error estimating change impact for project ${input.projectId} using ${selectedModel}:`, error);
          if (error.message?.includes('API key')) {
-             console.error(`Ensure your GOOGLE_API_KEY is valid and has permissions.`);
+             console.error(`Ensure your GOOGLE_API_KEY (or other configured keys) is valid and has permissions.`);
          } else if (error.message?.includes('INVALID_ARGUMENT')) {
-             console.error(`Invalid argument error estimating change impact for project ${input.projectId}. Check prompt/schema. Error:`, error.details);
+             console.error(`Invalid argument error estimating change impact for project ${input.projectId} using ${selectedModel}. Check prompt/schema. Error:`, error.details);
          }
-         throw new Error(`Failed to estimate project change impact: ${error.message}`);
+         throw new Error(`Failed to estimate project change impact with ${selectedModel}: ${error.message}`);
      }
   }
 );
