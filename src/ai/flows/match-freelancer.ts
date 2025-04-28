@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Matches a project brief with the best-fit, available freelancers,
@@ -7,21 +8,27 @@
  *
  * Exports:
  * - matchFreelancer - A function that handles the freelancer matching and estimation process.
+ * - MatchFreelancerInput - Input type.
+ * - MatchFreelancerOutput - Output type.
  */
 
-import { ai, chooseModelBasedOnPrompt, getUserSpecificModel } from '@/ai/ai-instance'; // Import chooseModelBasedOnPrompt
-import { z } from 'genkit';
+// Correctly import from the ai-instance module
+import { chooseModelBasedOnPrompt, callAI, getUserSpecificModel } from '@/ai/ai-instance';
+import { z } from 'zod'; // Use standard zod import
 import { getAvailableFreelancersBySkill } from '@/services/firestore';
 import type { Freelancer } from '@/types/freelancer';
 import {
-    MatchFreelancerInputSchema, // Import schema definition
-    type MatchFreelancerInput, // Export type only
-    MatchFreelancerOutputSchema, // Import schema definition
-    type MatchFreelancerOutput, // Export type only
+    MatchFreelancerInputSchema,
+    type MatchFreelancerInput,
+    MatchFreelancerOutputSchema,
+    type MatchFreelancerOutput,
+    ExtractSkillsAIOutputSchema, // Schema for AI skill extraction
+    type ExtractSkillsAIOutput,
+    EstimateAndSelectAIOutputSchema, // Schema for AI estimation/selection
+    type EstimateAndSelectAIOutput,
 } from '@/ai/schemas/match-freelancer-schema';
 
 // --- Constants ---
-// Keep internal, do not export
 const PLATFORM_MARKUP_PERCENTAGE = 0.15;
 const DEFAULT_HOURLY_RATE_USD = 50;
 const TECH_HOURLY_RATE_USD = 70;
@@ -29,7 +36,6 @@ const DESIGN_HOURLY_RATE_USD = 60;
 const WRITING_HOURLY_RATE_USD = 55;
 
 // --- Helper Functions ---
-// Keep internal, do not export
 function calculateEstimatedBaseCost(hours: number, skills: string[]): number {
     let averageRate = DEFAULT_HOURLY_RATE_USD;
     const lowerCaseSkills = skills.map(s => s.toLowerCase());
@@ -43,79 +49,118 @@ function calculateEstimatedBaseCost(hours: number, skills: string[]): number {
     return Number((hours * averageRate).toFixed(2));
 }
 
-// --- AI Prompt Definition Generators ---
+// Export types
+export type { MatchFreelancerInput, MatchFreelancerOutput };
 
-// Generator for skill extraction prompt
-// Keep internal, do not export
-const createExtractSkillsPrompt = (modelName: string) => ai.definePrompt({
-    name: `extractSkillsFromBrief_${modelName.replace(/[^a-zA-Z0-9]/g, '_')}`,
-    input: { schema: z.object({ projectBrief: z.string() }) },
-    output: { schema: z.object({ extractedSkills: z.array(z.string()).min(1, {message: "Must extract at least one skill."}).max(5).describe("List of 1 to 5 key skills.") }) },
-    model: modelName, // Use dynamic model
-    prompt: `Analyze the following project brief and extract the key skills required.
+// --- Exported Flow Function (Server Action) ---
+export async function matchFreelancer(input: MatchFreelancerInput): Promise<MatchFreelancerOutput> {
+    let requiredSkills = input.requiredSkills ?? [];
+    let extractedSkills: string[] | undefined = undefined;
+    let aiEstimateResult: EstimateAndSelectAIOutput | null = null;
+    let estimatedBaseCost = 0;
+    let platformFee = 0;
+    let totalCostToClient = 0;
+    let selectedModel: string; // Explicitly type as string
+
+    // Define fallback output structure
+    const fallbackOutput: MatchFreelancerOutput = {
+       reasoning: 'An error occurred during the matching process.',
+       status: 'error',
+       estimatedTimeline: "N/A",
+       estimatedHours: undefined,
+       estimatedBaseCost: undefined,
+       platformFee: undefined,
+       totalCostToClient: undefined,
+       extractedSkills: undefined,
+    };
+
+    try {
+        // Determine the model to use
+        // Check for user-specific model first
+        let modelOverride = getUserSpecificModel(input.freelancerId);
+        if (modelOverride) {
+            selectedModel = modelOverride;
+            console.log(`Using user-specific model: ${selectedModel}`);
+        } else {
+            // Choose model based on the project brief content if no user-specific model
+            // Correctly use the imported function
+            selectedModel = chooseModelBasedOnPrompt(input.projectBrief);
+            console.log(`Starting freelancer match flow using model: ${selectedModel}`);
+        }
+
+        // 1. Extract Skills if necessary
+        if (!requiredSkills || requiredSkills.length === 0) {
+            console.log(`No skills provided, extracting from brief using ${selectedModel}...`);
+            const extractSkillsPrompt = `Analyze the following project brief and extract the key skills required.
 Focus on technical skills, software proficiency, and specific expertise mentioned.
-Return ONLY a list of 1-5 extracted skill names. If no specific skills are mentioned, infer the most likely general skill category (e.g., "Graphic Design", "Web Development", "Copywriting").
+Return ONLY a JSON object with a single key "extractedSkills" containing a list of 1-5 skill names. If no specific skills are mentioned, infer the most likely general skill category (e.g., "Graphic Design", "Web Development", "Copywriting").
 
 Project Brief:
-{{{projectBrief}}}
-`,
-    config: { temperature: 0.2 }
-});
+${input.projectBrief}
 
-// Generator for estimation and selection prompt
-// Keep internal, do not export
-const createEstimateAndSelectPrompt = (modelName: string) => ai.definePrompt({
-  name: `estimateAndSelectPrompt_${modelName.replace(/[^a-zA-Z0-9]/g, '_')}`,
-  input: {
-    schema: z.object({
-      projectBrief: z.string(),
-      requiredSkills: z.array(z.string()),
-      availableFreelancers: z.array(
-        z.object({
-          id: z.string(),
-          skills: z.array(z.string()),
-          xp: z.number().optional().default(0),
-          testScores: z.record(z.number()).optional().default({}),
-        })
-      ).optional().describe("Optional list of available, logged-in freelancers matching at least one skill."),
-    }),
-  },
-  output: {
-    schema: z.object({
-      selectedFreelancerId: z.string().optional().describe('The ID of the chosen freelancer, or empty if none are suitable/available.'),
-      reasoning: z.string().describe('Justification for selecting this freelancer, or why none were chosen. Include estimation rationale.'),
-      // Ensure schema here matches DecomposeProjectSchema's minimum requirement
-      estimatedHours: z.number().min(0.1, { message: "Estimated hours must be greater than 0." }).describe('Estimated total hours required for the project (realistic US market standard, must be greater than 0).'),
-      estimatedTimeline: z.string().describe('Estimated project delivery timeline (e.g., "2-3 days", "1 week").'),
-    }),
-  },
-  model: modelName, // Use dynamic model
-  prompt: `You are an AI Project Manager responsible for estimating project scope and assigning tasks to freelancers. Your estimations should reflect fair US market wages.
+Example Output: {"extractedSkills": ["React", "Node.js", "UI Design"]}
+Do not include any explanations outside the JSON object.`;
+
+            // Call AI using the unified function
+            const skillResponseString = await callAI(selectedModel, extractSkillsPrompt);
+            try {
+                const cleanedResponse = skillResponseString.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+                const skillExtractionResult = ExtractSkillsAIOutputSchema.parse(JSON.parse(cleanedResponse));
+                if (!skillExtractionResult?.extractedSkills || skillExtractionResult.extractedSkills.length === 0) {
+                    throw new Error(`AI (${selectedModel}) could not extract required skills from the project brief.`);
+                }
+                requiredSkills = skillExtractionResult.extractedSkills;
+                extractedSkills = requiredSkills; // Store extracted skills for the output
+                console.log(`Extracted skills using ${selectedModel}: ${requiredSkills.join(', ')}`);
+            } catch (parseError: any) {
+                 console.error(`Error parsing/validating skill extraction response using ${selectedModel}:`, parseError.errors ?? parseError, "Raw Response:", skillResponseString);
+                 throw new Error(`AI (${selectedModel}) returned an invalid response structure for skill extraction.`);
+            }
+        }
+
+        // 2. Get Available Freelancers (Firestore logic remains the same)
+        console.log(`Searching for available freelancers with skills: ${requiredSkills.join(', ')}`);
+        const availableFreelancers = await getAvailableFreelancersBySkill(requiredSkills, 5); // Limit to 5 for the prompt
+        console.log(`Found ${availableFreelancers.length} potentially suitable freelancers.`);
+
+        // 3. Estimate Scope and Select Match
+        console.log(`Estimating project scope and selecting freelancer (if available) using ${selectedModel}...`);
+
+        // Prepare freelancer data for the prompt
+        const freelancerPromptData = availableFreelancers.length > 0 ? availableFreelancers.map(f => ({
+            id: f.id!,
+            skills: f.skills,
+            xp: f.xp ?? 0,
+            testScores: f.testScores ?? {},
+        })) : [];
+
+        // Define the schema description for the AI output
+        const estimateSchemaDescription = `{
+  "selectedFreelancerId": "Optional: ID of the chosen freelancer, or empty string/null if none suitable/available.",
+  "reasoning": "Justification for selection or why none chosen. Include estimation rationale.",
+  "estimatedHours": "Estimated total hours required (must be > 0).",
+  "estimatedTimeline": "Estimated delivery timeline (e.g., '2-3 days', '1 week')."
+}`;
+
+        const estimatePromptText = `You are an AI Project Manager responsible for estimating project scope and assigning tasks to freelancers. Your estimations should reflect fair US market wages.
 
 First, analyze the project brief and required skills to estimate the effort involved.
-- Estimate the total number of hours required to complete the project. Be realistic, considering fair US market standards. The estimate MUST be greater than 0.
+- Estimate the total number of hours required to complete the project. Be realistic, considering fair US market standards. The estimate MUST be a positive number greater than 0.
 - Estimate a likely delivery timeline (e.g., "1-2 business days", "about 1 week", "approx. 2 weeks").
 
-Project Brief: {{{projectBrief}}}
-Required Skills: {{#each requiredSkills}} - {{this}} {{/each}}
+Project Brief: ${input.projectBrief}
+Required Skills: ${requiredSkills.join(', ')}
 
-{{#if availableFreelancers}}
+${availableFreelancers.length > 0 ? `
 Next, review the list of available freelancers who possess at least one required skill, are logged in, and marked as 'available'.
 
 Available Freelancers (Sorted by general availability/rank):
-{{#each availableFreelancers}}
----
-Freelancer ID: {{{this.id}}}
-Skills: {{#each this.skills}} - {{this}} {{/each}}
-XP: {{this.xp}}
-{{#if this.testScores}}
-Test Scores:
-{{#each this.testScores}}
-  - {{ @key }}: {{this}}/100
-{{/each}}
-{{/if}}
----
-{{/each}}
+${freelancerPromptData.map(f => `---
+Freelancer ID: ${f.id}
+Skills: ${f.skills.join(', ')}
+XP: ${f.xp}
+Test Scores: ${Object.entries(f.testScores).map(([key, value]) => `${key}: ${value}/100`).join(', ') || 'N/A'}
+---`).join('\n')}
 
 Select the *single best* freelancer for this project from the available list.
 Prioritize freelancers who:
@@ -126,169 +171,105 @@ Prioritize freelancers who:
 If multiple freelancers are equally suitable, the first one listed is acceptable.
 If no freelancer in the list meets the essential skill requirements adequately, do not select anyone.
 
-Provide the ID of the selected freelancer (or empty if none selected) and a brief reasoning for your choice, incorporating your estimations.
-{{else}}
-No freelancers provided. Focus solely on estimating the project scope based on the brief and skills. Provide reasoning based on the estimation. Do not select a freelancer ID.
-{{/if}}
-
-Return the estimated hours (must be > 0), estimated timeline, the selected freelancer ID (if applicable), and your reasoning.
-Output format MUST follow the provided schema. Ensure 'estimatedHours' is a positive number greater than 0.
-`,
-});
-
-// Export only the async wrapper function and types
-export type { MatchFreelancerInput, MatchFreelancerOutput };
-
-// --- Exported Flow Function (Server Action) ---
-export async function matchFreelancer(input: MatchFreelancerInput): Promise<MatchFreelancerOutput> {
-  return matchFreelancerFlow(input);
+Provide the ID of the selected freelancer (or empty string/null if none selected) and a brief reasoning for your choice, incorporating your estimations.`
+: `No freelancers provided. Focus solely on estimating the project scope based on the brief and skills. Provide reasoning based on the estimation. Do not select a freelancer ID.`
 }
 
-// --- Main Flow Definition (Internal) ---
-// Keep internal, do not export
-const matchFreelancerFlow = ai.defineFlow<
-  typeof MatchFreelancerInputSchema,
-  typeof MatchFreelancerOutputSchema
->(
-  {
-    name: 'matchFreelancerFlow',
-    inputSchema: MatchFreelancerInputSchema,
-    outputSchema: MatchFreelancerOutputSchema,
-  },
-  async (input) => {
-    let requiredSkills = input.requiredSkills ?? [];
-    let extractedSkills: string[] | undefined = undefined;
-    let estimationResult: Awaited<ReturnType<typeof estimateAndSelectPrompt>>['output'] | null = null;
-    let estimatedBaseCost = 0;
-    let platformFee = 0;
-    let totalCostToClient = 0;
+Return ONLY a JSON object strictly following this structure:
+${estimateSchemaDescription}
+Ensure 'estimatedHours' is a positive number > 0.
+Do not include any explanations or introductory text outside the JSON object.`;
 
-    // Choose model based on the project brief content - Await the async function
-    const selectedModel = await chooseModelBasedOnPrompt(input.projectBrief);
-    console.log(`Starting freelancer match flow using model: ${selectedModel}`);
+        // Call AI using the unified function
+        const estimateResponseString = await callAI(selectedModel, estimatePromptText);
 
-    const fallbackOutput: MatchFreelancerOutput = {
-       reasoning: `An error occurred early in the matching process using ${selectedModel}.`,
-       status: 'error',
-       estimatedTimeline: "N/A",
-       estimatedHours: undefined,
-       estimatedBaseCost: undefined,
-       platformFee: undefined,
-       totalCostToClient: undefined,
-       extractedSkills: undefined,
-     };
+        // Parse and validate the estimation response
+        try {
+            const cleanedResponse = estimateResponseString.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+            aiEstimateResult = EstimateAndSelectAIOutputSchema.parse(JSON.parse(cleanedResponse));
 
-    try {
-      // 1. Extract Skills if necessary using the chosen model
-      if (!requiredSkills || requiredSkills.length === 0) {
-          console.log(`No skills provided, extracting from brief using ${selectedModel}...`);
-          const extractSkillsPrompt = createExtractSkillsPrompt(selectedModel);
-          const { output: skillExtractionResult } = await extractSkillsPrompt({ projectBrief: input.projectBrief });
-          if (!skillExtractionResult?.extractedSkills || skillExtractionResult.extractedSkills.length === 0) {
-              throw new Error(`AI (${selectedModel}) could not extract required skills from the project brief.`);
-          }
-          requiredSkills = skillExtractionResult.extractedSkills;
-          extractedSkills = requiredSkills;
-          console.log(`Extracted skills using ${selectedModel}: ${requiredSkills.join(', ')}`);
-      }
-
-      // 2. Get Available Freelancers (Firestore logic remains the same)
-      console.log(`Searching for available freelancers with skills: ${requiredSkills.join(', ')}`);
-      const availableFreelancers = await getAvailableFreelancersBySkill(requiredSkills, 5);
-      console.log(`Found ${availableFreelancers.length} potentially suitable freelancers.`);
-
-      // 3. Estimate Scope and Select Match using the chosen model
-      console.log(`Estimating project scope and selecting freelancer (if available) using ${selectedModel}...`);
-      const estimateAndSelectPrompt = createEstimateAndSelectPrompt(selectedModel);
-      const estimationInput = {
-            projectBrief: input.projectBrief,
-            requiredSkills: requiredSkills,
-            availableFreelancers: availableFreelancers.map(f => ({
-                id: f.id!,
-                skills: f.skills,
-                xp: f.xp ?? 0,
-                testScores: f.testScores ?? {},
-            })),
-      };
-      estimationResult = (await estimateAndSelectPrompt(estimationInput)).output;
-
-      if (!estimationResult?.estimatedTimeline || !estimationResult?.estimatedHours || estimationResult.estimatedHours <= 0) {
-          console.error(`AI (${selectedModel}) failed to provide valid project estimations. Input:`, estimationInput, "Output:", estimationResult);
-           const reason = !estimationResult?.estimatedHours || estimationResult.estimatedHours <= 0
-              ? `AI (${selectedModel}) did not provide a valid positive hour estimate.`
-              : `AI (${selectedModel}) failed to provide necessary project estimations (hours/timeline).`;
-          throw new Error(reason);
-      }
-
-      // 4. Calculate Costs (logic remains the same)
-      estimatedBaseCost = calculateEstimatedBaseCost(estimationResult.estimatedHours, requiredSkills);
-      platformFee = Number((estimatedBaseCost * PLATFORM_MARKUP_PERCENTAGE).toFixed(2));
-      totalCostToClient = Number((estimatedBaseCost + platformFee).toFixed(2));
-
-      console.log(`AI (${selectedModel}) estimated ${estimationResult.estimatedHours} hours, timeline: ${estimationResult.estimatedTimeline}`);
-      console.log(`Calculated Costs - Base: $${estimatedBaseCost}, Fee: $${platformFee}, Total: $${totalCostToClient}`);
-
-      // 5. Handle No Match Scenario
-      if (availableFreelancers.length === 0 || !estimationResult.selectedFreelancerId) {
-          const reasoning = availableFreelancers.length === 0
-              ? `No freelancers are currently available with the required skills. Project scope estimated by ${selectedModel}.`
-              : (estimationResult.reasoning || `AI (${selectedModel}) determined no available candidate was a suitable match. Project scope estimated.`);
-          console.log(`No suitable freelancer matched. Reasoning: ${reasoning}`);
-          return {
-              reasoning: reasoning,
-              estimatedBaseCost: estimatedBaseCost,
-              platformFee: platformFee,
-              totalCostToClient: totalCostToClient,
-              estimatedTimeline: estimationResult.estimatedTimeline,
-              estimatedHours: estimationResult.estimatedHours,
-              extractedSkills: extractedSkills,
-              status: 'no_available_freelancer',
-          };
-      }
-
-      // 6. Handle Successful Match
-      const selectedFreelancerId = estimationResult.selectedFreelancerId;
-      console.log(`AI (${selectedModel}) selected freelancer: ${selectedFreelancerId}. Reasoning: ${estimationResult.reasoning}`);
-
-      // 7. Handle Project Assignment/Update (assignment occurs separately)
-      if (input.projectId) {
-         console.log(`Project ${input.projectId} already exists, potential rematch logic needed or update existing project.`);
-      } else {
-         console.log(`Freelancer ${selectedFreelancerId} matched by ${selectedModel}. Project assignment needs to occur separately after client confirmation.`);
-      }
+            if (!aiEstimateResult?.estimatedTimeline || !aiEstimateResult?.estimatedHours || aiEstimateResult.estimatedHours <= 0) {
+                const reason = !aiEstimateResult?.estimatedHours || aiEstimateResult.estimatedHours <= 0
+                    ? `AI (${selectedModel}) did not provide a valid positive hour estimate.`
+                    : `AI (${selectedModel}) failed to provide necessary project estimations (hours/timeline).`;
+                throw new Error(reason);
+            }
+        } catch (parseError: any) {
+            console.error(`Error parsing/validating estimation response using ${selectedModel}:`, parseError.errors ?? parseError, "Raw Response:", estimateResponseString);
+            throw new Error(`AI (${selectedModel}) returned an invalid response structure for estimation/selection (check estimatedHours > 0).`);
+        }
 
 
-      // 8. Return Success Output
-      return {
-        matchedFreelancerId: selectedFreelancerId,
-        reasoning: estimationResult.reasoning,
-        estimatedBaseCost: estimatedBaseCost,
-        platformFee: platformFee,
-        totalCostToClient: totalCostToClient,
-        estimatedTimeline: estimationResult.estimatedTimeline,
-        estimatedHours: estimationResult.estimatedHours,
-        extractedSkills: extractedSkills,
-        status: 'matched',
-      };
+        // 4. Calculate Costs
+        estimatedBaseCost = calculateEstimatedBaseCost(aiEstimateResult.estimatedHours, requiredSkills);
+        platformFee = Number((estimatedBaseCost * PLATFORM_MARKUP_PERCENTAGE).toFixed(2));
+        totalCostToClient = Number((estimatedBaseCost + platformFee).toFixed(2));
+
+        console.log(`AI (${selectedModel}) estimated ${aiEstimateResult.estimatedHours} hours, timeline: ${aiEstimateResult.estimatedTimeline}`);
+        console.log(`Calculated Costs - Base: $${estimatedBaseCost}, Fee: $${platformFee}, Total: $${totalCostToClient}`);
+
+        // 5. Handle No Match Scenario
+        if (availableFreelancers.length === 0 || !aiEstimateResult.selectedFreelancerId) {
+            const reasoning = availableFreelancers.length === 0
+                ? `No freelancers are currently available with the required skills. Project scope estimated by ${selectedModel}.`
+                : (aiEstimateResult.reasoning || `AI (${selectedModel}) determined no available candidate was a suitable match. Project scope estimated.`);
+            console.log(`No suitable freelancer matched. Reasoning: ${reasoning}`);
+            return {
+                reasoning: reasoning,
+                estimatedBaseCost: estimatedBaseCost,
+                platformFee: platformFee,
+                totalCostToClient: totalCostToClient,
+                estimatedTimeline: aiEstimateResult.estimatedTimeline,
+                estimatedHours: aiEstimateResult.estimatedHours,
+                extractedSkills: extractedSkills,
+                status: availableFreelancers.length === 0 ? 'no_available_freelancer' : 'estimation_only',
+            };
+        }
+
+        // 6. Handle Successful Match
+        const selectedFreelancerId = aiEstimateResult.selectedFreelancerId;
+        console.log(`AI (${selectedModel}) selected freelancer: ${selectedFreelancerId}. Reasoning: ${aiEstimateResult.reasoning}`);
+
+        // 7. Handle Project Assignment/Update (assignment occurs separately after client confirmation/payment)
+        if (input.projectId) {
+            console.log(`Project ${input.projectId} already exists, potential rematch logic needed or update existing project.`);
+        } else {
+            console.log(`Freelancer ${selectedFreelancerId} matched by ${selectedModel}. Project assignment needs to occur separately after client confirmation.`);
+        }
+
+        // 8. Return Success Output
+        return {
+            matchedFreelancerId: selectedFreelancerId,
+            reasoning: aiEstimateResult.reasoning,
+            estimatedBaseCost: estimatedBaseCost,
+            platformFee: platformFee,
+            totalCostToClient: totalCostToClient,
+            estimatedTimeline: aiEstimateResult.estimatedTimeline,
+            estimatedHours: aiEstimateResult.estimatedHours,
+            extractedSkills: extractedSkills,
+            status: 'matched',
+        };
 
     } catch (error: any) {
-      console.error(`Error during freelancer matching/estimation flow using ${selectedModel}:`, error);
-      const errorMessage = error.message?.includes('API key') || error.message?.includes('Authentication failed')
-          ? `An error occurred with ${selectedModel}: Invalid or missing API Key. ${error.message}`
-           : error.message?.includes('Schema validation failed') || error.message?.includes('positive hour estimate')
-           ? `AI response from ${selectedModel} did not match expected format. ${error.message}`
-           : `An error occurred during matching with ${selectedModel}: ${error.message || 'Unknown error'}`;
+        console.error(`Error during freelancer matching/estimation flow:`, error);
+        // Check if the error message indicates an API key issue
+        const isApiKeyError = error.message?.includes('API key');
+        let errorMessage = isApiKeyError
+            ? `An error occurred during matching: Invalid or missing API Key.`
+            : `An error occurred during matching: ${error.message || 'Unknown error'}`;
 
-       return {
+
+        // Return fallback output with error details
+        return {
             ...fallbackOutput,
             reasoning: errorMessage,
-            extractedSkills: extractedSkills,
-            estimatedTimeline: estimationResult?.estimatedTimeline ?? 'N/A',
-            estimatedHours: estimationResult?.estimatedHours && estimationResult.estimatedHours > 0 ? estimationResult.estimatedHours : undefined,
+            extractedSkills: extractedSkills, // Keep extracted skills if available
+            // Attempt to include partial estimations if available and valid
+            estimatedTimeline: aiEstimateResult?.estimatedTimeline ?? 'N/A',
+            estimatedHours: aiEstimateResult?.estimatedHours && aiEstimateResult.estimatedHours > 0 ? aiEstimateResult.estimatedHours : undefined,
             estimatedBaseCost: estimatedBaseCost > 0 ? estimatedBaseCost : undefined,
             platformFee: platformFee > 0 ? platformFee : undefined,
             totalCostToClient: totalCostToClient > 0 ? totalCostToClient : undefined,
        };
     }
-  }
-);
+}

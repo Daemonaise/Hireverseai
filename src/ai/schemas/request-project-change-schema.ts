@@ -2,8 +2,9 @@
 /**
  * @fileOverview Schemas and types for the requestProjectChange flow.
  */
-import { z } from 'genkit';
+import { z } from 'zod'; // Use standard Zod
 
+// Input type for the estimateProjectChangeImpact function
 export const RequestProjectChangeInputSchema = z.object({
   projectId: z.string().describe('The unique identifier of the project being changed.'),
   currentBrief: z.string().describe('The original project brief.'),
@@ -15,10 +16,12 @@ export const RequestProjectChangeInputSchema = z.object({
 });
 export type RequestProjectChangeInput = z.infer<typeof RequestProjectChangeInputSchema>;
 
+// Output type for the estimateProjectChangeImpact function
+// This defines the structure the AI is expected to return as JSON
 export const RequestProjectChangeOutputSchema = z.object({
   estimatedNewTimeline: z.string().describe('The new estimated project delivery timeline incorporating the change (e.g., "approx. 3 additional days", "New target: YYYY-MM-DD").'),
-  estimatedAdditionalCost: z.number().describe('The estimated additional cost in USD required for the change. Can be 0 if no cost impact.'),
+  // Ensure cost is non-negative
+  estimatedAdditionalCost: z.number().nonnegative({ message: "Estimated additional cost cannot be negative."}).describe('The estimated additional cost in USD required for the change. Can be 0 if no cost impact.'),
   impactAnalysis: z.string().describe('A brief analysis explaining the reasoning behind the new timeline and cost estimates based on the requested change.'),
 });
 export type RequestProjectChangeOutput = z.infer<typeof RequestProjectChangeOutputSchema>;
-

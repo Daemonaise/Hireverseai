@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Determines the primary skill from a freelancer's description.
@@ -5,81 +6,75 @@
  *
  * Exports:
  * - determinePrimarySkill - A function that identifies the main skill and extracts others.
+ * - DeterminePrimarySkillInput - Input type.
+ * - DeterminePrimarySkillOutput - Output type.
  */
 
-import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import chooseModelBasedOnPrompt
-import { z } from 'genkit';
+// Correctly import from the ai-instance module
+import { chooseModelBasedOnPrompt, callAI } from '@/ai/ai-instance';
+import { z } from 'zod'; // Use standard zod import
 import {
-    DeterminePrimarySkillInputSchema, // Import schema definition
-    type DeterminePrimarySkillInput, // Export type only
-    DeterminePrimarySkillOutputSchema, // Import schema definition
-    type DeterminePrimarySkillOutput, // Export type only
+    DeterminePrimarySkillInputSchema,
+    type DeterminePrimarySkillInput,
+    DeterminePrimarySkillOutputSchema,
+    type DeterminePrimarySkillOutput,
 } from '@/ai/schemas/determine-primary-skill-schema';
 
-// Define prompt generator function
-// Keep internal, do not export
-const createPrimarySkillPrompt = (modelName: string) => ai.definePrompt({
-  name: `determinePrimarySkillPrompt_${modelName.replace(/[^a-zA-Z0-9]/g, '_')}`,
-  input: { schema: DeterminePrimarySkillInputSchema },
-  output: { schema: DeterminePrimarySkillOutputSchema },
-  model: modelName, // Use dynamically selected model
-  prompt: `Analyze the following skills description provided by a freelancer.
+// Export types
+export type { DeterminePrimarySkillInput, DeterminePrimarySkillOutput };
+
+// Main exported function
+export async function determinePrimarySkill(input: DeterminePrimarySkillInput): Promise<DeterminePrimarySkillOutput> {
+    try {
+        // 1. Choose model
+        // Correctly use the imported function
+        const selectedModel = chooseModelBasedOnPrompt(input.skillsDescription);
+        console.log(`Determining primary skill using model: ${selectedModel}`);
+
+        // 2. Construct prompt
+        const schemaDescription = `{
+  "primarySkill": "The single most prominent skill (e.g., 'React Development')",
+  "extractedSkills": ["List", "of", "all", "distinct", "skills"]
+}`;
+        const promptText = `Analyze the following skills description provided by a freelancer.
 Identify the single most prominent or primary skill they possess based on their description.
 Also, extract a list of all distinct skills mentioned or clearly implied.
 
 Skills Description:
-{{{skillsDescription}}}
+${input.skillsDescription}
 
 Focus on concrete abilities and expertise. The primary skill should be the one most emphasized or central to their description. The extracted skills list should include the primary skill and any other relevant skills identified.
 
-Return the result strictly following the output schema, providing 'primarySkill' and 'extractedSkills'.`,
-  config: {
-      temperature: 0.2, // Lower temperature for more deterministic skill identification
-  },
-});
+Return ONLY a JSON object strictly following this structure:
+${schemaDescription}
+Do not include any explanations or introductory text outside the JSON object.`;
 
-// Export only the async wrapper function and types
-export type { DeterminePrimarySkillInput, DeterminePrimarySkillOutput };
+        // 3. Call AI using the unified function
+        const responseString = await callAI(selectedModel, promptText);
 
-export async function determinePrimarySkill(input: DeterminePrimarySkillInput): Promise<DeterminePrimarySkillOutput> {
-  return determinePrimarySkillFlow(input);
-}
+        // 4. Parse and validate response
+        try {
+            // Clean potential markdown code block fences
+            const cleanedResponse = responseString.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+            const parsed = JSON.parse(cleanedResponse);
+            const output = DeterminePrimarySkillOutputSchema.parse(parsed);
 
-// Keep internal, do not export
-const determinePrimarySkillFlow = ai.defineFlow<
-  typeof DeterminePrimarySkillInputSchema,
-  typeof DeterminePrimarySkillOutputSchema
->(
-  {
-    name: 'determinePrimarySkillFlow',
-    inputSchema: DeterminePrimarySkillInputSchema,
-    outputSchema: DeterminePrimarySkillOutputSchema,
-  },
-  async (input) => {
-     // Choose model based on the skill description - Await the async function
-     const selectedModel = await chooseModelBasedOnPrompt(input.skillsDescription);
-     console.log(`Determining primary skill using model: ${selectedModel}`);
+            if (!output || !output.primarySkill || !output.extractedSkills || output.extractedSkills.length === 0) {
+                console.warn(`Primary skill determination failed or returned empty results using ${selectedModel} for description:`, input.skillsDescription, "Parsed Output:", output);
+                // Fallback if parsing succeeded but data is missing
+                return { primarySkill: "General", extractedSkills: ["General"] };
+            }
+            return output;
 
-     try {
-        // Create the specific prompt definition
-        const primarySkillPrompt = createPrimarySkillPrompt(selectedModel);
-
-        // Call the dynamically created prompt
-        const { output } = await primarySkillPrompt(input);
-
-        if (!output || !output.primarySkill || !output.extractedSkills || output.extractedSkills.length === 0) {
-            console.warn(`Primary skill determination failed or returned empty results using ${selectedModel} for description:`, input.skillsDescription);
-            return { primarySkill: "General", extractedSkills: ["General"] }; // Fallback
+        } catch (parseError: any) {
+            console.error(`Error parsing/validating AI response for skill determination using ${selectedModel}:`, parseError.errors ?? parseError, "Raw Response:", responseString);
+            // Fallback on parsing error
+            return { primarySkill: "General", extractedSkills: ["General"] };
         }
-        return output;
-     } catch (error: any) {
-         console.error(`Error in determinePrimarySkillFlow using ${selectedModel}:`, error);
-         if (error.message?.includes('API key')) {
-             console.error(`Ensure your GOOGLE_API_KEY (or other configured keys) is valid and has permissions.`);
-         } else if (error.message?.includes('INVALID_ARGUMENT')) {
-             console.error(`Invalid argument error during skill determination using ${selectedModel}. Check prompt/schema. Error:`, error.details);
-         }
-         return { primarySkill: "General", extractedSkills: ["General"] }; // Fallback
-     }
-  }
-);
+
+    } catch (error: any) {
+        console.error(`Error in determinePrimarySkill function using ${selectedModel}:`, error);
+        // Fallback on general API call error
+        return { primarySkill: "General", extractedSkills: ["General"] };
+    }
+}

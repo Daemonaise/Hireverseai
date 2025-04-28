@@ -2,8 +2,9 @@
 /**
  * @fileOverview Schemas and types for the decomposeProject flow.
  */
-import { z } from 'genkit';
-import { Timestamp } from 'firebase/firestore'; // Import Timestamp
+import { z } from 'zod'; // Use standard Zod
+// Timestamp import is not needed here, only in firestore.ts or components
+// import { Timestamp } from 'firebase/firestore';
 
 // Schema for a single Microtask
 export const MicrotaskSchema = z.object({
@@ -13,12 +14,12 @@ export const MicrotaskSchema = z.object({
     estimatedHours: z.number().min(0.1, { message: "Estimated hours must be greater than 0." }).optional().describe('Estimated hours required to complete this microtask (must be > 0).'),
     requiredSkill: z.string().optional().describe('The primary skill needed to complete this microtask (should ideally map to one of the project\'s required skills).'),
     dependencies: z.array(z.string()).optional().describe('List of IDs of other microtasks that must be completed before this one can start.'),
-    // Status and assignment are handled post-decomposition
+    // Status and assignment are handled post-decomposition and runtime, not part of the AI output schema for decomposition itself
 });
 export type Microtask = z.infer<typeof MicrotaskSchema>;
 
 
-// Input schema for the decomposition flow
+// Input type for the decomposition function
 export const DecomposeProjectInputSchema = z.object({
   projectId: z.string().describe('The unique identifier of the project to decompose.'),
   projectBrief: z.string().min(20).describe('The original project brief description.'),
@@ -27,10 +28,8 @@ export const DecomposeProjectInputSchema = z.object({
 export type DecomposeProjectInput = z.infer<typeof DecomposeProjectInputSchema>;
 
 
-// Output schema for the decomposition flow
+// Output type for the decomposition function (what the AI should return)
 export const DecomposeProjectOutputSchema = z.object({
   microtasks: z.array(MicrotaskSchema).min(1).describe('An array of decomposed microtasks derived from the project brief.'),
 });
 export type DecomposeProjectOutput = z.infer<typeof DecomposeProjectOutputSchema>;
-
-
