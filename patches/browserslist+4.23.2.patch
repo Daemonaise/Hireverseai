@@ -1,0 +1,25 @@
+diff --git a/node_modules/browserslist/node.js b/node_modules/browserslist/node.js
+index 51f3014..b9864b7 100644
+--- a/node_modules/browserslist/node.js
++++ b/node_modules/browserslist/node.js
+@@ -249,10 +249,15 @@ module.exports = Object.assign(browserslist, {
+     if (name === '.') {
+       checkExtend(name)
+     }
+-    var stats = require(require.resolve(
+-      path.join(name, 'browserslist-stats.json'),
+-      { paths: ['.'] }
+-    ))
++    var stats
++    try {
++      stats = require(require.resolve(
++        path.join(name, 'browserslist-stats.json'),
++        { paths: ['.'] }
++      ))
++    } catch (e) {
++      stats = {} // Fallback to empty object if stats file is missing or unresolvable
++    }
+     return normalizeStats(data, stats)
+   },
+ 
+
