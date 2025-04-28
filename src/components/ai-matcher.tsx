@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { matchFreelancer, type MatchFreelancerOutput, type MatchFreelancerInput } from '@/ai/flows/match-freelancer';
-import { generateProjectIdea, type GenerateProjectIdeaOutput } from '@/ai/flows/generate-project-idea'; // Import new flow
+import { generateProjectIdea } from '@/ai/flows/generate-project-idea'; // Import new flow
+import type { GenerateProjectIdeaOutput } from '@/ai/schemas/generate-project-idea-schema'; // Corrected import path
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -88,8 +89,7 @@ export function AiMatcher() {
       alert("You have exceeded the limit for idea requests. Please focus on developing a project instead of continuously generating new ideas.");
       setIdeaGenerationCounter(0);
       return;
-    } 
-
+    }
 
 
      setIsIdeaChatOpen(true);
@@ -102,19 +102,18 @@ export function AiMatcher() {
          const result = await generateProjectIdea({}); // Pass empty object or specific input if needed
          console.log("AI Idea Generation Result:", result);
          if (result.status === 'error') {
+             // Use the error reasoning provided by the flow, or a default message
              throw new Error(result.reasoning || "Failed to generate idea.");
          }
          setGeneratedIdea(result);
      } catch (err: any) {
          console.error('Error generating project idea:', err);
-         const message = err.message?.includes('API key')
-             ? `Error generating idea: Invalid or missing API Key. ${err.message}`
-             : err.message || 'An unexpected error occurred while generating the idea.';
-         setIdeaError(message);
+         const message = err.message || 'An unexpected error occurred while generating the idea.';
+         setIdeaError(message); // Set the error state to display in the dialog
      } finally {
          setIdeaLoading(false);
      }
- }, []);
+ }, [ideaGenerationCounter]); // Added counter to dependencies
 
  // --- Handle Form Submission ---
   const onSubmit = useCallback((values: FormSchema) => {
@@ -343,10 +342,10 @@ export function AiMatcher() {
                    <FormLabel
                        htmlFor="projectBrief"
                        className={cn(
-                         'absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 z-10 origin-[0] px-2 text-sm text-muted-foreground duration-200 pointer-events-none',
+                         'absolute left-3 top-1/2 -translate-y-1/2 z-10 origin-[0] px-1 text-sm text-muted-foreground duration-200 pointer-events-none', // Adjusted left and px
                          // When placeholder is not shown (input focused or has value), move label up
-                         'peer-focus:left-3 peer-focus:top-[0.8rem] peer-focus:translate-x-0 peer-focus:-translate-y-4 peer-focus:scale-75 peer-focus:bg-background peer-focus:text-primary', // Float up on focus
-                         field.value && 'left-3 top-[0.8rem] translate-x-0 -translate-y-4 scale-75 bg-background text-primary' // Keep floated if value exists
+                         'peer-focus:left-3 peer-focus:top-[0.6rem] peer-focus:-translate-y-4 peer-focus:scale-75 peer-focus:bg-background peer-focus:text-primary', // Float up on focus
+                         field.value && 'left-3 top-[0.6rem] -translate-y-4 scale-75 bg-background text-primary' // Keep floated if value exists
                        )}
                   >
                      Describe your project goal...
@@ -355,7 +354,7 @@ export function AiMatcher() {
                     <Textarea
                       id="projectBrief"
                       placeholder=" " // Use space for floating label effect
-                      className="min-h-[120px] resize-none border-2 border-input focus:border-primary transition-colors" // Adjusted height, thicker border
+                      className="min-h-[120px] resize-none border-2 border-input focus:border-primary transition-colors pt-4" // Adjusted height, thicker border, added pt-4
                       {...field}
                       aria-label="Project Brief Description"
                     />
@@ -546,7 +545,7 @@ export function AiMatcher() {
                <Alert variant="destructive">
                  <AlertCircle className="h-4 w-4" />
                  <AlertTitle>Error</AlertTitle>
-                 <AlertDescription>{ideaError}</AlertDescription>
+                 <AlertDescription>{ideaError}</AlertDescription> {/* Display the error message */}
                  <Button variant="outline" size="sm" onClick={handleGenerateIdea} className="mt-3">Retry</Button>
                </Alert>
              )}
@@ -617,3 +616,4 @@ export function AiMatcher() {
      </> // Close Fragment
   );
 }
+
