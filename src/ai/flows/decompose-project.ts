@@ -1,5 +1,5 @@
 
-'use server';
+
 /**
  * @fileOverview Decomposes a project brief into a list of actionable microtasks.
  * Uses the default Google AI model.
@@ -16,7 +16,7 @@ import {
     DecomposeProjectOutputSchema,
     type Microtask, // Import Microtask type for internal use
     MicrotaskSchema, // Import MicrotaskSchema for prompt definition
-} from '@/ai/schemas/decompose-project-schema';
+} from '@/ai/schemas/decompose-project-schema'; // Import schemas/types
 import { updateProjectMicrotasks, updateProjectStatus } from '@/services/firestore'; // Import Firestore service
 import type { ProjectStatus } from '@/types/project'; // Import ProjectStatus type
 
@@ -26,8 +26,8 @@ import type { ProjectStatus } from '@/types/project'; // Import ProjectStatus ty
 const decompositionPromptDefinition = ai.definePrompt({
     name: `projectDecompositionPrompt`, // Generic name
     input: { schema: DecomposeProjectInputSchema },
-    // Use the imported schema but override estimatedHours constraint
-    output: { schema: DecomposeProjectOutputSchema }, // Using the direct schema which now has .min(0.1)
+    // Use the imported schema which now has .min(0.1) in the Zod definition
+    output: { schema: DecomposeProjectOutputSchema },
     prompt: `You are an expert AI Project Manager specializing in breaking down complex project briefs into a series of clear, actionable, and sequential microtasks.
 
 Project Brief:
@@ -52,10 +52,11 @@ Ensure 'estimatedHours', if provided, is a positive number greater than 0.
     config: {
         temperature: 0.5, // Moderate temperature for structured but slightly flexible decomposition
     },
-     // Model defaults to the one configured in ai-instance.ts (gemini-2.0-flash)
+     // Model defaults to the one configured in ai-instance.ts
 });
 
 
+// 'use server'; - Not needed here, it's a standard async function
 /**
  * Decomposes a project brief into microtasks using an AI model and updates the project in Firestore.
  * @param input - The project details (ID, brief, skills).
@@ -76,6 +77,8 @@ export async function decomposeProject(input: DecomposeProjectInput): Promise<z.
          console.error(`Error during decomposition or update for project ${input.projectId}:`, error);
          if (error.message?.includes('API key')) {
              console.error(`Ensure your GOOGLE_API_KEY is valid and has permissions.`);
+         } else if (error.message?.includes('INVALID_ARGUMENT')) {
+             console.error(`Invalid argument error during decomposition for project ${input.projectId}. Check prompt/schema. Error:`, error.details);
          }
          // Optionally revert status back to 'pending' or set an 'error' status
          await updateProjectStatus(input.projectId, 'pending'); // Revert status on failure
@@ -148,6 +151,8 @@ const decomposeProjectFlow = ai.defineFlow<
          console.error(`Error in decomposeProjectFlow for project ${input.projectId}:`, error);
           if (error.message?.includes('API key')) {
              console.error(`Ensure your GOOGLE_API_KEY is valid and has permissions.`);
+         } else if (error.message?.includes('INVALID_ARGUMENT')) {
+             console.error(`Invalid argument error during decomposition flow for project ${input.projectId}. Check prompt/schema. Error:`, error.details);
          }
          const errorMessage = error instanceof Error ? error.message : String(error);
           // Re-throw to be caught by the wrapper

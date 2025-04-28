@@ -1,5 +1,5 @@
 
-'use server';
+
 /**
  * @fileOverview Generates a single adaptive assessment question.
  * Uses the default Google AI model.
@@ -14,6 +14,7 @@ import {
     GenerateAssessmentQuestionInputSchema,
     type GenerateAssessmentQuestionInput,
     GenerateAssessmentQuestionOutputSchema,
+    type GenerateAssessmentQuestionOutput, // Export output type
     DifficultyLevelSchema,
     type DifficultyLevel,
 } from '@/ai/schemas/generate-assessment-question-schema';
@@ -60,11 +61,11 @@ Ensure the output strictly follows the schema:
     config: {
         temperature: 0.7, // Moderate temperature for creative but relevant questions
     },
-     // Model defaults to the one configured in ai-instance.ts (gemini-2.0-flash)
+     // Model defaults to the one configured in ai-instance.ts
 });
 
-
-export async function generateAssessmentQuestion(input: GenerateAssessmentQuestionInput): Promise<z.infer<typeof GenerateAssessmentQuestionOutputSchema>> {
+// 'use server'; - Not needed here, it's a standard async function
+export async function generateAssessmentQuestion(input: GenerateAssessmentQuestionInput): Promise<GenerateAssessmentQuestionOutput> {
   return generateAssessmentQuestionFlow(input);
 }
 
@@ -109,6 +110,8 @@ const generateAssessmentQuestionFlow = ai.defineFlow<
          console.error(`Error in generateAssessmentQuestionFlow for skill ${input.primarySkill}:`, error);
          if (error.message?.includes('API key')) {
              console.error(`Ensure your GOOGLE_API_KEY is valid and has permissions.`);
+         } else if (error.message?.includes('INVALID_ARGUMENT')) {
+             console.error(`Invalid argument error generating question for skill ${input.primarySkill}. Check prompt/schema. Error:`, error.details);
          }
          // Provide more specific error message
          const errorMessage = error instanceof Error ? error.message : String(error);

@@ -1,5 +1,5 @@
 
-'use server';
+
 /**
  * @fileOverview Grades a single answer from an adaptive assessment.
  * Uses the default Google AI model.
@@ -15,6 +15,7 @@ import {
     GradeAssessmentAnswerInputSchema,
     type GradeAssessmentAnswerInput, // Keep type import for internal use
     GradeAssessmentAnswerOutputSchema,
+    type GradeAssessmentAnswerOutput, // Export output type
     AnswerFlagsSchema, // Import for type usage
     type AnswerFlags, // Import type only
 } from '@/ai/schemas/grade-assessment-answer-schema'; // Import schemas/types
@@ -46,11 +47,11 @@ Return the result strictly following the output schema with 'questionId', 'score
     config: {
         temperature: 0.3, // Lower temperature for more objective grading
     },
-     // Model defaults to the one configured in ai-instance.ts (gemini-2.0-flash)
+     // Model defaults to the one configured in ai-instance.ts
 });
 
-
-export async function gradeAssessmentAnswer(input: GradeAssessmentAnswerInput): Promise<z.infer<typeof GradeAssessmentAnswerOutputSchema>> {
+// 'use server'; - Not needed here, it's a standard async function
+export async function gradeAssessmentAnswer(input: GradeAssessmentAnswerInput): Promise<GradeAssessmentAnswerOutput> {
   return gradeAssessmentAnswerFlow(input);
 }
 
@@ -90,6 +91,8 @@ const gradeAssessmentAnswerFlow = ai.defineFlow<
          console.error(`Error in gradeAssessmentAnswerFlow for question ${input.questionId}:`, error);
           if (error.message?.includes('API key')) {
              console.error(`Ensure your GOOGLE_API_KEY is valid and has permissions.`);
+         } else if (error.message?.includes('INVALID_ARGUMENT')) {
+             console.error(`Invalid argument error grading answer for question ${input.questionId}. Check prompt/schema. Error:`, error.details);
          }
          // Provide more specific error message
           const errorMessage = error instanceof Error ? error.message : String(error);

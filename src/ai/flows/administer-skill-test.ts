@@ -1,5 +1,5 @@
 
-'use server';
+
 /**
  * @fileOverview Generates skill test questions for freelancers based on their selected skills.
  * Uses the default Google AI model.
@@ -34,10 +34,10 @@ Output format MUST follow the provided schema with 'questionText' and 'skillTest
     config: {
         temperature: 0.7, // Adjust creativity/focus as needed
     }
-    // Model defaults to the one configured in ai-instance.ts (gemini-2.0-flash)
+    // Model defaults to the one configured in ai-instance.ts (gemini-1.5-flash-latest)
 });
 
-
+// 'use server'; - This is not required here as it's a standard async function
 export async function administerSkillTest(input: AdministerSkillTestInput): Promise<z.infer<typeof AdministerSkillTestOutputSchema>> {
   return administerSkillTestFlow(input);
 }
@@ -56,13 +56,13 @@ const administerSkillTestFlow = ai.defineFlow<
     const questions: Question[] = []; // Use the imported Question type
     const generationPromises: Promise<void>[] = []; // Store promises for concurrent generation
 
-    console.log(`Generating test for Freelancer ${input.freelancerId} with skills: ${input.skills.join(', ')}`);
+    console.log(`Generating test for Freelancer ${input.freelancerId} with skills: ${input.skills.join(', ')} using default model.`);
 
     for (const skill of input.skills) {
         // Define the generation task as an async function
         const generateQuestionForSkill = async () => {
             try {
-                console.log(`Generating question for skill: ${skill} using default model.`);
+                console.log(`Generating question for skill: ${skill}`);
 
                 // Call the prompt definition using the default model
                 const { output: question } = await skillQuestionPromptDefinition(
@@ -84,6 +84,8 @@ const administerSkillTestFlow = ai.defineFlow<
                 console.error(`Error generating question for skill "${skill}":`, error);
                  if (error.message?.includes('API key')) {
                     console.error(`Ensure your GOOGLE_API_KEY is valid and has permissions.`);
+                 } else if (error.message?.includes('INVALID_ARGUMENT')) {
+                     console.error(`Invalid argument error for skill "${skill}". Check prompt/schema. Error:`, error.details);
                  }
                 // Optionally, add a default placeholder question or skip
                 questions.push({ questionText: `Placeholder question for ${skill} - error during generation. Describe your experience with ${skill}.`, skillTested: skill });

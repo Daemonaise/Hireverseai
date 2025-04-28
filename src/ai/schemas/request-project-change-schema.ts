@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Schemas and types for the requestProjectChange flow.
  */
@@ -20,3 +21,4 @@ export const RequestProjectChangeOutputSchema = z.object({
   impactAnalysis: z.string().describe('A brief analysis explaining the reasoning behind the new timeline and cost estimates based on the requested change.'),
 });
 export type RequestProjectChangeOutput = z.infer<typeof RequestProjectChangeOutputSchema>;
+

@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Schemas and types for the generateAssessmentQuestion flow.
  */
@@ -26,3 +27,4 @@ export const GenerateAssessmentQuestionOutputSchema = z.object({
     // Potential future additions: questionType (e.g., 'multiple-choice', 'coding', 'free-text'), options, expectedAnswerKeywords
 });
 export type GenerateAssessmentQuestionOutput = z.infer<typeof GenerateAssessmentQuestionOutputSchema>;
+

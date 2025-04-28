@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Schemas and types for the determinePrimarySkill flow.
  */
@@ -13,3 +14,4 @@ export const DeterminePrimarySkillOutputSchema = z.object({
   extractedSkills: z.array(z.string()).describe('A list of all relevant skills extracted from the description, including the primary skill.'),
 });
 export type DeterminePrimarySkillOutput = z.infer<typeof DeterminePrimarySkillOutputSchema>;
+

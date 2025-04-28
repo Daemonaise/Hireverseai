@@ -27,3 +27,4 @@ export const GenerateProjectIdeaOutputSchema = z.object({
 });
 export type GenerateProjectIdeaOutput = z.infer<typeof GenerateProjectIdeaOutputSchema>;
 
+

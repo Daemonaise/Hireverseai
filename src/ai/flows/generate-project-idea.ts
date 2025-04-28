@@ -1,5 +1,5 @@
 
-'use server';
+
 /**
  * @fileOverview Generates a project idea with cost and timeline estimations.
  * Uses the default Google AI model.
@@ -37,12 +37,14 @@ function calculateEstimatedBaseCost(hours: number, skills?: string[]): number {
     let averageRate = DEFAULT_HOURLY_RATE_USD;
     if (skills && skills.length > 0) {
         const lowerCaseSkills = skills.map(s => s.toLowerCase());
-        if (lowerCaseSkills.some(s => s.includes('develop') || s.includes('tech') || s.includes('code'))) {
+        if (lowerCaseSkills.some(s => s.includes('develop') || s.includes('tech') || s.includes('code') || s.includes('software') || s.includes('engineer'))) {
             averageRate = TECH_HOURLY_RATE_USD;
-        } else if (lowerCaseSkills.some(s => s.includes('design') || s.includes('graphic'))) {
+        } else if (lowerCaseSkills.some(s => s.includes('design') || s.includes('graphic') || s.includes('ui/ux') || s.includes('illustrat'))) {
             averageRate = DESIGN_HOURLY_RATE_USD;
-        } else if (lowerCaseSkills.some(s => s.includes('writing') || s.includes('edit'))) {
+        } else if (lowerCaseSkills.some(s => s.includes('writing') || s.includes('edit') || s.includes('copywrit') || s.includes('content'))) {
             averageRate = WRITING_HOURLY_RATE_USD;
+        } else if (lowerCaseSkills.some(s => s.includes('cad') || s.includes('drafting') || s.includes('engineer'))) {
+             averageRate = TECH_HOURLY_RATE_USD; // Engineering often higher rate
         }
     }
     const estimatedBaseCost = hours * averageRate;
@@ -51,7 +53,7 @@ function calculateEstimatedBaseCost(hours: number, skills?: string[]): number {
 
 
 // --- Exported Flow Function ---
-
+// 'use server'; - Not needed here, it's a standard async function
 export async function generateProjectIdea(input: GenerateProjectIdeaInput): Promise<GenerateProjectIdeaOutput> {
   return generateProjectIdeaFlow(input);
 }
@@ -85,7 +87,7 @@ Output ONLY the JSON object matching the specified output schema. Ensure 'estima
   config: {
       temperature: 0.8, // Higher temperature for more creative ideas
   },
-   // Model defaults to the one configured in ai-instance.ts (gemini-2.0-flash)
+   // Model defaults to the one configured in ai-instance.ts
 });
 
 // --- Main Flow Definition ---
@@ -110,8 +112,9 @@ const generateProjectIdeaFlow = ai.defineFlow<
         estimatedBaseCost: undefined,
         platformFee: undefined,
         totalCostToClient: undefined,
-        monthlySubscriptionCost: undefined,
+        monthlySubscriptionCost: MONTHLY_SUBSCRIPTION_COST, // Include fallback monthly cost
         details: undefined,
+        requiredSkills: [], // Ensure requiredSkills exists in fallback
     };
 
     try {
@@ -150,6 +153,7 @@ const generateProjectIdeaFlow = ai.defineFlow<
         monthlySubscriptionCost: MONTHLY_SUBSCRIPTION_COST, // Add fixed subscription cost
         reasoning: `AI generated idea and estimated scope. Costs calculated based on ${aiResult.estimatedHours} hours.`,
         status: 'success',
+        requiredSkills: aiResult.requiredSkills ?? [], // Ensure requiredSkills is always an array
       };
 
     } catch (error: any) {
@@ -157,9 +161,10 @@ const generateProjectIdeaFlow = ai.defineFlow<
       // Differentiate between API key errors and other potential errors (like schema validation)
       let errorMessage = 'Failed to generate idea: Unknown error';
       if (error.message?.includes('API key') || error.message?.includes('Authentication failed')) {
-         errorMessage = `Failed to generate idea: Invalid or missing GOOGLE_API_KEY. Please check your .env file. Original error: ${error.message}`;
-      } else if (error.message?.includes('Schema validation failed') || error.message?.includes('positive hour estimate')) {
-          errorMessage = `Failed to generate idea: AI response did not match expected format (e.g., missing fields or invalid hours). Original error: ${error.message}`;
+         errorMessage = `Failed to generate idea: Invalid or missing API Key. Please check your configuration. Original error: ${error.message}`;
+      } else if (error.message?.includes('Schema validation failed') || error.message?.includes('positive hour estimate') || error.message?.includes('INVALID_ARGUMENT')) {
+          errorMessage = `Failed to generate idea: AI response did not match expected format (e.g., missing fields or invalid hours). Check prompt/schema. Original error: ${error.message}`;
+          console.error("Detailed Error:", error.details); // Log details if available
       } else {
           errorMessage = `Failed to generate idea: ${error.message}`;
       }

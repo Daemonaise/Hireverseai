@@ -1,5 +1,5 @@
 
-'use server';
+
 /**
  * @fileOverview Scores a freelancer's submitted answers for a skill test.
  * Uses the default Google AI model.
@@ -15,6 +15,7 @@ import {
     ScoreSkillTestInputSchema,
     type ScoreSkillTestInput, // Keep type import for internal use
     ScoreSkillTestOutputSchema,
+    type ScoreSkillTestOutput, // Export output type
     AnswerSchema,
     type Answer,
     SkillScoreSchema,
@@ -45,7 +46,7 @@ Output MUST follow the SkillScore schema with 'skill', 'score', and 'reasoning'.
     config: {
         temperature: 0.3, // Lower temperature for more objective scoring
     },
-     // Model defaults to the one configured in ai-instance.ts (gemini-2.0-flash)
+     // Model defaults to the one configured in ai-instance.ts
 });
 
 // This static prompt is used for aggregation only.
@@ -64,7 +65,7 @@ const aggregateScoresPrompt = ai.definePrompt({
         feedback: z.string().optional().describe("Brief overall feedback (1-2 sentences)."),
     })
   },
-  // Model defaults to the one configured in ai-instance.ts (gemini-2.0-flash)
+  // Model defaults to the one configured in ai-instance.ts
   prompt: `You are summarizing the results of a freelancer skill test.
 Freelancer ID: {{{freelancerId}}}
 Test ID: {{{testId}}}
@@ -82,8 +83,8 @@ Provide brief (1-2 sentences) overall feedback summarizing the freelancer's perf
 Output only the overallScore and optional feedback according to the schema.`,
 });
 
-
-export async function scoreSkillTest(input: ScoreSkillTestInput): Promise<z.infer<typeof ScoreSkillTestOutputSchema>> {
+// 'use server'; - Not needed here, it's a standard async function
+export async function scoreSkillTest(input: ScoreSkillTestInput): Promise<ScoreSkillTestOutput> {
   const result = await scoreSkillTestFlow(input);
 
   // After getting the scores from the AI, update Firestore
@@ -163,6 +164,8 @@ const scoreSkillTestFlow = ai.defineFlow<
                  console.error(`Error scoring skill "${skill}":`, error);
                  if (error.message?.includes('API key')) {
                      console.error(`Ensure your GOOGLE_API_KEY is valid and has permissions.`);
+                 } else if (error.message?.includes('INVALID_ARGUMENT')) {
+                     console.error(`Invalid argument error scoring skill "${skill}". Check prompt/schema. Error:`, error.details);
                  }
                  // Add a placeholder score or handle error
                  skillScores.push({ skill: skill, score: 0, reasoning: "Error during automated scoring." });
@@ -211,13 +214,15 @@ const scoreSkillTestFlow = ai.defineFlow<
              console.error(`Error generating overall feedback for test ${input.testId}:`, error);
              if (error.message?.includes('API key')) {
                  console.error(`Ensure your GOOGLE_API_KEY is valid and has permissions.`);
+             } else if (error.message?.includes('INVALID_ARGUMENT')) {
+                 console.error(`Invalid argument error generating feedback for test ${input.testId}. Check prompt/schema. Error:`, error.details);
              }
              feedback = "Feedback generation failed.";
          }
      }
 
 
-    const finalOutput: z.infer<typeof ScoreSkillTestOutputSchema> = {
+    const finalOutput: ScoreSkillTestOutput = {
         overallScore: overallScore,
         skillScores: skillScores,
         feedback: feedback,

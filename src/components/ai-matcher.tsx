@@ -59,6 +59,8 @@ export function AiMatcher() {
   const [isIdeaChatOpen, setIsIdeaChatOpen] = useState(false);
   const [generatedIdea, setGeneratedIdea] = useState<GenerateProjectIdeaOutput | null>(null);
   const [ideaLoading, setIdeaLoading] = useState(false);
+  const [ideaGenerationCounter, setIdeaGenerationCounter] = useState(0);
+
   const [ideaError, setIdeaError] = useState<string | null>(null);
 
 
@@ -80,6 +82,16 @@ export function AiMatcher() {
 
   // --- Handle AI Idea Generation ---
   const handleGenerateIdea = useCallback(async () => {
+    setIdeaGenerationCounter((prevCounter) => prevCounter + 1);
+
+    if (ideaGenerationCounter >= 3) {
+      alert("You have exceeded the limit for idea requests. Please focus on developing a project instead of continuously generating new ideas.");
+      setIdeaGenerationCounter(0);
+      return;
+    } 
+
+
+
      setIsIdeaChatOpen(true);
      setIdeaLoading(true);
      setIdeaError(null);

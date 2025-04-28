@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Schemas and types for the scoreSkillTest flow.
  */
@@ -30,3 +31,4 @@ export const ScoreSkillTestOutputSchema = z.object({
   feedback: z.string().optional().describe("Concise, overall qualitative feedback for the freelancer, summarizing performance."),
 });
 export type ScoreSkillTestOutput = z.infer<typeof ScoreSkillTestOutputSchema>;
+
