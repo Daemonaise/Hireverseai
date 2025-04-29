@@ -1,91 +1,100 @@
 'use server';
-
 /**
- * @fileOverview Main flow for the generateProjectIdea functionality.
+ * @fileOverview Generates a fresh project idea for clients, with real-world estimated costs.
  */
 
-import { z } from 'zod';
-import { callAI } from '@/ai/ai-instance'; // Do not modify ai-instance.ts
+import { callAI } from '@/ai/ai-instance';
+// import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Removing dependency as model selection is simplified
+import {
+  GenerateProjectIdeaInputSchema,
+  GenerateProjectIdeaAIOutputSchema,
+  GenerateProjectIdeaOutputSchema,
+  type GenerateProjectIdeaOutput,
+  type GenerateProjectIdeaInput, // Exporting type is okay
+} from '@/ai/schemas/generate-project-idea-schema';
 
-// Move schemas to a separate non-server file if needed
-const GenerateProjectIdeaAIOutputSchema = z.object({
-  idea: z.string().describe('Suggest a concise and actionable project idea suitable for freelance execution. Be creative!'),
-  details: z.string().optional().describe('Provide 1-2 sentences elaborating on the suggested project idea.'),
-  estimatedTimeline: z.string().describe('Estimate a realistic project delivery timeline (e.g., "3-5 days", "1-2 weeks").'),
-  estimatedHours: z.number().positive({ message: "Estimated hours must be greater than 0." }).describe('Estimate the total number of hours required.'),
-  requiredSkills: z.array(z.string()).optional().describe('List 1-3 key skills needed.'),
-});
+// --- Platform fee configuration ---
+const PLATFORM_FEE_PERCENTAGE = 0.15; // 15% markup
+const DEFAULT_HOURLY_RATE = 65; // Default USD rate if no better data is available
+const SUBSCRIPTION_MONTHS = 6; // Default assumption if calculating monthly cost
 
-export async function generateProjectIdea(input: { industryHint?: string }): Promise<{
-  idea: string;
-  details?: string;
-  estimatedTimeline: string;
-  estimatedHours?: number;
-  estimatedBaseCost?: number;
-  platformFee?: number;
-  totalCostToClient?: number;
-  monthlySubscriptionCost?: number;
-  reasoning?: string;
-  status: 'success' | 'error';
-  requiredSkills?: string[];
-}> {
+// Ensure only the async function is exported
+export async function generateProjectIdea(input?: unknown): Promise<GenerateProjectIdeaOutput> {
   try {
-    const prompt = `
-You are an expert freelance project designer.
+    // Validate optional input (industry hint)
+    const parsedInput = input ? GenerateProjectIdeaInputSchema.parse(input) : undefined;
 
-Using the hint below, suggest a new, realistic freelance project idea that could be executed by a skilled freelancer.
+    // --- 1. Model selection ---
+    // Simplified: Directly use Gemini via callAI until other plugins are configured
+    const selectedModel = 'gemini'; // Always use Gemini for now
 
-Respond in JSON format matching exactly this structure:
+    // --- 2. Build dynamic prompt ---
+    const prompt = `Generate a realistic, unique, and feasible project idea that could be completed remotely by a freelancer.
+If an industry hint is provided, prefer aligning the project to that industry.
+Use realistic estimates based on fair US freelance rates (~$65/hour baseline).
+Output ONLY a strict JSON object with fields: idea, details, estimatedTimeline, estimatedHours (positive number, greater than 0), requiredSkills (optional array).
+
+${parsedInput?.industryHint ? `Industry Hint: ${parsedInput.industryHint}` : ''}
+
+Example JSON structure:
 {
-  "idea": "...",
-  "details": "...",
-  "estimatedTimeline": "...",
-  "estimatedHours": ...,
-  "requiredSkills": ["...", "..."]
-}
+  "idea": "Build a custom landing page with animations for a startup",
+  "details": "Create a modern, mobile-responsive landing page using React and Tailwind CSS with custom SVG animations.",
+  "estimatedTimeline": "5-7 days",
+  "estimatedHours": 30,
+  "requiredSkills": ["React", "Web Design", "CSS Animations"]
+}`;
 
-Hint (optional): ${input.industryHint ?? 'None'}
-`;
+    // --- 3. Call AI ---
+    const response = await callAI(selectedModel, prompt);
+    const cleanedResponse = response.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    const parsedAIOutput = GenerateProjectIdeaAIOutputSchema.parse(JSON.parse(cleanedResponse));
 
-    const modelResponse = await callAI('auto', prompt);
-    const parsed = GenerateProjectIdeaAIOutputSchema.safeParse(JSON.parse(modelResponse));
-
-    if (!parsed.success) {
-      console.error('Validation error parsing AI output:', parsed.error);
-      return {
-        idea: '',
-        estimatedTimeline: '',
-        status: 'error',
-      };
+    // Additional validation for estimatedHours > 0
+    if (parsedAIOutput.estimatedHours <= 0) {
+      throw new Error("AI returned an invalid estimate for hours (must be > 0).");
     }
 
-    const { idea, details, estimatedTimeline, estimatedHours, requiredSkills } = parsed.data;
+    // --- 4. Calculate realistic cost estimates ---
+    const estimatedBaseCost = parsedAIOutput.estimatedHours * DEFAULT_HOURLY_RATE;
+    const platformFee = estimatedBaseCost * PLATFORM_FEE_PERCENTAGE;
+    const totalCostToClient = estimatedBaseCost + platformFee;
+    const monthlySubscriptionCost = totalCostToClient / SUBSCRIPTION_MONTHS;
 
-    const baseRatePerHour = 50;
-    const estimatedBaseCost = estimatedHours ? estimatedHours * baseRatePerHour : undefined;
-    const platformFee = estimatedBaseCost ? estimatedBaseCost * 0.15 : undefined;
-    const totalCostToClient = estimatedBaseCost && platformFee ? estimatedBaseCost + platformFee : undefined;
-    const monthlySubscriptionCost = totalCostToClient ? totalCostToClient * 0.1 : undefined;
-
-    return {
-      idea,
-      details,
-      estimatedTimeline,
-      estimatedHours,
-      estimatedBaseCost,
-      platformFee,
-      totalCostToClient,
-      monthlySubscriptionCost,
-      reasoning: 'Generated by AI based on the provided industry hint.',
+    // --- 5. Return full final structured output ---
+    const finalOutput: GenerateProjectIdeaOutput = {
+      idea: parsedAIOutput.idea,
+      details: parsedAIOutput.details,
+      estimatedTimeline: parsedAIOutput.estimatedTimeline,
+      estimatedHours: parsedAIOutput.estimatedHours,
+      estimatedBaseCost: Math.round(estimatedBaseCost * 100) / 100,
+      platformFee: Math.round(platformFee * 100) / 100,
+      totalCostToClient: Math.round(totalCostToClient * 100) / 100,
+      monthlySubscriptionCost: Math.round(monthlySubscriptionCost * 100) / 100,
+      reasoning: `Calculated based on ${parsedAIOutput.estimatedHours} hours at $${DEFAULT_HOURLY_RATE}/hr with a ${PLATFORM_FEE_PERCENTAGE * 100}% platform fee.`,
       status: 'success',
-      requiredSkills,
+      requiredSkills: parsedAIOutput.requiredSkills,
     };
+
+    // Final validation against the full output schema
+    return GenerateProjectIdeaOutputSchema.parse(finalOutput);
   } catch (error: any) {
-    console.error('Error generating project idea:', error?.message ?? error);
+    console.error('Error generating project idea:', error.message ?? error);
     return {
       idea: '',
+      details: '',
       estimatedTimeline: '',
+      estimatedHours: undefined,
+      estimatedBaseCost: undefined,
+      platformFee: undefined,
+      totalCostToClient: undefined,
+      monthlySubscriptionCost: undefined,
+      reasoning: `Failed to generate or validate the project idea output: ${error.message}`, // Include error message
       status: 'error',
+      requiredSkills: [],
     };
   }
 }
+
+// Exporting types is allowed from 'use server' files
+export type { GenerateProjectIdeaOutput, GenerateProjectIdeaInput };

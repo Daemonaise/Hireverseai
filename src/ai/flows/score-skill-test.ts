@@ -13,7 +13,8 @@
  */
 
 // Correctly import from the ai-instance module
-import { chooseModelBasedOnPrompt, callAI } from '@/ai/ai-instance';
+import { callAI } from '@/ai/ai-instance';
+import { chooseModelBasedOnPrompt } from '@/lib/model-selector';
 import { z } from 'zod'; // Use standard zod import
 import { updateFreelancerTestScore } from '@/services/firestore';
 import {

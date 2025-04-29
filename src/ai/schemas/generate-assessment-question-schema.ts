@@ -1,31 +1,31 @@
-
 /**
  * @fileOverview Schemas and types for the generateAssessmentQuestion flow.
  */
 import { z } from 'zod'; // Use standard Zod
 
-// Define difficulty levels Enum using Zod
+// --- Difficulty Levels ---
 export const DifficultyLevelSchema = z.enum(['beginner', 'intermediate', 'advanced', 'expert']);
 export type DifficultyLevel = z.infer<typeof DifficultyLevelSchema>;
 
-// Input type for the generateAssessmentQuestion function
+// --- Input Schema and Type ---
 export const GenerateAssessmentQuestionInputSchema = z.object({
-  primarySkill: z.string().describe('The main skill being assessed.'),
-  allSkills: z.array(z.string()).describe('All skills the freelancer claims to have, for context.'),
-  difficulty: DifficultyLevelSchema.describe('The target difficulty level for the question.'),
-  previousQuestions: z.array(z.string()).optional().describe('Optional list of previously asked questions to avoid repetition.'),
-  freelancerId: z.string().describe('The ID of the freelancer being assessed (for context).'),
-  // timestamp is added internally
+  primarySkill: z.string().describe('Primary skill being assessed.'),
+  allSkills: z.array(z.string()).describe('All skills claimed by the freelancer (for context).'),
+  difficulty: DifficultyLevelSchema.describe('Target difficulty level of the question.'),
+  previousQuestions: z.array(z.string()).optional().describe('Optional list of previously asked questions to avoid duplication.'),
+  freelancerId: z.string().describe('Unique ID of the freelancer (for context and uniqueness).'),
+  // Note: timestamp for ID generation handled internally, not passed from client
 });
 export type GenerateAssessmentQuestionInput = z.infer<typeof GenerateAssessmentQuestionInputSchema>;
 
-// Output type for the generateAssessmentQuestion function
-// This defines the structure the AI is expected to return as JSON
+// --- Output Schema and Type ---
 export const GenerateAssessmentQuestionOutputSchema = z.object({
-    questionId: z.string().describe("A unique identifier for this question (will be generated)."),
-    questionText: z.string().describe("The text of the assessment question."),
-    skillTested: z.string().describe("The specific skill this question is designed to test (should match primarySkill)."),
-    difficulty: DifficultyLevelSchema.describe('The difficulty level of the generated question.'),
-    // Potential future additions: questionType (e.g., 'multiple-choice', 'coding', 'free-text'), options, expectedAnswerKeywords
+  questionId: z.string().describe('Unique identifier for the generated question (system-generated).'),
+  questionText: z.string().describe('The actual assessment question text.'),
+  skillTested: z.string().describe('The skill targeted by this question (must match primarySkill).'),
+  difficulty: DifficultyLevelSchema.describe('Difficulty level of the question.'),
+  // Future-proofing fields could include:
+  // questionType: 'multiple-choice' | 'short-answer' | 'coding' (optional)
+  // expectedKeywords: string[] (optional)
 });
 export type GenerateAssessmentQuestionOutput = z.infer<typeof GenerateAssessmentQuestionOutputSchema>;

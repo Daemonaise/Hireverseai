@@ -1,35 +1,40 @@
+// src/ai/schemas/decompose-project-schema.ts
 
-/**
- * @fileOverview Schemas and types for the decomposeProject flow.
- */
-import { z } from 'zod'; // Use standard Zod
-// Timestamp import is not needed here, only in firestore.ts or components
-// import { Timestamp } from 'firebase/firestore';
+import { z } from 'zod';
 
-// Schema for a single Microtask
+// --- Define allowed microtask statuses ---
+export const MicrotaskStatusSchema = z.enum([
+  'pending',
+  'in_progress',
+  'assigned',
+  'submitted',
+  'approved',
+  'rejected',
+]);
+export type MicrotaskStatus = z.infer<typeof MicrotaskStatusSchema>;
+
+// --- Define Microtask Schema ---
 export const MicrotaskSchema = z.object({
-    id: z.string().describe('Unique identifier for the microtask within the project (e.g., "task-001").'),
-    description: z.string().min(10).describe('Detailed description of the work required for this microtask.'),
-    // Ensure estimatedHours is slightly greater than 0 if present
-    estimatedHours: z.number().min(0.1, { message: "Estimated hours must be greater than 0." }).optional().describe('Estimated hours required to complete this microtask (must be > 0).'),
-    requiredSkill: z.string().optional().describe('The primary skill needed to complete this microtask (should ideally map to one of the project\'s required skills).'),
-    dependencies: z.array(z.string()).optional().describe('List of IDs of other microtasks that must be completed before this one can start.'),
-    // Status and assignment are handled post-decomposition and runtime, not part of the AI output schema for decomposition itself
+  id: z.string().describe('Unique identifier for the microtask within the project (e.g., "task-001").'),
+  description: z.string().min(10).describe('Detailed description of the work required for this microtask.'),
+  estimatedHours: z.number().min(0.1).optional().describe('Estimated hours required to complete this microtask (must be > 0).'),
+  requiredSkill: z.string().optional().describe('Primary skill needed for this microtask (should ideally map to a project skill).'),
+  dependencies: z.array(z.string()).optional().describe('IDs of other microtasks that must be completed first.'),
+  status: MicrotaskStatusSchema.default('pending').describe('The current status of the microtask. Defaults to "pending".'),
+  createdAt: z.number().describe('Unix timestamp (in milliseconds) when the microtask was created.'),
 });
 export type Microtask = z.infer<typeof MicrotaskSchema>;
 
-
-// Input type for the decomposition function
+// --- Define Input Schema for decomposition ---
 export const DecomposeProjectInputSchema = z.object({
-  projectId: z.string().describe('The unique identifier of the project to decompose.'),
-  projectBrief: z.string().min(20).describe('The original project brief description.'),
-  requiredSkills: z.array(z.string()).describe('The list of skills identified as required for the project.'),
+  projectId: z.string().describe('Unique identifier for the project being decomposed.'),
+  projectBrief: z.string().min(20).describe('Brief description of the overall project to decompose.'),
+  requiredSkills: z.array(z.string()).min(1).describe('List of skills identified as necessary for the project.'),
 });
 export type DecomposeProjectInput = z.infer<typeof DecomposeProjectInputSchema>;
 
-
-// Output type for the decomposition function (what the AI should return)
+// --- Define Output Schema for decomposition ---
 export const DecomposeProjectOutputSchema = z.object({
-  microtasks: z.array(MicrotaskSchema).min(1).describe('An array of decomposed microtasks derived from the project brief.'),
+  microtasks: z.array(MicrotaskSchema).min(1).describe('List of microtasks that decompose the project. Each must have status and createdAt filled.'),
 });
 export type DecomposeProjectOutput = z.infer<typeof DecomposeProjectOutputSchema>;

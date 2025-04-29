@@ -1,34 +1,37 @@
-
 /**
  * @fileOverview Schemas and types for the gradeAssessmentAnswer flow.
  */
-import { z } from 'zod'; // Use standard Zod
-import type { DifficultyLevel } from './generate-assessment-question-schema'; // Import difficulty type
+import { z } from 'zod';
+import type { DifficultyLevel } from './generate-assessment-question-schema'; // Correct external type import
 
-// Define potential flags Enum using Zod
-export const AnswerFlagsSchema = z.enum(['ai_generated_suspected', 'irrelevant', 'too_short', 'plagiarized_suspected', 'profane']);
+// --- Flags Enum ---
+export const AnswerFlagsSchema = z.enum([
+  'ai_generated_suspected',
+  'irrelevant',
+  'too_short',
+  'plagiarized_suspected',
+  'profane',
+]);
 export type AnswerFlags = z.infer<typeof AnswerFlagsSchema>;
 
-// Input type for the gradeAssessmentAnswer function
+// --- Input Schema and Type ---
 export const GradeAssessmentAnswerInputSchema = z.object({
-  freelancerId: z.string().describe("ID of the freelancer being assessed."),
-  questionId: z.string().describe("The unique ID of the question being answered."),
-  questionText: z.string().describe("The text of the assessment question."),
-  skillTested: z.string().describe("The specific skill the question was designed to test."),
-  difficulty: z.string().describe("The difficulty level of the question (e.g., 'beginner', 'intermediate')."), // Use string from GenerateAssessmentOutput
-  answerText: z.string().describe("The freelancer's submitted answer."),
-  primarySkill: z.string().describe('The main skill being assessed overall in the test.'),
+  freelancerId: z.string().describe('ID of the freelancer being assessed.'),
+  questionId: z.string().describe('Unique ID of the question being answered.'),
+  questionText: z.string().describe('Text of the assessment question.'),
+  skillTested: z.string().describe('Specific skill the question is designed to test.'),
+  difficulty: z.string().describe('Difficulty level of the question (e.g., "beginner", "intermediate", etc.).'), // Keeping string for flexibility, even if internally we use DifficultyLevel
+  answerText: z.string().describe('The freelancer\'s submitted answer.'),
+  primarySkill: z.string().describe('Main skill being assessed in the overall test.'),
 });
 export type GradeAssessmentAnswerInput = z.infer<typeof GradeAssessmentAnswerInputSchema>;
 
-// Output type for the gradeAssessmentAnswer function
-// This defines the structure the AI is expected to return as JSON
+// --- Output Schema and Type ---
 export const GradeAssessmentAnswerOutputSchema = z.object({
-    questionId: z.string().describe("Matches the input questionId."),
-    score: z.number().int().min(0).max(100).describe("The calculated score for this answer (0-100)."),
-    feedback: z.string().describe("Specific feedback on the freelancer's answer, highlighting strengths and weaknesses."),
-    flags: z.array(AnswerFlagsSchema).optional().describe("List of any flags raised for this answer (e.g., suspected AI generation)."),
-    // Suggested next difficulty type uses Zod enum for parsing but keep as string for flexibility?
-    suggestedNextDifficulty: z.enum(['easier', 'same', 'harder']).describe("Suggested difficulty for the *next* question based on performance on this one ('easier', 'same', 'harder')."),
+  questionId: z.string().describe('Matches the input questionId.'),
+  score: z.number().int().min(0).max(100).describe('Calculated score for this answer (0-100).'),
+  feedback: z.string().describe('Specific feedback highlighting strengths and weaknesses.'),
+  flags: z.array(AnswerFlagsSchema).optional().describe('Flags raised for this answer (e.g., suspected AI generation).'),
+  suggestedNextDifficulty: z.enum(['easier', 'same', 'harder']).describe('Suggested difficulty for the next question.'),
 });
 export type GradeAssessmentAnswerOutput = z.infer<typeof GradeAssessmentAnswerOutputSchema>;
