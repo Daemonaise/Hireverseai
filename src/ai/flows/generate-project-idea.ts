@@ -7,157 +7,131 @@ import { callAI } from '@/ai/ai-instance'; // Use the centralized helper
 import {
   GenerateProjectIdeaInputSchema,
   GenerateProjectIdeaOutputSchema,
+  GenerateProjectIdeaAIOutputSchema, // Use the raw AI output schema
   type GenerateProjectIdeaOutput,
   type GenerateProjectIdeaInput,
+  type GenerateProjectIdeaAIOutput,
 } from '@/ai/schemas/generate-project-idea-schema';
 import { z } from 'zod'; // Import Zod
 
 const PLATFORM_FEE_PERCENTAGE = 0.15;
 const DEFAULT_HOURLY_RATE = 65;
-const SUBSCRIPTION_MONTHS = 6;
+const SUBSCRIPTION_MONTHS = 6; // Assuming a 6-month payment plan for subscription cost calculation
 
-// Helper function to parse loose structured text
-function extractIdeaFromText(text: string): Partial<GenerateProjectIdeaOutput> {
-  const lines = text.split('\n');
-  const result: Partial<GenerateProjectIdeaOutput> = {};
-  const skillList: string[] = [];
 
-  lines.forEach(line => {
-    if (/^Idea[:\-]/i.test(line)) result.idea = line.split(/[:\-]/, 2)[1]?.trim() ?? '';
-    else if (/^Details[:\-]/i.test(line)) result.details = line.split(/[:\-]/, 2)[1]?.trim() ?? '';
-    else if (/^Estimated Timeline[:\-]/i.test(line)) result.estimatedTimeline = line.split(/[:\-]/, 2)[1]?.trim() ?? '';
-    else if (/^Estimated Hours[:\-]/i.test(line)) {
-      const match = line.match(/\d+/);
-      if (match) result.estimatedHours = parseInt(match[0], 10);
-    } else if (/^Required Skills[:\-]/i.test(line)) {
-      const skillsPart = line.split(/[:\-]/, 2)[1] ?? '';
-      skillList.push(...skillsPart.split(/[,|\s]+/).filter(Boolean));
-    }
-  });
+// --- Helper Functions (Removed extractIdeaFromText) ---
 
-  if (skillList.length > 0) {
-    result.requiredSkills = skillList;
-  }
-  return result;
-}
-
-// Helper function to attempt JSON parsing
 function extractJsonFromText(text: string): any | null {
+  // Improved JSON extraction (handles potential leading/trailing garbage)
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) return null;
   try {
-    // Find the first '{' and the last '}'
-    const jsonStart = text.indexOf('{');
-    const jsonEnd = text.lastIndexOf('}');
-    if (jsonStart === -1 || jsonEnd === -1 || jsonEnd < jsonStart) {
-      return null;
-    }
-    // Extract the potential JSON string
-    const jsonString = text.substring(jsonStart, jsonEnd + 1);
-    return JSON.parse(jsonString);
-  } catch (e) {
-    console.warn("Failed to parse JSON from AI response:", e);
+    return JSON.parse(match[0]);
+  } catch {
     return null;
   }
 }
 
-// Exported async function (Server Action)
+// --- Main Flow Function ---
+
 export async function generateProjectIdea(input?: unknown): Promise<GenerateProjectIdeaOutput> {
   try {
-    // Validate input if provided, otherwise undefined is okay
     const parsedInput = input ? GenerateProjectIdeaInputSchema.parse(input) : undefined;
+    const selectedModel = 'gemini'; // Hardcoded to Gemini as per previous instruction
 
+    // **Strict JSON Prompt**
     const prompt = `
-Generate a realistic freelance project idea suitable for platforms like Hireverse. Provide the following details clearly, using headers for each section:
+Generate a realistic freelance project idea.
 
-Idea: [A concise and compelling project title]
-Details: [1-2 sentences elaborating on the project goal or deliverables]
-Estimated Timeline: [e.g., "3-5 days", "1-2 weeks", "about 1 month"]
-Estimated Hours: [A realistic number of hours, e.g., 10, 40, 80]
-Required Skills: [Comma-separated list of 2-5 key skills, e.g., React, UI Design, Copywriting]
+**Output Requirements:**
+Return ONLY a single, valid JSON object with the following keys and value types:
+- "idea": string (non-empty, min 5 chars)
+- "details": string (non-empty, brief description)
+- "estimatedTimeline": string (non-empty, e.g., "3-5 days", "1-2 weeks")
+- "estimatedHours": number (positive integer)
+- "requiredSkills": array of strings (1-5 skills)
 
-${parsedInput?.industryHint ? `Focus on the industry: ${parsedInput.industryHint}` : ''}
+${parsedInput?.industryHint ? `Industry Hint: ${parsedInput.industryHint}` : ''}
 
-Instructions:
-- Keep the idea practical and achievable by freelancers.
-- Ensure Estimated Hours is a positive number.
-- Stick to the format precisely. Avoid any extra text, markdown, or explanations.
-
-Example Output:
+**Example JSON Output:**
 {
-  "idea": "Landing Page Redesign for SaaS Startup",
-  "details": "Redesign the main landing page to improve conversion rates, focusing on clear messaging and a modern UI.",
-  "estimatedTimeline": "1-2 weeks",
-  "estimatedHours": 25,
-  "requiredSkills": ["UI Design", "UX Writing", "Figma"]
+  "idea": "Develop a Recipe Sharing Web App",
+  "details": "A simple web application allowing users to post and discover recipes.",
+  "estimatedTimeline": "2-3 weeks",
+  "estimatedHours": 40,
+  "requiredSkills": ["React", "Node.js", "Firebase", "UI Design"]
 }
+
+**Do not include any text, explanation, or markdown before or after the JSON object.**
 `;
 
-    // Use the centralized callAI helper
-    const response = await callAI('gemini', prompt); // Explicitly use 'gemini' as per removal of load balancing
+    console.log("Generating project idea using Gemini...");
+    const responseString = await callAI(selectedModel, prompt);
+    console.log("Raw AI Response:", responseString);
 
-    // Attempt to parse as JSON first (more reliable if AI follows instructions)
-    let parsedOutput: Partial<GenerateProjectIdeaOutput> | null = extractJsonFromText(response);
+    // Attempt to parse the response as JSON
+    const parsedJSON = extractJsonFromText(responseString);
 
-    // If JSON parsing fails or is incomplete, fallback to text parsing
-    if (!parsedOutput || !parsedOutput.idea || !parsedOutput.estimatedTimeline || !parsedOutput.estimatedHours) {
-        console.warn("AI did not return valid JSON, falling back to text parsing.");
-        parsedOutput = extractIdeaFromText(response);
+    if (!parsedJSON) {
+       throw new Error(`AI response did not contain valid JSON. Response: ${responseString}`);
     }
 
-    // Validate the core fields from the parsed output
-    if (!parsedOutput.idea || !parsedOutput.estimatedTimeline || !parsedOutput.estimatedHours || parsedOutput.estimatedHours <= 0) {
-      console.warn("Parsed output missing required fields:", parsedOutput, "Original response:", response);
-      // If JSON parsing fails or is incomplete, fallback to text parsing
-        parsedOutput = {
-          idea: 'Default Project Idea',
-          details: 'A default project idea to ensure the system functions correctly.',
-          estimatedTimeline: '1 week',
-          estimatedHours: 1,
-          requiredSkills: ['General'],
-        };
+    // Validate the parsed JSON against the AI output schema
+    let validatedAIOutput: GenerateProjectIdeaAIOutput;
+    try {
+       validatedAIOutput = GenerateProjectIdeaAIOutputSchema.parse(parsedJSON);
+    } catch (validationError) {
+       if (validationError instanceof z.ZodError) {
+          console.error("Zod Validation Errors:", validationError.errors);
+          throw new Error(`AI response failed schema validation: ${validationError.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}. Raw JSON: ${JSON.stringify(parsedJSON)}`);
+       }
+       throw new Error(`AI response validation failed. Raw JSON: ${JSON.stringify(parsedJSON)}`);
     }
 
-    // Calculate costs based on estimated hours
-    const estimatedBaseCost = parsedOutput.estimatedHours * DEFAULT_HOURLY_RATE;
+
+    // Calculate costs based on validated AI output
+    const estimatedBaseCost = validatedAIOutput.estimatedHours * DEFAULT_HOURLY_RATE;
     const platformFee = estimatedBaseCost * PLATFORM_FEE_PERCENTAGE;
     const totalCostToClient = estimatedBaseCost + platformFee;
-    const monthlySubscriptionCost = totalCostToClient / SUBSCRIPTION_MONTHS; // Assuming 6 months
+    // Calculate monthly cost only if total cost is positive
+    const monthlySubscriptionCost = totalCostToClient > 0 ? totalCostToClient / SUBSCRIPTION_MONTHS : 0;
 
-    // Construct the final output object
+
     const finalOutput: GenerateProjectIdeaOutput = {
-      idea: parsedOutput.idea,
-      details: parsedOutput.details ?? '', // Provide default empty string if details are missing
-      estimatedTimeline: parsedOutput.estimatedTimeline,
-      estimatedHours: parsedOutput.estimatedHours,
+      idea: validatedAIOutput.idea,
+      details: validatedAIOutput.details,
+      estimatedTimeline: validatedAIOutput.estimatedTimeline,
+      estimatedHours: validatedAIOutput.estimatedHours,
+      requiredSkills: validatedAIOutput.requiredSkills ?? [], // Ensure array exists
       estimatedBaseCost: Math.round(estimatedBaseCost * 100) / 100,
       platformFee: Math.round(platformFee * 100) / 100,
       totalCostToClient: Math.round(totalCostToClient * 100) / 100,
       monthlySubscriptionCost: Math.round(monthlySubscriptionCost * 100) / 100,
-      reasoning: `Est. from ${parsedOutput.estimatedHours} hrs @ $${DEFAULT_HOURLY_RATE}/hr + ${PLATFORM_FEE_PERCENTAGE * 100}% fee`,
+      reasoning: `Calculated from ${validatedAIOutput.estimatedHours} hrs @ $${DEFAULT_HOURLY_RATE}/hr + ${PLATFORM_FEE_PERCENTAGE * 100}% fee`,
       status: 'success',
-      requiredSkills: parsedOutput.requiredSkills || [], // Ensure skills is an array
     };
 
-    // Final validation with the Zod schema before returning
+    // Final validation of the complete output structure
     return GenerateProjectIdeaOutputSchema.parse(finalOutput);
 
   } catch (error: any) {
-    console.error('Error in generateProjectIdea flow:', error);
-    // Provide a user-friendly error message in the output
+    console.error('Error in generateProjectIdea flow:', error?.message || error);
+    // Provide a more specific error message in the reasoning field
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
-      idea: 'Default Project Idea',
-      details: 'A default project idea to ensure the system functions correctly.',
-      estimatedTimeline: '1 week',
-      estimatedHours: 1,
-      estimatedBaseCost: 65,
-      platformFee: 9.75,
-      totalCostToClient: 74.75,
-      monthlySubscriptionCost: 12.46,
-      reasoning: `Est. from 1 hrs @ $${DEFAULT_HOURLY_RATE}/hr + ${PLATFORM_FEE_PERCENTAGE * 100}% fee`,
-      status: 'success',
-      requiredSkills: ['General'],
+      idea: '',
+      details: '',
+      estimatedTimeline: '',
+      estimatedHours: undefined,
+      estimatedBaseCost: undefined,
+      platformFee: undefined,
+      totalCostToClient: undefined,
+      monthlySubscriptionCost: undefined,
+      reasoning: `Failed to generate or validate project idea: ${errorMessage}`, // More specific error
+      status: 'error',
+      requiredSkills: [],
     };
   }
 }
 
-// Export types for external use
 export type { GenerateProjectIdeaOutput, GenerateProjectIdeaInput };

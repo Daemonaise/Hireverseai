@@ -6,38 +6,30 @@
 import { z } from 'zod';
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
-import fetch from 'node-fetch'; // Ensure fetch is available server-side
+import fetch from 'node-fetch'; // Required for OpenAI/Anthropic fetch calls if not using Genkit plugins
 
 // --- Environment Variables ---
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+// Keep these even if not using plugins yet, for the direct fetch calls
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
-// Basic validation/warning (consider more robust error handling in production)
+// Basic validation/warning
 if (!GOOGLE_API_KEY) console.warn("Missing GOOGLE_API_KEY. AI features may be limited.");
-// Optional: Add checks for other keys if you plan to enable other models
-// if (!OPENAI_API_KEY) console.warn("Missing OPENAI_API_KEY");
-// if (!ANTHROPIC_API_KEY) console.warn("Missing ANTHROPIC_API_KEY");
+if (!OPENAI_API_KEY) console.warn("Missing OPENAI_API_KEY. OpenAI calls will fail.");
+if (!ANTHROPIC_API_KEY) console.warn("Missing ANTHROPIC_API_KEY. Anthropic calls will fail.");
 
 
-// --- Genkit (Google Gemini) Initialization ---
-// REMOVED 'export' from 'ai' to comply with 'use server'
+// --- Genkit Initialization ---
 const ai = genkit({
   promptDir: './prompts',
   plugins: [googleAI({ apiKey: GOOGLE_API_KEY })],
-  // Specify the default model to use if not overridden in prompts/flows
-  model: 'googleai/gemini-1.5-flash-latest', // Updated to a generally available model
+  model: 'googleai/gemini-1.5-flash-latest', // Default model
 });
-
-// REMOVED 'export' from 'chooseModelBasedOnPrompt' as it's not an async server action
-function chooseModelBasedOnPrompt(promptContent: string): string {
-  // Always return Gemini for now as other plugins are not configured
-  console.log("Model selection defaulting to Gemini (plugins not configured).");
-  return 'googleai/gemini-1.5-flash-latest';
-}
 
 
 // --- Decomposition Prompt (Google Gemini) ---
+// This is a separate, static prompt definition, NOT used by the generic callAI
 const PROJECT_DECOMPOSITION_PROMPT_TEXT = `
 Decompose the following project brief into concrete steps required to get it done. Return your response in markdown format.
 Project Brief: {{{brief}}}
@@ -48,12 +40,12 @@ const projectDecompositionPrompt = ai.definePrompt({
   input: { schema: z.object({ brief: z.string() }) },
   output: { schema: z.string().describe('Decomposed project steps in markdown format.') },
   prompt: PROJECT_DECOMPOSITION_PROMPT_TEXT,
-  config: { model: 'googleai/gemini-1.5-flash-latest' } // Using the default configured model
+  config: { model: 'googleai/gemini-1.5-flash-latest' }
 });
 
 // --- Exported Async Functions (Server Actions) ---
 
-// This function remains exported as it's intended to be called from client components
+// This function remains exported as it's intended to be called from client components or other server actions
 export async function decomposeProjectBrief(brief: string): Promise<string> {
   try {
     const { output } = await projectDecompositionPrompt({ brief });
@@ -64,51 +56,89 @@ export async function decomposeProjectBrief(brief: string): Promise<string> {
   }
 }
 
-// This function remains exported as it's intended to be called from other server components/flows
+// This function is intended for generic AI calls, routing to the appropriate model
+// It now uses ai.generate for Gemini and direct fetch for others until plugins are properly configured.
 export async function callAI(model: 'gemini' | 'gpt-4o' | 'claude-3', prompt: string): Promise<string> {
-  // Ensure API keys are checked before attempting to use the model
   try {
-      // Always use Gemini for now, ignore the 'model' parameter until other plugins are active
-      console.log(`Calling Gemini (defaulting) for prompt: "${prompt.substring(0,50)}..."`);
+    if (model === 'gemini') {
       if (!GOOGLE_API_KEY) throw new Error('Google API Key is not configured.');
+      console.log(`Calling Genkit Gemini for prompt: "${prompt.substring(0,50)}..."`);
 
-      // Using a simple dynamic prompt for Gemini calls within callAI
-      // Note: For structured output, defining prompts statically like projectDecompositionPrompt is preferred.
-      const dynamicGeminiPrompt = ai.definePrompt({
-          name: `dynamicGeminiPrompt_${Date.now()}`, // Avoid name collisions
-          input: { schema: z.object({ promptText: z.string() }) },
-          output: { schema: z.string() },
-          prompt: `{{{promptText}}}`,
-          config: { model: 'googleai/gemini-1.5-flash-latest' }
+      // Use Genkit's ai.generate for dynamic prompts with the default Gemini model
+      const response = await ai.generate({
+        prompt: prompt,
+        model: 'googleai/gemini-1.5-flash-latest', // Explicitly use the configured model
+        config: { temperature: 0.7 } // Optional config
       });
-      const { output } = await dynamicGeminiPrompt({ promptText: prompt });
-      return output ?? `Failed to generate with Gemini.`;
+      return response.text() ?? "Failed to generate with Gemini.";
+    }
 
-      // --- KEEPING PLACEHOLDER LOGIC FOR FUTURE USE ---
-      // Placeholder implementations for OpenAI and Claude - require respective plugins and keys
-      // if (model === 'gpt-4o') {
-      //     if (!OPENAI_API_KEY) throw new Error('OpenAI API Key is not configured.');
-      //     // Replace with actual Genkit OpenAI plugin call when configured
-      //     console.warn('OpenAI call simulated, plugin not configured.');
-      //     return `Simulated GPT-4o response for: ${prompt}`;
-      // }
+    // --- Direct Fetch Calls (Keep as fallback until plugins are fully working) ---
+    if (model === 'gpt-4o') {
+        if (!OPENAI_API_KEY) throw new Error('OpenAI API Key is not configured.');
+        console.log(`Calling OpenAI API directly for prompt: "${prompt.substring(0,50)}..."`);
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${OPENAI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.7,
+          }),
+        });
+         if (!response.ok) {
+           const errorBody = await response.text();
+           throw new Error(`OpenAI API error (${response.status}): ${errorBody}`);
+         }
+        const data = await response.json() as any;
+        return data.choices?.[0]?.message?.content ?? "Failed to generate with GPT-4o.";
+    }
 
-      // if (model === 'claude-3') {
-      //     if (!ANTHROPIC_API_KEY) throw new Error('Anthropic API Key is not configured.');
-      //     // Replace with actual Genkit Anthropic plugin call when configured
-      //     console.warn('Claude call simulated, plugin not configured.');
-      //      return `Simulated Claude-3 response for: ${prompt}`;
-      // }
+    if (model === 'claude-3') {
+        if (!ANTHROPIC_API_KEY) throw new Error('Anthropic API Key is not configured.');
+        console.log(`Calling Anthropic API directly for prompt: "${prompt.substring(0,50)}..."`);
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'claude-3-opus-20240229', // Or another suitable Claude model
+            max_tokens: 1024, // Ensure max_tokens is reasonable
+            messages: [{ role: 'user', content: prompt }],
+          }),
+        });
+        if (!response.ok) {
+           const errorBody = await response.text();
+           throw new Error(`Anthropic API error (${response.status}): ${errorBody}`);
+         }
+        const data = await response.json() as any;
+        // Claude returns content differently
+        const textContent = data.content?.find((block: any) => block.type === 'text')?.text;
+        return textContent ?? "Failed to generate with Claude-3.";
+    }
 
-      // console.error(`Invalid model selection in callAI: ${model}`);
-      // return "Invalid model selection.";
+    console.error(`Invalid model selection in callAI: ${model}`);
+    return "Invalid model selection.";
 
   } catch (error: any) {
-      console.error(`Error calling AI model (${model}):`, error.message ?? error);
-      // Provide a more specific error message if possible
-      if (error.message.includes('API Key')) {
-          return `Error: API Key missing or invalid for ${model}.`;
-      }
-      return `Error during AI generation with ${model}.`;
+    console.error(`Error calling AI model (${model}):`, error.message ?? error);
+    if (error.message?.includes('API Key')) {
+      return `Error: API Key missing or invalid for ${model}.`;
+    }
+    // Check for schema validation errors specifically from Gemini
+     if (error.message?.includes('Schema validation failed') || error.message?.includes('INVALID_ARGUMENT')) {
+        return `Error: AI failed schema validation. ${error.message}`;
+     }
+    return `Error during AI generation with ${model}. ${error.message}`;
   }
 }
+
+// No longer exporting chooseModelBasedOnPrompt as it's internal logic for flows
+// or handled by a different mechanism.
+// If flows need model selection, they should implement it internally.
