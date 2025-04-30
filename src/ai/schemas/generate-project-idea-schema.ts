@@ -16,6 +16,7 @@ export const GenerateProjectIdeaAIOutputSchema = z.object({
   idea: z.string().min(1, 'Idea cannot be empty.'), // Must be non-empty
   details: z.string().min(1, 'Details cannot be empty.'), // Must be non-empty
   estimatedTimeline: z.string().min(1, 'Timeline cannot be empty.'), // Must be non-empty
+  // Use .positive() instead of exclusiveMinimum(0) for Gemini compatibility
   estimatedHours: z.number().int().positive('Estimated hours must be a positive integer.'), // Must be > 0
   requiredSkills: z.array(z.string().min(1)).min(1, "At least one skill is required.").max(5, "Maximum of 5 skills allowed."), // Must have 1-5 skills
 });
