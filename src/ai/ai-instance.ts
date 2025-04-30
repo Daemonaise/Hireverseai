@@ -1,8 +1,9 @@
+'use server';
 
 import { genkit } from 'genkit';
-import { openAI } from 'genkitx-openai';
-// import { anthropic } from '@genkit-ai/anthropic'; // Removed import
-import { googleAI } from '@genkit-ai/googleai';
+import { anthropic, claude35Sonnet } from 'genkitx-anthropic';
+import { openAI, gpt4o }      from 'genkitx-openai';
+import { googleAI, gemini15Flash } from '@genkit-ai/googleai'; // Corrected import path
 import { z } from 'zod';
 import fetch from 'node-fetch'; // Ensure fetch is available server-side
 import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import the selector
@@ -24,7 +25,8 @@ if (!GOOGLE_API_KEY) console.warn('Missing GOOGLE_API_KEY. Gemini calls will fai
 // --- Genkit Initialization ---
 // Configure Genkit with the Google AI plugin.
 // Other plugins are commented out as requested.
-export const ai = genkit({
+// Remove 'export' keyword to prevent "use server" error
+const ai = genkit({
   version: '1.5.0', // Use a consistent Genkit version
   promptDir: './prompts',
   defaultModel: 'googleai/gemini-1.5-flash', // Use the Gemini model as default
@@ -85,13 +87,12 @@ export async function callAI(
     let selectedModel: string;
 
     if (modelType === 'auto') {
-      selectedModel = chooseModelBasedOnPrompt(prompt);
+      // Since only Gemini is active, always use it
+      selectedModel = 'googleai/gemini-1.5-flash'; // Directly use Gemini
+      // selectedModel = chooseModelBasedOnPrompt(prompt); // Commented out model selection
     } else if (modelType === 'gemini') {
-      // Default to Gemini Flash if 'gemini' is specified, or choose based on prompt
-      selectedModel = chooseModelBasedOnPrompt(prompt); // Let selector decide if Flash or Pro is better
-      if (!selectedModel.startsWith('googleai/')) { // Safety check
-          selectedModel = 'googleai/gemini-1.5-flash';
-      }
+      // Default to Gemini Flash if 'gemini' is specified
+      selectedModel = 'googleai/gemini-1.5-flash'; // Directly use Gemini
     } else {
       throw new Error(`Unsupported model type specified: ${modelType}`);
     }
