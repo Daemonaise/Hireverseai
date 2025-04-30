@@ -8,8 +8,7 @@
  * - AdministerSkillTestOutput - Output type.
  * - Question - Individual question type.
  */
-import { ai } from '@/ai/ai-instance'; // Import ai instance
-import { chooseModelBasedOnPrompt } from '@/lib/model-selector';
+import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import ai instance and model selector
 import {
   AdministerSkillTestInputSchema,
   type AdministerSkillTestInput,
@@ -36,15 +35,15 @@ export async function administerSkillTest(input: AdministerSkillTestInput): Prom
   // Loop through each skill and generate a question
   for (const skill of input.skills) {
     try {
-      // Determine model based on skill (now uses centralized logic)
-      const selectedModel = chooseModelBasedOnPrompt(skill);
+      // Determine model based on skill (uses centralized logic)
+      const selectedModel = chooseModelBasedOnPrompt(skill); // Use the selector
       console.log(`Generating question for skill: ${skill} using model: ${selectedModel}`);
 
       const skillTestPrompt = ai.definePrompt({
         name: `skillTestQuestion_${skill.replace(/[^a-zA-Z0-9]/g, '')}`, // Create a unique prompt name
         input: { schema: z.object({ freelancerId: z.string(), skill: z.string() }) },
         output: { schema: QuestionSchema.pick({ questionText: true }) }, // Only need questionText from AI
-        model: selectedModel,
+        model: selectedModel, // Use the dynamically selected model
         prompt: `You are an AI hiring assistant specializing in creating skill assessment questions.
 Generate exactly ONE practical and relevant test question for a freelancer (ID: {{{freelancerId}}}) claiming the following skill: {{{skill}}}.
 The question should effectively probe their proficiency in this specific skill.

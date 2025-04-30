@@ -3,8 +3,7 @@
  * @fileOverview Match a freelancer to a project with skill extraction, estimation, and AI dynamic model selection.
  */
 
-// Removed callAI import as it's no longer exported from ai-instance
-import { chooseModelBasedOnPrompt } from '@/lib/model-selector';
+import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import ai instance and model selector
 import { z } from 'zod';
 import {
   MatchFreelancerInput,
@@ -14,7 +13,6 @@ import {
   ExtractSkillsAIOutputSchema,
   EstimateAndSelectAIOutputSchema,
 } from '@/ai/schemas/match-freelancer-schema';
-import { ai } from '@/ai/ai-instance'; // Import the ai instance
 
 // Export types separately
 export type { MatchFreelancerInput, MatchFreelancerOutput };
@@ -58,14 +56,14 @@ export async function matchFreelancer(input: MatchFreelancerInput): Promise<Matc
     // --- Skill Extraction (if needed) ---
     if (!skills || skills.length === 0) {
        // Determine model for skill extraction (uses centralized logic)
-       const modelForSkillExtraction = chooseModelBasedOnPrompt(validatedInput.projectBrief);
+       const modelForSkillExtraction = chooseModelBasedOnPrompt(validatedInput.projectBrief); // Use the selector
        console.log(`Extracting skills using model: ${modelForSkillExtraction}`);
 
        const skillPrompt = ai.definePrompt({
          name: 'extractSkillsPrompt',
          input: { schema: z.object({ projectBrief: z.string() }) },
-         output: { schema: z.array(z.string()).describe("JSON array of simple skill strings") },
-         model: modelForSkillExtraction, // Use the selected model
+         output: { schema: z.array(z.string()).min(1).max(5).describe("JSON array of 1-5 simple skill strings") }, // Ensure 1-5 skills
+         model: modelForSkillExtraction, // Use the dynamically selected model
          prompt: `
 Extract the top 1-5 most important freelancer skills from this project brief.
 Respond ONLY as a JSON array of simple skill strings, like ["React", "Node.js"]. No explanations.
@@ -91,14 +89,14 @@ Project Brief: {{{projectBrief}}}
 
     // --- Estimation and Freelancer Selection ---
      // Determine model for estimation (uses centralized logic)
-     const modelForEstimation = chooseModelBasedOnPrompt(validatedInput.projectBrief);
+     const modelForEstimation = chooseModelBasedOnPrompt(validatedInput.projectBrief + " " + skills.join(' ')); // Use selector, combine brief and skills for context
      console.log(`Estimating project using model: ${modelForEstimation}`);
 
      const estimationPrompt = ai.definePrompt({
        name: 'estimateProjectPrompt',
        input: { schema: z.object({ projectBrief: z.string(), skills: z.array(z.string()) }) },
        output: { schema: EstimateAndSelectAIOutputSchema }, // Use the specific schema here
-       model: modelForEstimation, // Use the selected model
+       model: modelForEstimation, // Use the dynamically selected model
        prompt: `
 You are an expert project estimator.
 

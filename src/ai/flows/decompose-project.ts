@@ -3,8 +3,7 @@
  * @fileOverview Decomposes a project brief into a list of actionable microtasks.
  */
 
-import { ai } from '@/ai/ai-instance'; // Import ai instance
-import { chooseModelBasedOnPrompt } from '@/lib/model-selector';
+import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import ai instance and model selector
 import {
   DecomposeProjectInputSchema,
   type DecomposeProjectInput,
@@ -45,7 +44,7 @@ export async function decomposeProject(input: DecomposeProjectInput): Promise<De
   await updateProjectStatus(input.projectId, 'decomposing');
   try {
     // Determine model based on brief (uses centralized logic)
-    const selectedModel = chooseModelBasedOnPrompt(input.projectBrief);
+    const selectedModel = chooseModelBasedOnPrompt(input.projectBrief); // Use the selector
     console.log(`Decomposing project ${input.projectId} using model: ${selectedModel}`);
 
     // Define the Genkit prompt
@@ -53,8 +52,8 @@ export async function decomposeProject(input: DecomposeProjectInput): Promise<De
        name: 'decomposeProjectPrompt',
        input: { schema: DecomposeProjectInputSchema },
        // Output only the microtasks array, schema validation handles the wrapping object
-       output: { schema: z.array(MicrotaskSchema.omit({ status: true, createdAt: true })).describe('List of microtasks without status/createdAt') },
-       model: selectedModel,
+       output: { schema: z.array(MicrotaskSchema.omit({ status: true, createdAt: true })).min(1).describe('List of microtasks without status/createdAt') }, // Ensure at least one task
+       model: selectedModel, // Use the dynamically selected model
        prompt: `You are an expert AI Project Manager. Break this project into clear microtasks.
 
 === Project Brief ===
@@ -67,12 +66,12 @@ export async function decomposeProject(input: DecomposeProjectInput): Promise<De
 {
   "id": "Unique short ID like 'task-001'",
   "description": "Clear task description, min 10 characters",
-  "estimatedHours": "Optional, positive number",
+  "estimatedHours": "Optional, positive number (e.g., 1.5)",
   "requiredSkill": "Optional, must match skills above",
   "dependencies": "Optional array of prerequisite task IDs"
 }
 
-Return ONLY a JSON array containing the list of microtasks. Ensure each microtask has an 'id' and 'description'. Do not wrap it in a {"microtasks": [...]} object.`,
+Return ONLY a JSON array containing the list of microtasks (at least one). Ensure each microtask has an 'id' and 'description'. Do not wrap it in a {"microtasks": [...]} object.`,
     });
 
 
@@ -104,7 +103,7 @@ Return ONLY a JSON array containing the list of microtasks. Ensure each microtas
            id: task.id || fallbackId, // Ensure ID exists
            dependencies: task.dependencies ?? [], // Default to empty array
            status: 'pending', // Default status
-           createdAt: now.toMillis(), // Set creation timestamp (as milliseconds)
+           createdAt: now, // Use Timestamp object directly
            // Schema validation ensures description exists
            // Ensure estimatedHours is valid
            estimatedHours: task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : undefined,

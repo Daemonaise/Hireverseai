@@ -11,8 +11,7 @@
  * - SkillScore - SkillScore structure type.
  */
 
-import { ai } from '@/ai/ai-instance'; // Import ai instance
-import { chooseModelBasedOnPrompt } from '@/lib/model-selector';
+import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import ai instance and model selector
 import { z } from 'zod'; // Use standard zod import
 import { updateFreelancerTestScore } from '@/services/firestore';
 import {
@@ -36,7 +35,7 @@ export type { ScoreSkillTestInput, ScoreSkillTestOutput, Answer, SkillScore };
 async function scoreSingleSkill(skill: string, skillAnswers: Answer[], freelancerId: string): Promise<SkillScore> {
     try {
         // 1. Choose model based on the skill (uses centralized logic)
-        const selectedModel = chooseModelBasedOnPrompt(skill);
+        const selectedModel = chooseModelBasedOnPrompt(skill); // Use the selector
         console.log(`Scoring skill: ${skill} using model: ${selectedModel}`);
 
         // Define the Genkit prompt for scoring this skill
@@ -44,7 +43,7 @@ async function scoreSingleSkill(skill: string, skillAnswers: Answer[], freelance
             name: `scoreSkill_${skill.replace(/[^a-zA-Z0-9]/g, '')}`,
             input: { schema: z.object({ skill: z.string(), freelancerId: z.string(), answersText: z.string() }) },
             output: { schema: SkillScoreSchema.omit({ skill: true }).extend({ score: z.number().int().min(0).max(100) }) }, // AI outputs score & reasoning
-            model: selectedModel,
+            model: selectedModel, // Use the dynamically selected model
             prompt: `You are an expert AI evaluator assessing a freelancer's skill based on their test answers.
 Skill being evaluated: {{{skill}}}
 Freelancer ID: {{{freelancerId}}}
@@ -121,8 +120,8 @@ async function aggregateScoresAndFeedback(skillScores: SkillScore[], freelancerI
         const aggregateFeedbackPrompt = ai.definePrompt({
             name: `aggregateFeedback_${testId}`,
             input: { schema: z.object({ freelancerId: z.string(), testId: z.string(), scoresText: z.string(), overallScore: z.number() }) },
-            output: { schema: AggregateScoresOutputSchema.pick({ feedback: true }) }, // AI only outputs feedback
-            model: aggregationModel,
+            output: { schema: AggregateScoresOutputSchema.pick({ feedback: true }).extend({ feedback: z.string().min(1) }) }, // AI only outputs feedback, ensure not empty
+            model: aggregationModel, // Use the dynamically selected model
             prompt: `You are summarizing the results of a freelancer skill test.
 Freelancer ID: {{{freelancerId}}}
 Test ID: {{{testId}}}
@@ -146,8 +145,8 @@ Do not include any explanations or introductory text outside the JSON object.`,
         try {
             const { output: aiOutput } = await aggregateFeedbackPrompt({ freelancerId, testId, scoresText, overallScore });
 
-             if (!aiOutput || typeof aiOutput.feedback !== 'string') {
-                throw new Error(`AI (${aggregationModel}) returned invalid feedback structure.`);
+             if (!aiOutput || typeof aiOutput.feedback !== 'string' || aiOutput.feedback.length === 0) {
+                throw new Error(`AI (${aggregationModel}) returned invalid or empty feedback structure.`);
              }
 
             // Construct the full Aggregation output

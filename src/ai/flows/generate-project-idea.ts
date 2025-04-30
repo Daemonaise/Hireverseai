@@ -7,7 +7,7 @@
  * parses and validates the JSON output, then adds cost estimates.
  */
 
-import { ai } from '@/ai/ai-instance';
+import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import ai instance and model selector
 import {
   GenerateProjectIdeaInputSchema,
   GenerateProjectIdeaAIOutputSchema,
@@ -25,8 +25,20 @@ const SUBSCRIPTION_MONTHS     = 6;
 
 // ─── JSON Extraction Helper ────────────────────────────────────────────────────
 function extractJsonFromText(text: string): any | null {
+  // Attempt to find JSON starting with '{' and ending with '}'
   const match = text.match(/\{[\s\S]*\}/);
-  if (!match) return null;
+  if (!match) {
+      // Fallback: Try finding JSON that might be embedded without strict start/end
+      // This is less reliable and might need refinement based on actual AI outputs
+      const relaxedMatch = text.match(/\{(?:[^{}]|"(?:\\.|[^"\\])*")*\}/);
+      if (!relaxedMatch) return null;
+       try {
+         return JSON.parse(relaxedMatch[0]);
+       } catch (e) {
+         console.warn('[ProjectIdea] Relaxed JSON parse attempt failed:', e);
+         return null;
+       }
+  }
   try {
     return JSON.parse(match[0]);
   } catch (e) {
@@ -38,20 +50,25 @@ function extractJsonFromText(text: string): any | null {
 // ─── Prompt Definition ─────────────────────────────────────────────────────────
 const generateIdeaPrompt = ai.definePrompt({
   name: 'generateProjectIdea',
-  model: 'googleai/gemini-1.5-flash',
+  // Model will be selected dynamically in the main function
   input: { schema: z.object({ industryHint: z.string().optional() }) },
-  output: { schema: z.string().describe('Raw JSON with idea, details, etc.') },
+  output: { schema: GenerateProjectIdeaAIOutputSchema }, // Expect AI to return structured JSON directly matching this schema
   prompt: ({ industryHint }) => `
-Generate a single, valid JSON object with keys:
-  - idea: string
-  - details: string
-  - estimatedTimeline: string (e.g. "3-5 days")
-  - estimatedHours: number (positive integer)
-  - requiredSkills: array of strings
+Generate a single, valid JSON object representing a freelance project idea.
 
-${industryHint ? `Hint: ${industryHint}` : ''}
+STRICTLY adhere to this JSON structure:
+{
+  "idea": "Short, catchy project title (string, min 1 char)",
+  "details": "Detailed description of the project (string, min 1 char)",
+  "estimatedTimeline": "Realistic timeline (string, e.g., '3-5 days', min 1 char)",
+  "estimatedHours": "Positive integer number of hours (number, > 0)",
+  "requiredSkills": ["Array of 1-5 relevant skill strings (string[], min 1 item, max 5 items)"]
+}
 
-Do NOT include any markdown or extra text outside the JSON.
+${industryHint ? `Industry Hint: Focus on projects related to '${industryHint}'.` : ''}
+
+CRITICAL: Ensure 'estimatedHours' is a positive integer. Ensure 'requiredSkills' has between 1 and 5 strings.
+Return ONLY the valid JSON object. No introductory text, no explanations, no markdown formatting.
 `,
 });
 
@@ -66,32 +83,40 @@ export async function generateProjectIdea(
   if (input) {
     const result = GenerateProjectIdeaInputSchema.safeParse(input);
     if (!result.success) {
+      const errorReason = result.error.format()._errors?.join(', ') ?? 'Invalid input provided.';
       console.error('[ProjectIdea] Input validation failed:', result.error.format());
       return {
-        ...GenerateProjectIdeaOutputSchema.parse({
-          idea: '',
-          details: '',
-          estimatedTimeline: '',
-          estimatedHours: 0,
-          requiredSkills: [],
-          estimatedBaseCost: 0,
-          platformFee: 0,
-          totalCostToClient: 0,
-          monthlySubscriptionCost: 0,
-          reasoning: 'Invalid input provided.',
-          status: 'error',
-        }),
+        ...GenerateProjectIdeaOutputSchema.parse({}), // Provide empty object to parse with defaults
+        reasoning: `Invalid input: ${errorReason}`,
+        status: 'error',
       };
     }
     params = result.data;
   }
 
-  try {
-    const { output: raw } = await generateIdeaPrompt({ industryHint: params?.industryHint });
-    const json = extractJsonFromText(raw);
-    if (!json) throw new Error('AI response did not contain valid JSON.');
+  // Dynamically select model based on hint or general context
+  const selectedModel = chooseModelBasedOnPrompt(params?.industryHint || "general project idea");
+  console.log(`[ProjectIdea] Generating idea using model: ${selectedModel}`);
 
-    const aiResult: GenerateProjectIdeaAIOutput = GenerateProjectIdeaAIOutputSchema.parse(json);
+  try {
+    // Call the prompt with the dynamically selected model
+    const { output: aiResult } = await generateIdeaPrompt(
+        { industryHint: params?.industryHint },
+        { model: selectedModel } // Pass selected model here
+    );
+
+    // The AI is now expected to return JSON directly. Schema validation is handled by definePrompt.
+    // No need for extractJsonFromText or manual parsing if the prompt works correctly.
+    if (!aiResult) {
+        throw new Error(`AI (${selectedModel}) returned no output.`);
+    }
+
+    // aiResult should already match GenerateProjectIdeaAIOutputSchema due to definePrompt's output schema
+    // Additional runtime checks can be added if needed, but Zod validation within Genkit is preferred.
+    if (aiResult.estimatedHours <= 0) {
+        console.warn(`AI (${selectedModel}) returned non-positive estimated hours (${aiResult.estimatedHours}). Adjusting.`);
+        aiResult.estimatedHours = 1; // Example: Default to 1 hour
+    }
 
     const baseCost  = aiResult.estimatedHours * DEFAULT_HOURLY_RATE;
     const fee       = baseCost * PLATFORM_FEE_PERCENTAGE;
@@ -108,29 +133,21 @@ export async function generateProjectIdea(
       platformFee:             Math.round(fee * 100) / 100,
       totalCostToClient:       Math.round(totalCost * 100) / 100,
       monthlySubscriptionCost: Math.round(monthly * 100) / 100,
-      reasoning:               `Based on ${aiResult.estimatedHours}h @ $${DEFAULT_HOURLY_RATE}/h + ${PLATFORM_FEE_PERCENTAGE * 100}% fee`,
+      reasoning:               `Based on ${aiResult.estimatedHours}h @ $${DEFAULT_HOURLY_RATE}/h + ${PLATFORM_FEE_PERCENTAGE * 100}% fee, using ${selectedModel}.`,
       status:                  'success',
     };
 
+    // Final validation of the complete output object
     GenerateProjectIdeaOutputSchema.parse(finalOutput);
     return finalOutput;
 
   } catch (err: any) {
-    console.error('[ProjectIdea] generation error:', err.message || err);
+    console.error(`[ProjectIdea] Generation/validation error using ${selectedModel}:`, err.errors ?? err.message ?? err);
+    // Ensure the returned error object adheres to the schema
     return {
-      ...GenerateProjectIdeaOutputSchema.parse({
-        idea: '',
-        details: '',
-        estimatedTimeline: '',
-        estimatedHours: 0,
-        requiredSkills: [],
-        estimatedBaseCost: 0,
-        platformFee: 0,
-        totalCostToClient: 0,
-        monthlySubscriptionCost: 0,
-        reasoning: `Failed to generate idea: ${err.message || err}`,
-        status: 'error',
-      }),
+      ...GenerateProjectIdeaOutputSchema.parse({}), // Use parse with empty object for defaults
+      reasoning: `Failed to generate idea using ${selectedModel}: ${err.message || err}`,
+      status: 'error',
     };
   }
 }

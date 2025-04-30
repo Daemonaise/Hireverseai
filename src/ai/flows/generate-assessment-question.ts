@@ -10,8 +10,7 @@
  * - DifficultyLevel - Difficulty level type.
  */
 
-import { ai } from '@/ai/ai-instance'; // Import ai instance
-import { chooseModelBasedOnPrompt } from '@/lib/model-selector';
+import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import ai instance and model selector
 import { z } from 'zod';
 import {
   GenerateAssessmentQuestionInputSchema,
@@ -33,11 +32,10 @@ export async function generateAssessmentQuestion(input: GenerateAssessmentQuesti
   const timestamp = Date.now();
 
   // Determine model based on primary skill (uses centralized logic)
-  const selectedModel = chooseModelBasedOnPrompt(input.primarySkill);
+  const selectedModel = chooseModelBasedOnPrompt(input.primarySkill); // Use the selector
+  console.log(`Generating assessment question for skill "${input.primarySkill}" (Difficulty: ${input.difficulty}) using model: ${selectedModel}`);
 
   try {
-    console.log(`Generating assessment question for skill "${input.primarySkill}" (Difficulty: ${input.difficulty}) using model: ${selectedModel}`);
-
     const uniqueQuestionId = `q_${input.freelancerId}_${timestamp}`;
 
     // Describe the expected JSON output format for the AI
@@ -56,16 +54,16 @@ export async function generateAssessmentQuestion(input: GenerateAssessmentQuesti
         name: `generateQuestion_${input.primarySkill}_${input.difficulty}`,
         input: { schema: GenerateAssessmentQuestionInputSchema },
         // AI only needs to output the question text
-        output: { schema: z.object({ questionText: z.string() }) },
-        model: selectedModel,
+        output: { schema: z.object({ questionText: z.string().min(10) }) }, // Ensure question text is not empty
+        model: selectedModel, // Use the dynamically selected model
         prompt: `You are an AI expert creating adaptive assessment questions for freelancers.
 Generate exactly ONE practical and relevant question for a freelancer (ID: {{{freelancerId}}}) based on their primary skill: {{{primarySkill}}}.
 Their other claimed skills are:
-{{{allSkills.map(skill => '- ' + skill).join('\\n')}}}
+${allSkillsList}
 
 The target difficulty level is: {{{difficulty}}}.
 
-{{{previousQuestionsList}}}
+${previousQuestionsList}
 
 Instructions:
 - Beginner: basic concepts, definitions, simple tasks.

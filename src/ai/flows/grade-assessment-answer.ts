@@ -5,8 +5,7 @@
  * Dynamically chooses the best AI model based on the skill tested.
  */
 
-import { ai } from '@/ai/ai-instance'; // Import ai instance
-import { chooseModelBasedOnPrompt } from '@/lib/model-selector';
+import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import ai instance and model selector
 import { z } from 'zod';
 import {
   GradeAssessmentAnswerInputSchema,
@@ -28,7 +27,7 @@ export async function gradeAssessmentAnswer(input: GradeAssessmentAnswerInput): 
 
   try {
     // Determine model based on skill tested (uses centralized logic)
-    const selectedModel = chooseModelBasedOnPrompt(input.skillTested);
+    const selectedModel = chooseModelBasedOnPrompt(input.skillTested); // Use the selector
     console.log(`Grading answer for question ${input.questionId} (Skill: ${input.skillTested}, Difficulty: ${input.difficulty}) using model: ${selectedModel}`);
 
     const allowedFlags = `[${Object.values(AnswerFlagsSchema.enum).join(', ')}]`; // Access enum values correctly
@@ -39,7 +38,7 @@ export async function gradeAssessmentAnswer(input: GradeAssessmentAnswerInput): 
         input: { schema: GradeAssessmentAnswerInputSchema },
         // AI only needs to output score, feedback, flags, and suggestion
         output: { schema: GradeAssessmentAnswerOutputSchema.omit({ questionId: true }) },
-        model: selectedModel,
+        model: selectedModel, // Use the dynamically selected model
         prompt: `You are an expert AI evaluator grading a freelancer's skill test answer.
 
 Freelancer ID: {{{freelancerId}}}
@@ -70,7 +69,7 @@ STRICT OUTPUT: Return ONLY a JSON object matching this schema exactly:
   "suggestedNextDifficulty": "easier" | "same" | "harder"
 }
 
-IMPORTANT: Do NOT include any explanatory text or extra formatting. Only output the JSON object.`,
+IMPORTANT: Do NOT include any explanatory text or extra formatting. Only output the JSON object. Ensure score is 0-100.`,
     });
 
 
@@ -81,9 +80,13 @@ IMPORTANT: Do NOT include any explanatory text or extra formatting. Only output 
         throw new Error(`Invalid AI grading output structure for question ${input.questionId}.`);
       }
 
+      // Clamp score just in case AI deviates
+      const clampedScore = Math.max(0, Math.min(100, aiOutput.score));
+
       // Construct the full output object, adding the questionId back
       const finalOutput: GradeAssessmentAnswerOutput = {
         ...aiOutput,
+        score: clampedScore, // Use clamped score
         questionId: input.questionId,
       };
 

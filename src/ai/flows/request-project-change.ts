@@ -9,8 +9,7 @@
  * - RequestProjectChangeOutput - Output type.
  */
 
-import { ai } from '@/ai/ai-instance'; // Import ai instance
-import { chooseModelBasedOnPrompt } from '@/lib/model-selector';
+import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import ai instance and model selector
 import { z } from 'zod';
 import {
   RequestProjectChangeInputSchema,
@@ -30,7 +29,7 @@ export async function estimateProjectChangeImpact(input: RequestProjectChangeInp
 
   try {
     // Determine model based on change description (uses centralized logic)
-    const selectedModel = chooseModelBasedOnPrompt(input.changeDescription);
+    const selectedModel = chooseModelBasedOnPrompt(input.changeDescription); // Use the selector
     console.log(`Estimating project change impact for project ${input.projectId} using model ${selectedModel}`);
 
     // Define the Genkit prompt
@@ -38,7 +37,7 @@ export async function estimateProjectChangeImpact(input: RequestProjectChangeInp
       name: `estimateChange_${input.projectId}`,
       input: { schema: RequestProjectChangeInputSchema },
       output: { schema: RequestProjectChangeOutputSchema },
-      model: selectedModel,
+      model: selectedModel, // Use the dynamically selected model
       prompt: `You are an AI Project Manager analyzing a change request for an ongoing project.
 
 Project Details:
@@ -53,14 +52,14 @@ Change Request:
 - Priority: {{{priority}}}
 
 Instructions:
-- Estimate the new delivery timeline based on the requested change.
+- Estimate the new delivery timeline based on the requested change. Provide a specific string (e.g., 'approx. 3 additional days', 'New target: YYYY-MM-DD', 'No significant impact').
 - Estimate the additional cost in USD (must be a non-negative number). Provide 0 if no cost impact.
 - Provide a brief impact analysis explaining your reasoning.
 
 Return ONLY a JSON object matching exactly this structure:
 {
-  "estimatedNewTimeline": "Specific new timeline (e.g., 'approx. 3 additional days', 'New target: YYYY-MM-DD', 'No significant impact')",
-  "estimatedAdditionalCost": "Estimated additional cost in USD (non-negative number).",
+  "estimatedNewTimeline": "Specific new timeline string",
+  "estimatedAdditionalCost": "Estimated additional cost in USD (non-negative number)",
   "impactAnalysis": "Brief analysis (1-2 sentences) explaining the timeline/cost changes."
 }
 No extra explanations, no markdown, no formatting outside the JSON object. Ensure 'estimatedAdditionalCost' is a non-negative number.`,

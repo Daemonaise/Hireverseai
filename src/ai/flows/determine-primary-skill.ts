@@ -9,8 +9,7 @@
  * - DeterminePrimarySkillOutput - Output type.
  */
 
-import { ai } from '@/ai/ai-instance'; // Import ai instance
-import { chooseModelBasedOnPrompt } from '@/lib/model-selector';
+import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import ai instance and model selector
 import { z } from 'zod';
 import {
   DeterminePrimarySkillInputSchema,
@@ -28,17 +27,17 @@ export async function determinePrimarySkill(input: DeterminePrimarySkillInput): 
   DeterminePrimarySkillInputSchema.parse(input);
 
   // Determine model based on description (uses centralized logic)
-  const selectedModel = chooseModelBasedOnPrompt(input.skillsDescription);
+  const selectedModel = chooseModelBasedOnPrompt(input.skillsDescription); // Use the selector
+  console.log(`Determining primary skill using model: ${selectedModel}`);
 
   try {
-    console.log(`Determining primary skill using model: ${selectedModel}`);
 
     // Define the Genkit prompt
     const determineSkillPrompt = ai.definePrompt({
         name: 'determinePrimarySkillPrompt',
         input: { schema: DeterminePrimarySkillInputSchema },
         output: { schema: DeterminePrimarySkillOutputSchema },
-        model: selectedModel,
+        model: selectedModel, // Use the dynamically selected model
         prompt: `You are analyzing a freelancer's description of their skills and experience.
 Identify:
 1. The single most prominent (primary) skill.
