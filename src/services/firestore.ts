@@ -11,7 +11,7 @@ import type { Project, ProjectStatus, ChangeRequest, Microtask } from '@/types/p
 import type { AdaptiveAssessmentResult } from '@/types/assessment';
 import type { Client } from '@/types/client';
 import { authenticator } from 'otplib';
-import type Stripe from 'stripe';
+import type Stripe from 'stripe'; 
 
 // --- Setup and Helpers ---
 const database = db as Firestore;
@@ -21,7 +21,7 @@ const projectsRef = collection(database, 'projects');
 const assessmentsRef = collection(database, 'assessments');
 const clientsRef = collection(database, 'clients');
 
-const now = (): FieldValue => serverTimestamp();
+const now = (): Timestamp => serverTimestamp() as Timestamp;
 
 const getDocRef = (collectionName: string, id: string) => doc(database, collectionName, id);
 
@@ -83,7 +83,7 @@ export async function updateFreelancerSkills(freelancerId: string, skills: strin
 }
 
 export async function updateFreelancerStatus(freelancerId: string, status?: FreelancerStatus, isLoggedIn?: boolean) {
-  const updateData: Partial<Freelancer> & { updatedAt: FieldValue } = { updatedAt: now() };
+  const updateData: Partial<Freelancer> & { updatedAt: Timestamp } = { updatedAt: now() };
   if (isLoggedIn !== undefined) {
     updateData.isLoggedIn = isLoggedIn;
     updateData.status = isLoggedIn ? 'available' : 'offline';

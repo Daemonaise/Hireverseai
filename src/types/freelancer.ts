@@ -20,7 +20,7 @@ export interface Freelancer {
   xp?: number; // Experience points for gamification
   badges?: string[]; // Array of badge IDs earned
   createdAt: Timestamp; // Timestamp of creation
-  updatedAt?: Timestamp; // Timestamp of last update
+  updatedAt?: Timestamp | FieldValue; // Timestamp of last update
   isLoggedIn?: boolean; // Tracks if the freelancer is currently logged in (based on session/token)
   status?: FreelancerStatus; // Tracks the freelancer's self-reported availability
   currentProjects?: string[]; // Optional: List of project IDs currently assigned
