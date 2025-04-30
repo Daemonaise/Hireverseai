@@ -85,17 +85,26 @@ export async function generateProjectIdea(
     if (!result.success) {
       const errorReason = result.error.format()._errors?.join(', ') ?? 'Invalid input provided.';
       console.error('[ProjectIdea] Input validation failed:', result.error.format());
+      // Ensure the error object adheres to the schema, including status
       return {
-        ...GenerateProjectIdeaOutputSchema.parse({}), // Provide empty object to parse with defaults
+        idea: 'Error',
+        details: undefined,
+        estimatedTimeline: 'N/A',
+        estimatedHours: undefined,
+        estimatedBaseCost: undefined,
+        platformFee: undefined,
+        totalCostToClient: undefined,
+        monthlySubscriptionCost: undefined,
+        requiredSkills: undefined,
         reasoning: `Invalid input: ${errorReason}`,
-        status: 'error',
+        status: 'error', // Explicitly set status to 'error'
       };
     }
     params = result.data;
   }
 
   // Dynamically select model based on hint or general context
-  const selectedModel = chooseModelBasedOnPrompt(params?.industryHint || "general project idea");
+  const selectedModel = await chooseModelBasedOnPrompt(params?.industryHint || "general project idea");
   console.log(`[ProjectIdea] Generating idea using model: ${selectedModel}`);
 
   try {
@@ -144,10 +153,20 @@ export async function generateProjectIdea(
   } catch (err: any) {
     console.error(`[ProjectIdea] Generation/validation error using ${selectedModel}:`, err.errors ?? err.message ?? err);
     // Ensure the returned error object adheres to the schema
+    const errorReason = err.message || err;
+    const errorDetails = err.errors ? JSON.stringify(err.errors) : ''; // Include Zod errors if available
     return {
-      ...GenerateProjectIdeaOutputSchema.parse({}), // Use parse with empty object for defaults
-      reasoning: `Failed to generate idea using ${selectedModel}: ${err.message || err}`,
-      status: 'error',
+      idea: 'Error',
+      details: undefined,
+      estimatedTimeline: 'N/A',
+      estimatedHours: undefined,
+      estimatedBaseCost: undefined,
+      platformFee: undefined,
+      totalCostToClient: undefined,
+      monthlySubscriptionCost: undefined,
+      requiredSkills: undefined,
+      reasoning: `Failed to generate idea using ${selectedModel}: ${errorReason} ${errorDetails}`,
+      status: 'error', // Explicitly set status to 'error'
     };
   }
 }

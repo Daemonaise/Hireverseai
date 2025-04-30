@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useTransition, useRef, useEffect, useCallback, useMemo } from 'react';
@@ -87,13 +86,16 @@ export function AiMatcher() {
        if (result.status === 'error') {
          // Use the error reasoning provided by the flow, or a specific message
          const errorMessage = result.reasoning || "Failed to generate or validate the project idea output: Missing or invalid fields in AI response.";
+         // Set the error state instead of throwing
          setIdeaError(errorMessage);
        } else {
          setGeneratedIdea(result);
        }
     } catch (err: any) {
        console.error('Error in handleGenerateIdea:', err);
-       setIdeaError(err.message || "An unexpected error occurred while generating the idea.");
+       // Set the error state with the caught error message
+       const errorDetails = err.errors ? JSON.stringify(err.errors) : '';
+       setIdeaError(`${err.message || "An unexpected error occurred while generating the idea."} ${errorDetails}`);
     } finally {
        setIdeaLoading(false);
     }
@@ -138,7 +140,7 @@ export function AiMatcher() {
         } else if (result.status === 'matched' && result.totalCostToClient !== undefined && result.totalCostToClient > 0) {
             // Redirect to checkout only if matched AND cost is valid
             console.log("Match successful, redirecting to checkout...");
-            toast({ title: "Match Found!", description: "Redirecting to payment...", variant: "success" });
+            toast({ title: "Match Found!", description: "Redirecting to payment...", variant: "default" }); // Changed variant to default
             // Ensure projectId is available for redirection, use a fallback or handle error if missing
              const checkoutProjectId = result.projectId || 'unknown_project'; // Use actual ID if available
             router.push(`/checkout?projectId=${checkoutProjectId}&cost=${result.totalCostToClient}`);
@@ -227,7 +229,7 @@ export function AiMatcher() {
                   <FormLabel
                     htmlFor="projectBrief"
                     className={cn(
-                      "absolute left-3 top-2 text-muted-foreground transition-all duration-200 ease-out",
+                      "absolute left-3 top-2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none", // Added pointer-events-none
                       "peer-placeholder-shown:top-2 peer-placeholder-shown:text-base", // Initial state (when placeholder is shown)
                       "peer-focus:top-[-0.7rem] peer-focus:text-xs peer-focus:text-primary", // State on focus
                        field.value && "top-[-0.7rem] text-xs text-primary" // State when value exists
@@ -281,7 +283,7 @@ export function AiMatcher() {
             {/* Result Display */}
             {matchResult && !error && (
               <Alert
-                variant={matchResult.status === 'matched' ? 'default' : 'default'} // Use 'success' if available/styled
+                variant={matchResult.status === 'matched' ? 'default' : 'default'} // Changed variant to default
                 className="mt-4 border-l-4 border-primary bg-primary/5"
               >
                   <AlertTitle className="font-semibold">
