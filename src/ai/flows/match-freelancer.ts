@@ -3,7 +3,7 @@
  * @fileOverview Match a freelancer to a project with skill extraction, estimation, and AI dynamic model selection.
  */
 
-import { callAI } from '@/ai/ai-instance';
+// Removed callAI import as it's no longer exported from ai-instance
 import { chooseModelBasedOnPrompt } from '@/lib/model-selector';
 import { z } from 'zod';
 import {
@@ -14,6 +14,7 @@ import {
   ExtractSkillsAIOutputSchema,
   EstimateAndSelectAIOutputSchema,
 } from '@/ai/schemas/match-freelancer-schema';
+import { ai } from '@/ai/ai-instance'; // Import the ai instance
 
 // Export types separately
 export type { MatchFreelancerInput, MatchFreelancerOutput };
@@ -56,35 +57,49 @@ export async function matchFreelancer(input: MatchFreelancerInput): Promise<Matc
 
     // --- Skill Extraction (if needed) ---
     if (!skills || skills.length === 0) {
-      const skillPrompt = `
+       // Determine model for skill extraction (uses centralized logic)
+       const modelForSkillExtraction = chooseModelBasedOnPrompt(validatedInput.projectBrief);
+       console.log(`Extracting skills using model: ${modelForSkillExtraction}`);
+
+       const skillPrompt = ai.definePrompt({
+         name: 'extractSkillsPrompt',
+         input: { schema: z.object({ projectBrief: z.string() }) },
+         output: { schema: z.array(z.string()).describe("JSON array of simple skill strings") },
+         model: modelForSkillExtraction, // Use the selected model
+         prompt: `
 Extract the top 1-5 most important freelancer skills from this project brief.
 Respond ONLY as a JSON array of simple skill strings, like ["React", "Node.js"]. No explanations.
 
-Project Brief: ${validatedInput.projectBrief}
-`;
-
-      // Determine model for skill extraction (uses centralized logic)
-      const modelForSkillExtraction = chooseModelBasedOnPrompt(validatedInput.projectBrief);
-      console.log(`Extracting skills using model: ${modelForSkillExtraction}`);
-
-      // Use the centralized callAI function
-      const skillResponse = await callAI('auto', skillPrompt); // Let model selector choose
+Project Brief: {{{projectBrief}}}
+`,
+       });
 
       try {
-        const cleanedSkillResponse = skillResponse.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-        const parsedSkills = JSON.parse(cleanedSkillResponse);
+        const { output } = await skillPrompt({ projectBrief: validatedInput.projectBrief });
+        if (!output || output.length === 0) {
+           throw new Error("AI failed to extract any skills.");
+        }
         // Validate the extracted skills structure
-        const validatedSkills = ExtractSkillsAIOutputSchema.parse({ extractedSkills: parsedSkills });
+        const validatedSkills = ExtractSkillsAIOutputSchema.parse({ extractedSkills: output });
         skills = validatedSkills.extractedSkills;
       } catch (parseError: any) {
-        console.error(`Failed to parse/validate extracted skills from AI (${modelForSkillExtraction}):`, parseError.errors ?? parseError, "Raw:", skillResponse);
+        console.error(`Failed to parse/validate extracted skills from AI (${modelForSkillExtraction}):`, parseError.errors ?? parseError, "Raw:", parseError); // Log raw if available
         // If skill extraction fails, we cannot proceed effectively
         throw new Error("Could not determine required skills from the project brief.");
       }
     }
 
     // --- Estimation and Freelancer Selection ---
-    const estimationPrompt = `
+     // Determine model for estimation (uses centralized logic)
+     const modelForEstimation = chooseModelBasedOnPrompt(validatedInput.projectBrief);
+     console.log(`Estimating project using model: ${modelForEstimation}`);
+
+     const estimationPrompt = ai.definePrompt({
+       name: 'estimateProjectPrompt',
+       input: { schema: z.object({ projectBrief: z.string(), skills: z.array(z.string()) }) },
+       output: { schema: EstimateAndSelectAIOutputSchema }, // Use the specific schema here
+       model: modelForEstimation, // Use the selected model
+       prompt: `
 You are an expert project estimator.
 
 Given this project brief and skills, estimate realistic project completion time and optionally suggest a freelancer match (use ID if available).
@@ -98,23 +113,21 @@ Return ONLY JSON with:
 }
 Ensure 'estimatedHours' is a positive number.
 
-Project Brief: ${validatedInput.projectBrief}
-Skills: ${skills.join(', ')}
-`;
+Project Brief: {{{projectBrief}}}
+Skills: {{{skills.join(', ')}}}
+`,
+     });
 
-    // Determine model for estimation (uses centralized logic)
-    const modelForEstimation = chooseModelBasedOnPrompt(validatedInput.projectBrief);
-    console.log(`Estimating project using model: ${modelForEstimation}`);
-
-    // Use the centralized callAI function
-    const estimationResponse = await callAI('auto', estimationPrompt); // Let model selector choose
 
     let estimationResult: EstimateAndSelectAIOutput;
     try {
-      const cleanedEstimationResponse = estimationResponse.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-      const parsedEstimation = JSON.parse(cleanedEstimationResponse);
-      // Validate the estimation result structure
-      estimationResult = EstimateAndSelectAIOutputSchema.parse(parsedEstimation);
+      const { output } = await estimationPrompt({ projectBrief: validatedInput.projectBrief, skills });
+      if (!output) {
+         throw new Error(`AI (${modelForEstimation}) returned no estimation output.`);
+      }
+
+       // Validate the estimation result structure
+       estimationResult = EstimateAndSelectAIOutputSchema.parse(output);
 
       // Additional check for valid estimatedHours
       if (estimationResult.estimatedHours <= 0) {
@@ -125,7 +138,7 @@ Skills: ${skills.join(', ')}
       }
 
     } catch (parseError: any) {
-      console.error(`Failed to parse/validate estimation from AI (${modelForEstimation}):`, parseError.errors ?? parseError, "Raw:", estimationResponse);
+      console.error(`Failed to parse/validate estimation from AI (${modelForEstimation}):`, parseError.errors ?? parseError, "Raw:", parseError); // Log raw if available
       throw new Error("Could not get a valid project estimate from AI.");
     }
 
@@ -138,7 +151,9 @@ Skills: ${skills.join(', ')}
       : 'no_available_freelancer'; // Or 'estimation_only' if freelancer matching wasn't attempted
 
     // Construct the final output object
-    const output: MatchFreelancerOutput = {
+    const outputResult: MatchFreelancerOutput = {
+      // Add projectId if available from input or creation logic
+      // projectId: validatedInput.projectId ?? undefined,
       matchedFreelancerId: estimationResult.selectedFreelancerId ?? undefined, // Handle null/undefined
       reasoning: estimationResult.reasoning,
       estimatedBaseCost,
@@ -151,9 +166,9 @@ Skills: ${skills.join(', ')}
     };
 
     // Validate the final output against the schema before returning (optional)
-    // MatchFreelancerOutputSchema.parse(output);
+    MatchFreelancerOutputSchema.parse(outputResult); // This will throw if invalid
 
-    return output;
+    return outputResult;
 
   } catch (error: any) {
     // Catch errors from skill extraction, estimation, or calculation

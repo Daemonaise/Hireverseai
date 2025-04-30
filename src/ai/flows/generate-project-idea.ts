@@ -1,174 +1,137 @@
 'use server';
+
 /**
- * @fileOverview Generates a fresh project idea for clients, with real-world estimated costs.
+ * generate-project-idea.ts
+ *
+ * Uses your Genkit AI instance to generate a realistic freelance project idea,
+ * parses and validates the JSON output, then adds cost estimates (hourly rate,
+ * 15% platform fee, and monthly subscription).
  */
 
-import { callAI } from '@/ai/ai-instance'; // Use the centralized helper
+import { ai } from '@/ai/ai-instance'; // Your centralized Genkit instance
 import {
   GenerateProjectIdeaInputSchema,
+  GenerateProjectIdeaAIOutputSchema,
   GenerateProjectIdeaOutputSchema,
-  GenerateProjectIdeaAIOutputSchema, // Use the raw AI output schema
-  type GenerateProjectIdeaOutput,
   type GenerateProjectIdeaInput,
   type GenerateProjectIdeaAIOutput,
+  type GenerateProjectIdeaOutput,
 } from '@/ai/schemas/generate-project-idea-schema';
-import { z } from 'zod'; // Import Zod
+import { z } from 'zod';
 
-// Export types separately
-export type { GenerateProjectIdeaOutput, GenerateProjectIdeaInput };
+// ─── Constants ─────────────────────────────────────────────────────────────────
 
-const PLATFORM_FEE_PERCENTAGE = 0.15;
-const DEFAULT_HOURLY_RATE = 65;
-const SUBSCRIPTION_MONTHS = 6; // Assuming a 6-month payment plan for subscription cost calculation
+const PLATFORM_FEE_PERCENTAGE   = 0.15;
+const DEFAULT_HOURLY_RATE       = 65;
+const SUBSCRIPTION_MONTHS       = 6; // Divide total by this for monthly cost
 
-// --- Helper Functions ---
-// These are synchronous helpers, keep internal or move to utils
+// ─── JSON Extraction Helper ────────────────────────────────────────────────────
 
+/**
+ * Finds the first JSON object in a text blob and parses it.
+ */
 function extractJsonFromText(text: string): any | null {
-  // Improved JSON extraction (handles potential leading/trailing garbage)
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) return null;
   try {
     return JSON.parse(match[0]);
-  } catch (e){
-    console.error("Failed to parse JSON from text:", e, "\nText:", text);
+  } catch (e) {
+    console.error('[Idea] JSON parse error:', e, '\nText:', text);
     return null;
   }
 }
 
-// --- Main Flow Function ---
-// Export only the async function
-export async function generateProjectIdea(input?: unknown): Promise<GenerateProjectIdeaOutput> {
-  // Validate input if provided (using optional chaining and parse)
-  let parsedInput: GenerateProjectIdeaInput | undefined;
+// ─── Prompt Definition ─────────────────────────────────────────────────────────
+
+const generateIdeaPrompt = ai.definePrompt({
+  name:   'generateProjectIdea',
+  // You can switch to gemini15Flash / claude35Sonnet / gpt4o here as desired:
+  model:  'openai/gpt-4o',
+  input:  { schema: z.object({ industryHint: z.string().optional() }) },
+  output: {
+    schema: z.string().describe('Raw JSON string with keys idea, details, etc.')
+  },
+  prompt: `
+Generate a single, valid JSON object with keys:
+  - idea: string
+  - details: string
+  - estimatedTimeline: string (e.g. "3-5 days")
+  - estimatedHours: number (positive integer)
+  - requiredSkills: array of strings
+
+${'{ industryHint ? "Hint: " + industryHint : "" }'}
+
+Do NOT include any markdown or text outside the JSON.
+`,
+});
+
+// ─── Main Exported Function ────────────────────────────────────────────────────
+
+/**
+ * Generates, parses, validates and augments a project idea.
+ */
+export async function generateProjectIdea(
+  input?: unknown
+): Promise<GenerateProjectIdeaOutput> {
+  // 1) Validate incoming shape
+  let params: GenerateProjectIdeaInput | undefined;
   if (input) {
-    try {
-      parsedInput = GenerateProjectIdeaInputSchema.parse(input);
-    } catch (validationError) {
-      console.error("Input validation failed:", validationError);
-      // Return error state conforming to output schema
-      return {
-        idea: '', details: '', estimatedTimeline: '', estimatedHours: undefined,
-        estimatedBaseCost: undefined, platformFee: undefined, totalCostToClient: undefined,
-        monthlySubscriptionCost: undefined, reasoning: 'Invalid input provided.', status: 'error', requiredSkills: []
+    const result = GenerateProjectIdeaInputSchema.safeParse(input);
+    if (!result.success) {
+      console.error('[Idea] Input validation failed:', result.error.format());
+      return { ...GenerateProjectIdeaOutputSchema.parse({}), // defaults
+        reasoning: 'Invalid input provided.', status: 'error'
       };
     }
+    params = result.data;
   }
 
   try {
-    // Use 'auto' to let the centralized selector choose the model
-    const selectedModelType = 'auto';
+    // 2) Call the AI
+    const { output: raw } = await generateIdeaPrompt({
+      industryHint: params?.industryHint
+    });
 
-    // **Strict JSON Prompt**
-    const prompt = `
-Generate a realistic freelance project idea.
-
-**Output Requirements:**
-Return ONLY a single, valid JSON object with the following keys and value types:
-- "idea": string (non-empty, min 5 chars)
-- "details": string (non-empty, brief description)
-- "estimatedTimeline": string (non-empty, e.g., "3-5 days", "1-2 weeks")
-- "estimatedHours": number (positive integer, e.g., 10, 40)
-- "requiredSkills": array of strings (1-5 skills, e.g., ["React", "UI Design"])
-
-${parsedInput?.industryHint ? `Industry Hint: ${parsedInput.industryHint}` : ''}
-
-**Example JSON Output:**
-{
-  "idea": "Develop a Recipe Sharing Web App",
-  "details": "A simple web application allowing users to post and discover recipes.",
-  "estimatedTimeline": "2-3 weeks",
-  "estimatedHours": 40,
-  "requiredSkills": ["React", "Node.js", "Firebase", "UI Design"]
-}
-
-**Do not include any text, explanation, markdown formatting, or code block fences (like \`\`\`json) before or after the JSON object.**
-`;
-
-    console.log(`Generating project idea using ${selectedModelType}...`);
-    // Use the centralized callAI function
-    const responseString = await callAI(selectedModelType, prompt);
-
-    // Check if callAI itself returned an operational error message
-     if (responseString.startsWith("API key missing") || responseString.startsWith("AI generation error")) {
-        console.error("AI call failed:", responseString);
-        throw new Error(responseString); // Propagate the error message from callAI
-     }
-
-    console.log("Raw AI Response for project idea:", responseString);
-
-    // Attempt to parse the response as JSON
-    const parsedJSON = extractJsonFromText(responseString);
-
-    if (!parsedJSON) {
-       // Provide more context in the error message if JSON extraction failed
-       throw new Error(`AI response did not contain valid JSON. Response received: ${responseString.substring(0, 100)}...`);
+    // 3) Extract & parse the JSON
+    const json = extractJsonFromText(raw);
+    if (!json) {
+      throw new Error('AI response did not contain valid JSON.');
     }
 
-    // Validate the parsed JSON against the AI output schema
-    let validatedAIOutput: GenerateProjectIdeaAIOutput;
-    try {
-       // Use safeParse for better error handling within the Zod validation step
-       const validationResult = GenerateProjectIdeaAIOutputSchema.safeParse(parsedJSON);
-       if (!validationResult.success) {
-            // Log detailed Zod errors
-            console.error("Zod Validation Errors:", validationResult.error.errors);
-            const errorDetails = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ');
-            throw new Error(`AI response failed schema validation: ${errorDetails}. Raw JSON: ${JSON.stringify(parsedJSON)}`);
-       }
-       validatedAIOutput = validationResult.data;
-    } catch (validationError) {
-       // This catch block now primarily handles errors thrown *manually* from the try block above
-        console.error("Validation error caught:", validationError);
-        // Re-throw or handle as appropriate, ensuring the error message is informative
-        throw new Error(`AI response validation failed. ${validationError instanceof Error ? validationError.message : String(validationError)}`);
-    }
+    // 4) Validate AI's JSON against your schema
+    const aiResult = GenerateProjectIdeaAIOutputSchema.parse(json);
 
+    // 5) Compute costs
+    const baseCost   = aiResult.estimatedHours * DEFAULT_HOURLY_RATE;
+    const fee        = baseCost * PLATFORM_FEE_PERCENTAGE;
+    const totalCost  = baseCost + fee;
+    const monthly    = totalCost / SUBSCRIPTION_MONTHS;
 
-    // Calculate costs based on validated AI output
-    const estimatedBaseCost = validatedAIOutput.estimatedHours * DEFAULT_HOURLY_RATE;
-    const platformFee = estimatedBaseCost * PLATFORM_FEE_PERCENTAGE;
-    const totalCostToClient = estimatedBaseCost + platformFee;
-    // Calculate monthly cost only if total cost is positive
-    const monthlySubscriptionCost = totalCostToClient > 0 ? totalCostToClient / SUBSCRIPTION_MONTHS : 0;
-
-
+    // 6) Assemble final output
     const finalOutput: GenerateProjectIdeaOutput = {
-      idea: validatedAIOutput.idea,
-      details: validatedAIOutput.details,
-      estimatedTimeline: validatedAIOutput.estimatedTimeline,
-      estimatedHours: validatedAIOutput.estimatedHours,
-      requiredSkills: validatedAIOutput.requiredSkills ?? [], // Ensure array exists
-      estimatedBaseCost: Math.round(estimatedBaseCost * 100) / 100,
-      platformFee: Math.round(platformFee * 100) / 100,
-      totalCostToClient: Math.round(totalCostToClient * 100) / 100,
-      monthlySubscriptionCost: Math.round(monthlySubscriptionCost * 100) / 100,
-      reasoning: `Calculated from ${validatedAIOutput.estimatedHours} hrs @ $${DEFAULT_HOURLY_RATE}/hr + ${PLATFORM_FEE_PERCENTAGE * 100}% fee`,
-      status: 'success',
+      idea:                   aiResult.idea,
+      details:                aiResult.details,
+      estimatedTimeline:      aiResult.estimatedTimeline,
+      estimatedHours:         aiResult.estimatedHours,
+      requiredSkills:         aiResult.requiredSkills,
+      estimatedBaseCost:      Math.round(baseCost * 100) / 100,
+      platformFee:            Math.round(fee * 100) / 100,
+      totalCostToClient:      Math.round(totalCost * 100) / 100,
+      monthlySubscriptionCost: Math.round(monthly * 100) / 100,
+      reasoning:              `Based on ${aiResult.estimatedHours}h @ $${DEFAULT_HOURLY_RATE}/h + ${PLATFORM_FEE_PERCENTAGE*100}% fee`,
+      status:                 'success',
     };
 
-    // Final validation of the complete output structure (optional but good practice)
-    // GenerateProjectIdeaOutputSchema.parse(finalOutput);
+    // 7) Final shape check (will throw if something’s off)
+    GenerateProjectIdeaOutputSchema.parse(finalOutput);
+    return finalOutput;
 
-    return finalOutput; // Return the successful result
-
-  } catch (error: any) {
-    console.error('Error in generateProjectIdea flow:', error?.message || error);
-    // Provide a more specific error message in the reasoning field
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    // Return the error state conforming to the output schema
+  } catch (err: any) {
+    console.error('[Idea] generation error:', err);
     return {
-      idea: '',
-      details: '',
-      estimatedTimeline: '',
-      estimatedHours: undefined,
-      estimatedBaseCost: undefined,
-      platformFee: undefined,
-      totalCostToClient: undefined,
-      monthlySubscriptionCost: undefined,
-      reasoning: `Failed to generate or validate project idea: ${errorMessage}`, // More specific error
-      status: 'error',
-      requiredSkills: [],
+      ...GenerateProjectIdeaOutputSchema.parse({}), // defaults
+      reasoning: `Failed to generate idea: ${err.message || err}`,
+      status:    'error',
     };
   }
 }

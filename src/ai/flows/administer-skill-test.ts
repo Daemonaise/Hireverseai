@@ -8,7 +8,7 @@
  * - AdministerSkillTestOutput - Output type.
  * - Question - Individual question type.
  */
-import { callAI } from '@/ai/ai-instance';
+import { ai } from '@/ai/ai-instance'; // Import ai instance
 import { chooseModelBasedOnPrompt } from '@/lib/model-selector';
 import {
   AdministerSkillTestInputSchema,
@@ -18,6 +18,7 @@ import {
   QuestionSchema,
   type Question,
 } from '@/ai/schemas/administer-skill-test-schema';
+import { z } from 'zod';
 
 // Only export the async function and related types
 export type { AdministerSkillTestInput, AdministerSkillTestOutput, Question };
@@ -39,8 +40,13 @@ export async function administerSkillTest(input: AdministerSkillTestInput): Prom
       const selectedModel = chooseModelBasedOnPrompt(skill);
       console.log(`Generating question for skill: ${skill} using model: ${selectedModel}`);
 
-      const promptText = `You are an AI hiring assistant specializing in creating skill assessment questions.
-Generate exactly ONE practical and relevant test question for a freelancer (ID: ${input.freelancerId}) claiming the following skill: ${skill}.
+      const skillTestPrompt = ai.definePrompt({
+        name: `skillTestQuestion_${skill.replace(/[^a-zA-Z0-9]/g, '')}`, // Create a unique prompt name
+        input: { schema: z.object({ freelancerId: z.string(), skill: z.string() }) },
+        output: { schema: QuestionSchema.pick({ questionText: true }) }, // Only need questionText from AI
+        model: selectedModel,
+        prompt: `You are an AI hiring assistant specializing in creating skill assessment questions.
+Generate exactly ONE practical and relevant test question for a freelancer (ID: {{{freelancerId}}}) claiming the following skill: {{{skill}}}.
 The question should effectively probe their proficiency in this specific skill.
 
 Focus on realistic scenarios:
@@ -50,23 +56,23 @@ Focus on realistic scenarios:
 
 Return ONLY a JSON object with:
 {
-  "questionText": "The test question.",
-  "skillTested": "${skill}"
+  "questionText": "The test question."
 }
-Do NOT add any extra explanations outside the JSON object.`;
+Do NOT add any extra explanations outside the JSON object.`,
+      });
 
-      // Use the centralized callAI function
-      const responseString = await callAI('auto', promptText); // Use 'auto' to let chooseModel decide
+      // Call the defined prompt
+      const { output } = await skillTestPrompt({ freelancerId: input.freelancerId, skill: skill });
 
-      // Clean and validate AI output
-      const cleanedResponse = responseString.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-      const parsed = JSON.parse(cleanedResponse);
+      if (!output || !output.questionText) {
+         throw new Error(`AI (${selectedModel}) did not return valid question text for skill "${skill}".`);
+      }
 
-      // Validate the parsed object against the QuestionSchema
-      const validatedQuestion = QuestionSchema.parse(parsed);
-
-      // Ensure the skillTested matches the input skill, overriding AI if necessary
-      validatedQuestion.skillTested = skill;
+      // Manually construct the full Question object
+      const validatedQuestion: Question = {
+        questionText: output.questionText,
+        skillTested: skill, // Ensure the skillTested field is correctly set
+      };
 
       questions.push(validatedQuestion);
       console.log(`Successfully generated question for skill: ${skill}`);
@@ -104,7 +110,7 @@ Do NOT add any extra explanations outside the JSON object.`;
   };
 
   // Validate the final output before returning (optional but good practice)
-  // AdministerSkillTestOutputSchema.parse(output);
+  AdministerSkillTestOutputSchema.parse(output);
 
   return output;
 }

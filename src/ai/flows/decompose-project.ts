@@ -3,7 +3,7 @@
  * @fileOverview Decomposes a project brief into a list of actionable microtasks.
  */
 
-import { callAI } from '@/ai/ai-instance';
+import { ai } from '@/ai/ai-instance'; // Import ai instance
 import { chooseModelBasedOnPrompt } from '@/lib/model-selector';
 import {
   DecomposeProjectInputSchema,
@@ -14,7 +14,8 @@ import {
   type Microtask,
 } from '@/ai/schemas/decompose-project-schema';
 import { updateProjectMicrotasks, updateProjectStatus } from '@/services/firestore';
-import { Timestamp } from 'firebase/firestore'; // ← NEEDED to create correct Timestamp type
+import { Timestamp } from 'firebase/firestore';
+import { z } from 'zod';
 
 // Export types separately (though ideally from schema file)
 export type { DecomposeProjectInput, DecomposeProjectOutput, Microtask };
@@ -39,7 +40,7 @@ function validateTaskDependencies(microtasks: Microtask[]): Microtask[] {
 // --- Main Decomposition Function ---
 export async function decomposeProject(input: DecomposeProjectInput): Promise<DecomposeProjectOutput> {
   // Validate input (optional here, often done by caller/framework)
-  // DecomposeProjectInputSchema.parse(input);
+  DecomposeProjectInputSchema.parse(input);
 
   await updateProjectStatus(input.projectId, 'decomposing');
   try {
@@ -47,13 +48,20 @@ export async function decomposeProject(input: DecomposeProjectInput): Promise<De
     const selectedModel = chooseModelBasedOnPrompt(input.projectBrief);
     console.log(`Decomposing project ${input.projectId} using model: ${selectedModel}`);
 
-    const promptText = `You are an expert AI Project Manager. Break this project into clear microtasks.
+    // Define the Genkit prompt
+    const decomposePrompt = ai.definePrompt({
+       name: 'decomposeProjectPrompt',
+       input: { schema: DecomposeProjectInputSchema },
+       // Output only the microtasks array, schema validation handles the wrapping object
+       output: { schema: z.array(MicrotaskSchema.omit({ status: true, createdAt: true })).describe('List of microtasks without status/createdAt') },
+       model: selectedModel,
+       prompt: `You are an expert AI Project Manager. Break this project into clear microtasks.
 
 === Project Brief ===
-${input.projectBrief}
+{{{projectBrief}}}
 
 === Required Skills ===
-${input.requiredSkills.map(skill => `- ${skill}`).join('\n')}
+{{{requiredSkills.map(skill => '- ' + skill).join('\\n')}}}
 
 === Microtask Format ===
 {
@@ -64,57 +72,63 @@ ${input.requiredSkills.map(skill => `- ${skill}`).join('\n')}
   "dependencies": "Optional array of prerequisite task IDs"
 }
 
-Return ONLY a JSON object with a single "microtasks" key containing the list of microtasks. Ensure each microtask has an 'id' and 'description'.`;
+Return ONLY a JSON array containing the list of microtasks. Ensure each microtask has an 'id' and 'description'. Do not wrap it in a {"microtasks": [...]} object.`,
+    });
 
-    // Use the centralized callAI function
-    const responseString = await callAI('auto', promptText);
 
     let output: DecomposeProjectOutput;
     try {
-      const cleanedResponse = responseString.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-      const parsed = JSON.parse(cleanedResponse);
+      const { output: rawMicrotasks } = await decomposePrompt(input);
 
-      // Validate the parsed JSON against the expected output schema
-      output = DecomposeProjectOutputSchema.parse(parsed);
+       if (!rawMicrotasks || rawMicrotasks.length === 0) {
+           throw new Error(`AI (${selectedModel}) returned no microtasks or invalid structure.`);
+       }
 
-      // Additional check for empty microtasks array
-      if (!output.microtasks || output.microtasks.length === 0) {
-        throw new Error(`AI (${selectedModel}) returned no microtasks or invalid structure.`);
-      }
+       // Validate the raw microtask array against a simplified schema before enriching
+       const BasicMicrotaskArraySchema = z.array(MicrotaskSchema.pick({ id: true, description: true }).extend({
+            estimatedHours: z.number().min(0.1).optional(),
+            requiredSkill: z.string().optional(),
+            dependencies: z.array(z.string()).optional(),
+        })).min(1);
+
+       const parsedMicrotasks = BasicMicrotaskArraySchema.parse(rawMicrotasks);
+
+
+       const now = Timestamp.now(); // Create one timestamp instance
+
+       // Map and enrich microtasks *after* basic validation
+       const finalMicrotasks: Microtask[] = parsedMicrotasks.map((task, index) => {
+         const fallbackId = `task-${String(index + 1).padStart(3, '0')}`;
+         return {
+           ...task, // Spread the validated basic task data
+           id: task.id || fallbackId, // Ensure ID exists
+           dependencies: task.dependencies ?? [], // Default to empty array
+           status: 'pending', // Default status
+           createdAt: now.toMillis(), // Set creation timestamp (as milliseconds)
+           // Schema validation ensures description exists
+           // Ensure estimatedHours is valid
+           estimatedHours: task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : undefined,
+         };
+       });
+
+       // Validate dependencies after IDs and structure are finalized
+       const validatedMicrotasks = validateTaskDependencies(finalMicrotasks);
+       const finalOutput = { microtasks: validatedMicrotasks };
+
+       // Validate the fully enriched output structure
+       output = DecomposeProjectOutputSchema.parse(finalOutput);
+
     } catch (parseError: any) {
-      console.error(`Error parsing AI output for ${input.projectId}:`, parseError?.errors ?? parseError, "Raw:", responseString);
+      console.error(`Error parsing or validating AI output for ${input.projectId}:`, parseError?.errors ?? parseError, "Raw:", parseError); // Log raw output if available
       // Consider throwing a more specific error or returning a default error state
       throw new Error(`Invalid AI response structure for decomposition.`);
     }
 
-    const now = Timestamp.now(); // Create one timestamp instance
-
-    // Map and enrich microtasks before validation
-    const finalMicrotasks: Microtask[] = output.microtasks.map((task, index) => {
-      const fallbackId = `task-${String(index + 1).padStart(3, '0')}`;
-      return {
-        id: task.id || fallbackId, // Ensure ID exists
-        description: task.description, // Schema ensures description exists
-        estimatedHours: task.estimatedHours && task.estimatedHours > 0 ? task.estimatedHours : undefined,
-        requiredSkill: task.requiredSkill, // Optional
-        dependencies: task.dependencies ?? [], // Default to empty array
-        status: 'pending', // Default status
-        createdAt: now, // Set creation timestamp
-      };
-    });
-
-    // Validate dependencies after IDs and structure are finalized
-    const validatedMicrotasks = validateTaskDependencies(finalMicrotasks);
-    const finalOutput = { microtasks: validatedMicrotasks };
-
     // Update Firestore with validated microtasks
-    await updateProjectMicrotasks(input.projectId, finalOutput.microtasks);
-    console.log(`Project ${input.projectId} decomposed into ${finalOutput.microtasks.length} microtasks.`);
+    await updateProjectMicrotasks(input.projectId, output.microtasks);
+    console.log(`Project ${input.projectId} decomposed into ${output.microtasks.length} microtasks.`);
 
-    // Validate final output before returning (optional)
-    // DecomposeProjectOutputSchema.parse(finalOutput);
-
-    return finalOutput;
+    return output;
 
   } catch (error: any) {
     console.error(`Decomposition failed for project ${input.projectId}:`, error);
