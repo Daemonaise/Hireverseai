@@ -1,125 +1,196 @@
-
-
-
 /**
  * ai-instance.ts
  *
  * Initializes Genkit with configured AI plugins (Google Gemini, OpenAI, Anthropic)
- * and provides helper functions for model selection and decomposition.
+ * and provides helper functions for dynamic model selection, raw AI calls, and prompt definitions.
  */
 
 import { genkit } from 'genkit';
-import { googleAI } from '@genkit-ai/googleai'; // Correct import
-import { openAI } from 'genkitx-openai'; // Correct import for OpenAI
-import { anthropic } from 'genkitx-anthropic'; // Correct import for Anthropic
-import { z } from 'zod'; // Use standard Zod import
+import { googleAI } from '@genkit-ai/googleai';
+import { openAI } from 'genkitx-openai';
+import { anthropic } from 'genkitx-anthropic';
+import { z } from 'zod';
 
 // --- Environment Variables ---
 const GOOGLE_API_KEY    = process.env.GOOGLE_API_KEY;
 const OPENAI_API_KEY    = process.env.OPENAI_API_KEY;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
-// --- Warn if keys are missing ---
-if (!GOOGLE_API_KEY)    console.warn('[AI] Missing GOOGLE_API_KEY — Gemini will not function.');
-if (!OPENAI_API_KEY)    console.warn('[AI] Missing OPENAI_API_KEY — OpenAI will not function.');
-if (!ANTHROPIC_API_KEY) console.warn('[AI] Missing ANTHROPIC_API_KEY — Anthropic will not function.');
-
-// --- Genkit Initialization ---
+// --- Plugin Configuration ---
 const plugins = [];
-// Add plugins conditionally based on API key presence
 if (GOOGLE_API_KEY)    plugins.push(googleAI({ apiKey: GOOGLE_API_KEY }));
 if (OPENAI_API_KEY)    plugins.push(openAI({ apiKey: OPENAI_API_KEY }));
 if (ANTHROPIC_API_KEY) plugins.push(anthropic({ apiKey: ANTHROPIC_API_KEY }));
 
-if (plugins.length === 0) {
-  console.error('[AI] No AI plugins configured — all calls will fail.');
+if (!plugins.length) {
+  console.error('[AI] No API keys found: all AI calls will fail');
 }
 
-// Export the ai instance (Genkit object)
+// --- Genkit Initialization ---
+// Note: Removed 'use server' from here as this file exports the 'ai' object and prompts
 export const ai = genkit({
   promptDir: './prompts',
-  logLevel: 'info',
   plugins,
-  // Default model removed - flows will select dynamically
 });
 
-// --- Helper: Choose Model Based on Prompt Content ---
 /**
- * Selects the most appropriate AI model based on keywords or characteristics of the prompt content.
- * @param promptContent The text content to analyze for model selection.
- * @returns The name of the recommended Genkit model string (e.g., 'googleai/gemini-1.5-flash').
+ * Dynamically choose the best Genkit model for a given prompt.
+ * @param content The prompt text to analyze.
+ * @returns The Genkit model identifier string.
  */
-// This function is NOT a server action itself, but a utility used by server actions.
-// It does not need 'use server'.
-export function chooseModelBasedOnPrompt(promptContent: string): string {
-  const promptLength = promptContent.length;
-  const promptLower = promptContent.toLowerCase();
+export async function chooseModelBasedOnPrompt(content: string): Promise<string> {
+  const text = content.toLowerCase();
+  const length = content.length;
+  const available: string[] = [];
 
-  // 1. Prioritize models based on available API keys
-  // 2. Use keywords to select the *best available* model
-
-  if (ANTHROPIC_API_KEY && (promptLength > 2000 || promptLower.includes('technical') || promptLower.includes('architecture') || promptLower.includes('code') || promptLower.includes('complex problem'))) {
-    console.log("[AI] Choosing Anthropic (Claude) for complex/long task.");
-    return 'anthropic/claude-3-5-sonnet-20240620'; // Use the specific model identifier
-  }
-
-  if (OPENAI_API_KEY && (promptLower.includes('graphic design') || promptLower.includes('visual critique') || promptLower.includes('logo') || promptLower.includes('illustration') || promptLower.includes('creative writing') || promptLower.includes('story') || promptLower.includes('ad copy') || promptLower.includes('marketing slogan'))) {
-    console.log("[AI] Choosing OpenAI (GPT-4o) for creative/visual task.");
-    return 'openai/gpt-4o'; // Use the specific model identifier
-  }
-
-  // Default to Gemini if Google key exists or if no other specific match
   if (GOOGLE_API_KEY) {
-    console.log("[AI] Choosing Google (Gemini Flash) as default or best fit.");
-    return 'googleai/gemini-1.5-flash'; // Default Gemini model
+    available.push('googleai/gemini-1.5-flash'); // Updated to a common Gemini model
+    // available.push('googleai/gemini-pro'); // Keep if needed
+  }
+  if (OPENAI_API_KEY) {
+    available.push('openai/gpt-4o', 'openai/gpt-3.5-turbo');
+  }
+  if (ANTHROPIC_API_KEY) {
+    available.push('anthropic/claude-3-5-sonnet-20240620', 'anthropic/claude-3-opus-20240229'); // Updated model name
   }
 
-  // Fallback if NO keys are available (though initialization should prevent this)
-  console.error("[AI] No suitable AI model could be determined or configured. Returning placeholder.");
-  return 'googleai/gemini-1.5-flash'; // Return a placeholder, but calls will likely fail
+  if (!available.length) {
+    console.error('[AI] No models available: defaulting to gemini-1.5-flash');
+    return 'googleai/gemini-1.5-flash';
+  }
+
+   // Graphic Design -> GPT-4o (if available)
+   const graphicKeywords = ['graphic design', 'visual critique', 'logo', 'illustration', 'branding', 'ui/ux', 'palette', 'typography'];
+   if (graphicKeywords.some(k => text.includes(k)) && available.includes('openai/gpt-4o')) {
+     return 'openai/gpt-4o';
+   }
+
+  // Technical or code-related -> GPT-4o (if available)
+  const codeKeywords = ['```', 'function', 'class ', 'interface', 'api', 'typescript', 'python', 'react', 'node.js', 'sql', 'bug', 'error', 'debug'];
+  if (codeKeywords.some(k => text.includes(k)) && available.includes('openai/gpt-4o')) {
+    return 'openai/gpt-4o';
+  }
+
+  // Long/complex tasks or detailed analysis -> Claude Opus (if available)
+  if ((length > 1500 || text.includes('analysis') || text.includes('summarize') || text.includes('report') || text.includes('complex problem'))
+      && available.includes('anthropic/claude-3-opus-20240229')) {
+    return 'anthropic/claude-3-opus-20240229';
+  }
+    // General purpose / Balanced -> Claude Sonnet (if available)
+    if (available.includes('anthropic/claude-3-5-sonnet-20240620')) {
+        return 'anthropic/claude-3-5-sonnet-20240620';
+    }
+
+  // Creative copy -> GPT-4o (if available)
+  const creativeKeywords = ['story', 'creative', 'marketing', 'ad copy', 'poem', 'blog post', 'social media'];
+  if (creativeKeywords.some(k => text.includes(k)) && available.includes('openai/gpt-4o')) {
+    return 'openai/gpt-4o';
+  }
+
+  // Short Q&A / Fast response needed -> Gemini Flash (if available)
+  if (length < 300 && available.includes('googleai/gemini-1.5-flash')) {
+    return 'googleai/gemini-1.5-flash';
+  }
+
+  // Fallback to fastest/cheapest generally available model
+  return available.includes('googleai/gemini-1.5-flash')
+    ? 'googleai/gemini-1.5-flash'
+    : available[0]; // Default to the first available model
 }
 
-
-// --- Helper: Decompose Project Brief into Steps ---
-// This prompt definition uses the default model unless overridden
-const DecompInputSchema = z.object({ brief: z.string() });
-const DecompOutputSchema = z.string().describe('Markdown steps');
-
-// Define the prompt statically, model selection happens in the calling function
-export const projectDecompositionPrompt = ai.definePrompt({
-  name:  'projectDecomposition',
-  // Model is NOT set here; it will be chosen dynamically in decomposeProjectBrief
-  input: { schema: DecompInputSchema },
-  output:{ schema: DecompOutputSchema },
-  prompt: ({ brief }) =>
-    `Decompose the following project brief into ordered steps (markdown):\n${brief}`,
-});
-
 /**
- * Breaks a free-form brief into a markdown checklist of tasks.
- * Uses dynamic model selection.
- * @param brief The project brief text.
- * @returns A markdown-formatted list of steps or error message.
+ * Raw AI call helper: selects model (if not overridden), invokes AI, and returns text.
+ * This function SHOULD NOT be marked with 'use server' because it's called by server-side flows.
+ * @param prompt The text prompt to send.
+ * @param modelOverride Optional explicit model to use.
+ * @returns AI-generated text response.
  */
-// This function IS intended to be callable from the client/server components,
-// but it's an async utility, not a 'use server' action itself unless moved.
-// If called directly from client components, the file it's in needs 'use server'.
-// However, it's better practice for specific *flows* to have 'use server'.
-// Let's assume this is primarily a backend utility for now.
-export async function decomposeProjectBrief(brief: string): Promise<string> {
-  // Choose model dynamically
-  const selectedModel = chooseModelBasedOnPrompt(brief);
-  console.log(`[AI Decompose] Using model: ${selectedModel}`);
+export async function callAI(
+  promptText: string,
+  modelOverride?: string
+): Promise<string> {
+  const modelId = modelOverride ?? await chooseModelBasedOnPrompt(promptText);
+  console.log(`[AI Call] Using model: ${modelId} for prompt: "${promptText.substring(0, 50)}..."`);
 
   try {
-     // Invoke the prompt, specifying the dynamically chosen model
-     const { output } = await projectDecompositionPrompt({ brief }, { model: selectedModel });
-     return output ?? "AI failed to decompose the brief.";
-  } catch (err: any) {
-    console.error('[AI Decompose] Error:', err.message);
-    return `❗ Decomposition failed: ${err.message}`;
+    const { text } = await ai.generate({ model: modelId, prompt: promptText });
+    if (!text) {
+        throw new Error("AI returned an empty response.");
+    }
+    return text;
+  } catch (error: any) {
+    console.error(`[AI Call Error] Model ${modelId} failed:`, error.message);
+    // Consider a more robust fallback or error propagation strategy
+    return `Error generating response with ${modelId}: ${error.message}`;
   }
 }
 
-// Note: The 'callAI' function is removed as flows should use chooseModelBasedOnPrompt
-// and then call ai.definePrompt({..., model: selectedModel, ...}) directly.
+
+// --- Prompt Definitions ---
+// These definitions themselves are okay here, as they are just configurations
+// They are only *used* within the 'use server' flows.
+
+/**
+ * Decompose a project brief into ordered microtasks (markdown checklist).
+ */
+export const projectDecompositionPrompt = ai.definePrompt({
+  name: 'projectDecomposition',
+  input: { schema: z.object({ brief: z.string() }) },
+  output: { schema: z.string().describe('Markdown checklist of microtasks') },
+  prompt: ({ brief }) => [{ text: `You are an expert AI project manager. Decompose this brief into clear, ordered microtasks (markdown):
+
+${brief}` }],
+});
+
+/**
+ * Generate a realistic freelance project idea (strict JSON output).
+ */
+export const generateProjectIdeaPrompt = ai.definePrompt({
+  name: 'generateProjectIdea',
+  input: { schema: z.object({ industryHint: z.string().optional() }) },
+  output: {
+    schema: z.object({
+      idea: z.string().min(1, 'Idea cannot be empty.'),
+      details: z.string().optional(), // Make details optional for robustness
+      estimatedTimeline: z.string().min(1, 'Timeline cannot be empty.'),
+      estimatedHours: z.number().positive('Estimated hours must be a positive number.'),
+      requiredSkills: z.array(z.string().min(1)).min(1, "At least one skill required").max(5, "Max 5 skills"),
+    }),
+  },
+  prompt: ({ industryHint }) => `
+Generate a single, valid JSON object representing a freelance project idea.
+
+STRICTLY adhere to this JSON structure:
+{
+  "idea": "Short, catchy project title (string, min 1 char)",
+  "details": "Detailed description of the project (string, optional)",
+  "estimatedTimeline": "Realistic timeline (string, e.g., '3-5 days', min 1 char)",
+  "estimatedHours": "Positive integer number of hours (number, > 0)",
+  "requiredSkills": ["Array of 1-5 relevant skill strings (string[], min 1 item, max 5 items)"]
+}
+
+${industryHint ? `Industry Hint: Focus on projects related to '${industryHint}'.` : ''}
+
+CRITICAL: Ensure 'estimatedHours' is a positive integer. Ensure 'requiredSkills' has between 1 and 5 strings.
+Return ONLY the valid JSON object. No introductory text, no explanations, no markdown formatting. Use sensible defaults if unsure, but include all keys.
+`,
+});
+
+
+/**
+ * Match freelancers to a project brief (structured AI flow definition).
+ */
+export const matchFreelancerPrompt = ai.definePrompt({
+  name: 'matchFreelancers',
+  input: {
+    schema: z.object({ projectBrief: z.string(), freelancerId: z.string().optional() }),
+  },
+  output: { schema: z.string().describe('AI matching reasoning and JSON details') },
+  prompt: ({ projectBrief, freelancerId }) => [{ text: `Match this project brief to an ideal freelancer. Brief: ${projectBrief}` +
+    (freelancerId ? `
+Client ID: ${freelancerId}` : '') }],
+});
+
+// Note: Fine-tuning logic (getUserFineTunedModel, triggerFineTuningJob) is removed
+// as it's complex and requires significant infrastructure beyond basic API calls.
+// It would typically involve dedicated services and asynchronous job handling.
