@@ -19,10 +19,14 @@ import {
   type Question,
 } from '@/ai/schemas/administer-skill-test-schema';
 
+// Only export the async function and related types
 export type { AdministerSkillTestInput, AdministerSkillTestOutput, Question };
 
 // --- Main function ---
 export async function administerSkillTest(input: AdministerSkillTestInput): Promise<AdministerSkillTestOutput> {
+  // Validation is implicitly handled by the Zod schema in the caller or Genkit framework
+  // AdministerSkillTestInputSchema.parse(input); // Uncomment if direct validation needed here
+
   const testId = `test_${input.freelancerId}_${Date.now()}`;
   const questions: Question[] = [];
 
@@ -31,6 +35,7 @@ export async function administerSkillTest(input: AdministerSkillTestInput): Prom
   // Loop through each skill and generate a question
   for (const skill of input.skills) {
     try {
+      // Determine model based on skill (now uses centralized logic)
       const selectedModel = chooseModelBasedOnPrompt(skill);
       console.log(`Generating question for skill: ${skill} using model: ${selectedModel}`);
 
@@ -50,12 +55,18 @@ Return ONLY a JSON object with:
 }
 Do NOT add any extra explanations outside the JSON object.`;
 
-      const responseString = await callAI(selectedModel, promptText);
+      // Use the centralized callAI function
+      const responseString = await callAI('auto', promptText); // Use 'auto' to let chooseModel decide
 
       // Clean and validate AI output
       const cleanedResponse = responseString.replace(/^```json\n?/, '').replace(/\n?```$/, '');
       const parsed = JSON.parse(cleanedResponse);
+
+      // Validate the parsed object against the QuestionSchema
       const validatedQuestion = QuestionSchema.parse(parsed);
+
+      // Ensure the skillTested matches the input skill, overriding AI if necessary
+      validatedQuestion.skillTested = skill;
 
       questions.push(validatedQuestion);
       console.log(`Successfully generated question for skill: ${skill}`);
@@ -73,6 +84,7 @@ Do NOT add any extra explanations outside the JSON object.`;
   // Validate overall result
   if (questions.length !== input.skills.length) {
     console.warn(`Mismatch: Expected ${input.skills.length} questions but got ${questions.length}.`);
+    // This might happen if JSON parsing failed for some skills
   }
 
   if (questions.length === 0) {
@@ -84,9 +96,15 @@ Do NOT add any extra explanations outside the JSON object.`;
     };
   }
 
-  return {
+  // Construct the final output adhering to the schema
+  const output: AdministerSkillTestOutput = {
     testId,
     instructions: 'Please answer the following questions carefully to demonstrate your skills.',
     questions,
   };
+
+  // Validate the final output before returning (optional but good practice)
+  // AdministerSkillTestOutputSchema.parse(output);
+
+  return output;
 }
