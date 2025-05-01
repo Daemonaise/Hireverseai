@@ -1,15 +1,6 @@
 'use server';
-/**
- * @fileOverview Determines the primary skill from a freelancer's description.
- * Uses dynamic model selection based on the description content.
- *
- * Exports:
- * - determinePrimarySkill - A function that identifies the main skill and extracts others.
- * - DeterminePrimarySkillInput - Input type.
- * - DeterminePrimarySkillOutput - Output type.
- */
 
-import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import ai instance and model selector
+import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance';
 import { z } from 'zod';
 import {
   DeterminePrimarySkillInputSchema,
@@ -18,75 +9,46 @@ import {
   type DeterminePrimarySkillOutput,
 } from '@/ai/schemas/determine-primary-skill-schema';
 
-// Export types separately
 export type { DeterminePrimarySkillInput, DeterminePrimarySkillOutput };
 
-// Main exported function
-export async function determinePrimarySkill(input: DeterminePrimarySkillInput): Promise<DeterminePrimarySkillOutput> {
-  // Validate input (optional, often handled by caller/framework)
+export async function determinePrimarySkill(
+  input: DeterminePrimarySkillInput
+): Promise<DeterminePrimarySkillOutput> {
   DeterminePrimarySkillInputSchema.parse(input);
 
-  // Determine model based on description (uses centralized logic)
-  const selectedModel = chooseModelBasedOnPrompt(input.skillsDescription); // Use the selector
-  console.log(`Determining primary skill using model: ${selectedModel}`);
+  const selectedModel = await chooseModelBasedOnPrompt(input.skillsDescription);
+  console.log(`Using model: ${selectedModel}`);
 
-  try {
-
-    // Define the Genkit prompt
-    const determineSkillPrompt = ai.definePrompt({
-        name: 'determinePrimarySkillPrompt',
-        input: { schema: DeterminePrimarySkillInputSchema },
-        output: { schema: DeterminePrimarySkillOutputSchema },
-        model: selectedModel, // Use the dynamically selected model
-        prompt: `You are analyzing a freelancer's description of their skills and experience.
+  const promptFn = ai.definePrompt({
+    name: 'determinePrimarySkill',
+    input:  { schema: DeterminePrimarySkillInputSchema },
+    output: { schema: DeterminePrimarySkillOutputSchema },
+    model:  selectedModel,
+    prompt: ({ skillsDescription }) => [{
+      text: `You are analyzing a freelancer's skills description.
 Identify:
 1. The single most prominent (primary) skill.
-2. A full list of all distinct skills mentioned or clearly implied.
+2. All distinct skills mentioned or implied.
 
-Freelancer's Skills Description:
-{{{skillsDescription}}}
+Description:
+${skillsDescription}
 
-Instructions:
-- Focus on real, concrete skills (e.g., 'React Development', 'Copywriting', 'UI/UX Design').
-- The primary skill should reflect their strongest or most emphasized ability.
-- The extracted skills list must include the primary skill.
-- Ensure 'primarySkill' is a non-empty string and 'extractedSkills' is a non-empty array.
-
-Return ONLY a JSON object strictly following this structure:
+Return ONLY:
 {
-  "primarySkill": "The single most prominent skill (e.g., 'React Development')",
-  "extractedSkills": ["List", "of", "all", "distinct", "skills"]
-}
-Do not add any extra explanation, text, or formatting outside the JSON object.`,
-    });
+  "primarySkill": "string",
+  "extractedSkills": ["string", "..."]
+}`
+    }],
+  });
 
-    try {
-       const { output } = await determineSkillPrompt(input);
-
-       if (!output) {
-          throw new Error(`AI (${selectedModel}) did not return a valid output.`);
-       }
-
-       // The schema validation is implicitly handled by definePrompt's output schema
-       // But we can add extra checks if needed
-      if (!output.primarySkill || output.extractedSkills.length === 0) {
-        console.warn(`AI (${selectedModel}) returned incomplete data despite schema validation. Defaulting. Raw:`, output);
-        // Returning a default that fits the schema
-        return { primarySkill: "General", extractedSkills: ["General"] };
-      }
-
-      console.log(`Primary skill determined: ${output.primarySkill}`);
-      return output;
-
-    } catch (aiError: any) {
-      console.error(`Failed to get/validate primary skill output from AI (${selectedModel}):`, aiError.message ?? aiError, "Input:", input);
-      // Return a default value conforming to the schema on AI error
-      return { primarySkill: "General", extractedSkills: ["General"] };
+  try {
+    const result = await promptFn(input);
+    const output = result?.output;
+    if (!output?.primarySkill || output.extractedSkills.length === 0) {
+      return { primarySkill: 'General', extractedSkills: ['General'] };
     }
-
-  } catch (error: any) {
-    console.error(`Error during primary skill determination setup with ${selectedModel}:`, error.message ?? error);
-    // Return a default value conforming to the schema on general error
-    return { primarySkill: "General", extractedSkills: ["General"] };
+    return output;
+  } catch {
+    return { primarySkill: 'General', extractedSkills: ['General'] };
   }
 }

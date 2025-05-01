@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useTransition, useRef, useEffect, useCallback, useMemo } from 'react';
@@ -22,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 const formSchema = z.object({
-  projectBrief: z.string().min(20, { message: "Please describe your project (minimum 20 characters)." }).max(2000, { message: "Project brief cannot exceed 2000 characters." }),
+  projectBrief: z.string().min(20, { message: "Please describe your project in detail (minimum 20 characters)." }).max(2000, { message: "Project brief cannot exceed 2000 characters." }),
   freelancerId: z.string().optional(),
 });
 
@@ -67,8 +68,8 @@ export function AiMatcher() {
     setIdeaGenerationCounter(prev => prev + 1);
     if (ideaGenerationCounter >= 3) {
        toast({
-         title: "Idea Limit Reached",
-         description: "You have reached the maximum number of idea generations for this session.",
+         title: "Example Limit Reached",
+         description: "You have reached the maximum number of example generations for this session.",
          variant: "destructive",
        });
        setIdeaGenerationCounter(0); // Reset counter after warning
@@ -80,14 +81,16 @@ export function AiMatcher() {
     setGeneratedIdea(null); // Clear previous idea
 
     try {
-       console.log("Generating project idea...");
-       const result = await generateProjectIdea(); // No input needed for now
+       console.log("Generating project idea example...");
+       // Pass a hint to get varied examples if desired
+       const hint = Math.random() > 0.5 ? 'creative' : 'technical';
+       const result = await generateProjectIdea({ industryHint: hint });
        console.log("AI Idea Generation Result:", result);
        if (result.status === 'error') {
          // Use the error reasoning provided by the flow, or a specific message
-         const errorMessage = result.reasoning || "Failed to generate or validate the project idea output: Missing or invalid fields in AI response.";
-         // Set the error state instead of throwing
+         const errorMessage = result.reasoning || `Failed to generate example: Invalid response from AI.`;
          setIdeaError(errorMessage);
+         console.error("Error generating example:", result.reasoning);
        } else {
          setGeneratedIdea(result);
        }
@@ -95,7 +98,7 @@ export function AiMatcher() {
        console.error('Error in handleGenerateIdea:', err);
        // Set the error state with the caught error message
        const errorDetails = err.errors ? JSON.stringify(err.errors) : '';
-       setIdeaError(`${err.message || "An unexpected error occurred while generating the idea."} ${errorDetails}`);
+       setIdeaError(`${err.message || "An unexpected error occurred while generating the example."} ${errorDetails}`);
     } finally {
        setIdeaLoading(false);
     }
@@ -105,7 +108,7 @@ export function AiMatcher() {
   const onSubmit = useCallback((values: FormSchema) => {
     setError(null);
     setMatchResult(null);
-    setIsMatching(true);
+    setIsMatching(true); // Set matching state to true
     const { isAuthenticated, userId } = checkAuthentication();
 
     if (!isAuthenticated) {
@@ -115,13 +118,24 @@ export function AiMatcher() {
       return;
     }
 
+    // Show immediate feedback
+     toast({
+       title: "Matching Freelancers...",
+       description: "Please wait while we find the best talent for your project.",
+       duration: 3000, // Show for 3 seconds while transition runs
+     });
+
+
     startTransition(async () => {
       try {
         console.log("Matching freelancers for brief:", values.projectBrief.substring(0, 50) + "...");
         // Pass client ID if authenticated, otherwise undefined
         const flowInput = { projectBrief: values.projectBrief, freelancerId: userId ?? undefined };
         const result = await matchFreelancer(flowInput);
-        setMatchResult(result);
+        setMatchResult(result); // Set result after AI call completes
+
+        // Clear the initial "Matching..." toast if it's still showing
+        // toast.dismiss(); // Need a way to dismiss specific toasts if using a library that supports it
 
         if (result.status === 'error') {
             setError(result.reasoning);
@@ -134,7 +148,7 @@ export function AiMatcher() {
              toast({
                 title: "No Match Found (Yet!)",
                 description: result.reasoning + " We'll keep searching and notify you.",
-                variant: "default", // Use default or a specific 'info' variant if available
+                variant: "default",
                 duration: 5000,
             });
         } else if (result.status === 'matched' && result.totalCostToClient !== undefined && result.totalCostToClient > 0) {
@@ -163,10 +177,14 @@ export function AiMatcher() {
         setError(errorMessage);
         toast({ title: "Error", description: errorMessage, variant: "destructive" });
       } finally {
-        setIsMatching(false); // Ensure loading state is turned off
+        setIsMatching(false); // Ensure loading state is turned off after transition completes
+        // Optionally show placeholder if no result after loading
+        // if (!matchResult && !error) {
+        //    toast({ title: "Still Working...", description: "Matches are coming soon!", duration: 4000 });
+        // }
       }
     });
-  }, [toast, router]); // Added router dependency
+  }, [toast, router, matchResult]); // Added matchResult dependency for cleanup logic
 
   const renderResultDetails = useMemo(() => {
     if (!matchResult || matchResult.status === 'error') return null;
@@ -224,34 +242,36 @@ export function AiMatcher() {
               control={form.control}
               name="projectBrief"
               render={({ field }) => (
-                <FormItem className="relative">
+                <FormItem className="relative text-center"> {/* Added text-center */}
                   {/* Floating Label */}
                   <FormLabel
                     htmlFor="projectBrief"
                     className={cn(
-                      "absolute left-3 top-2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none", // Added pointer-events-none
-                      "peer-placeholder-shown:top-2 peer-placeholder-shown:text-base", // Initial state (when placeholder is shown)
-                      "peer-focus:top-[-0.7rem] peer-focus:text-xs peer-focus:text-primary", // State on focus
-                       field.value && "top-[-0.7rem] text-xs text-primary" // State when value exists
+                      "absolute left-1/2 -translate-x-1/2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none", // Centered label
+                      // Adjust initial vertical position
+                      "peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:text-base", // Centered when placeholder shown
+                      // Animate upwards on focus or when value exists
+                      "peer-focus:top-2 peer-focus:-translate-y-0 peer-focus:text-xs peer-focus:text-primary",
+                       field.value && "top-2 -translate-y-0 text-xs text-primary"
                     )}
                   >
-                    Project Brief
+                    Describe your project goal, deliverables, and any specifics...
                   </FormLabel>
                   <FormControl>
                     <Textarea
                       id="projectBrief"
                       {...field}
                       placeholder=" " // Use space as placeholder for floating label trick
-                      className="min-h-[150px] pt-5 resize-y" // Added padding-top
+                      className="min-h-[120px] max-h-[250px] pt-5 resize-y mx-auto border-2 border-input focus:border-primary" // Added thicker border on focus
                     />
                   </FormControl>
-                  <FormMessage />
+                  <FormMessage className="text-center" /> {/* Centered message */}
                 </FormItem>
               )}
             />
 
-             {/* "Need an Idea?" Button Centered */}
-            <div className="text-center">
+             {/* "Need an example?" Button Centered */}
+            <div className="text-center pt-2">
               <Button
                  variant="outline"
                  size="sm"
@@ -260,12 +280,75 @@ export function AiMatcher() {
                  disabled={ideaLoading || ideaGenerationCounter >= 3}
                  className="mx-auto" // Center the button
                >
-                <Wand2 className="mr-2 h-4 w-4" /> Need an idea?
+                <Wand2 className="mr-2 h-4 w-4" /> Need an example?
               </Button>
             </div>
 
+
+            {/* Freelancer ID Input (conditionally rendered) */}
+            <div className={cn(
+                "transition-all duration-200 ease-out overflow-hidden",
+                showFreelancerIdInput ? "max-h-40 opacity-100 mt-4" : "max-h-0 opacity-0"
+            )}>
+              <FormField
+                control={form.control}
+                name="freelancerId"
+                render={({ field }) => (
+                  <FormItem className="relative">
+                    <FormLabel
+                      htmlFor="freelancerId"
+                      className={cn(
+                        "absolute left-3 top-2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none",
+                        "peer-placeholder-shown:top-2 peer-placeholder-shown:text-base",
+                        "peer-focus:top-[-0.7rem] peer-focus:text-xs peer-focus:text-primary",
+                         field.value && "top-[-0.7rem] text-xs text-primary"
+                      )}
+                    >
+                      Freelancer ID (Optional)
+                    </FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                         <Input
+                           id="freelancerId"
+                           ref={freelancerIdInputRef}
+                           {...field}
+                           placeholder=" "
+                           className="pt-4" // Added padding-top
+                         />
+                         {field.value && (
+                           <Button
+                             type="button"
+                             variant="ghost"
+                             size="icon"
+                             className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                             onClick={() => form.setValue('freelancerId', '')}
+                           >
+                             <X className="h-4 w-4" />
+                           </Button>
+                         )}
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Toggle Freelancer ID Input Link */}
+            {!showFreelancerIdInput && (
+                <div className="text-center mt-3"> {/* Added margin-top */}
+                    <button
+                        type="button"
+                        onClick={() => setShowFreelancerIdInput(true)}
+                        className="text-sm text-muted-foreground hover:text-primary hover:underline focus:outline-none focus:text-primary focus:underline"
+                    >
+                        Have a specific freelancer ID? Click here
+                    </button>
+                </div>
+            )}
+
             {/* Match Freelancers Button Centered */}
-            <div className="text-center pt-2">
+            <div className="text-center pt-4"> {/* Adjusted padding */}
               <Button
                 type="submit"
                 disabled={!form.formState.isValid || isPending || isMatching}
@@ -280,10 +363,10 @@ export function AiMatcher() {
               </Button>
             </div>
 
-            {/* Result Display */}
-            {matchResult && !error && (
+             {/* Result Display */}
+            {matchResult && !isMatching && !error && ( // Show only when not matching and no error
               <Alert
-                variant={matchResult.status === 'matched' ? 'default' : 'default'} // Changed variant to default
+                variant={matchResult.status === 'matched' ? 'default' : 'default'}
                 className="mt-4 border-l-4 border-primary bg-primary/5"
               >
                   <AlertTitle className="font-semibold">
@@ -296,8 +379,18 @@ export function AiMatcher() {
               </Alert>
             )}
 
+            {/* Placeholder while loading/matching and no error */}
+            {isMatching && !error && !matchResult && (
+                 <div className="mt-4 text-center text-muted-foreground">
+                     <p>Finding the best matches...</p>
+                     {/* Optional: Add a placeholder message if it takes longer */}
+                     {/* <p className="text-xs mt-1">(This may take a few moments)</p> */}
+                 </div>
+             )}
+
+
              {/* Error Display */}
-             {error && (
+             {error && !isMatching && ( // Show error only when not matching
                 <Alert variant="destructive" className="mt-4">
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>Error</AlertTitle>
@@ -314,21 +407,21 @@ export function AiMatcher() {
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-                <Bot className="h-5 w-5 text-primary" /> AI Project Idea Generator
+                <Bot className="h-5 w-5 text-primary" /> AI Project Example Generator
             </DialogTitle>
-            <DialogDescription>AI suggestions for your next project idea.</DialogDescription>
+            <DialogDescription>AI suggestions for example project briefs.</DialogDescription>
           </DialogHeader>
           <div className="py-4 min-h-[100px] flex items-center justify-center">
             {ideaLoading && (
                 <div className="text-center">
                     <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">Generating idea...</p>
+                    <p className="text-sm text-muted-foreground">Generating example...</p>
                 </div>
             )}
             {ideaError && (
                 <Alert variant="destructive">
                      <AlertCircle className="h-4 w-4" />
-                     <AlertTitle>Error Generating Idea</AlertTitle>
+                     <AlertTitle>Error Generating Example</AlertTitle>
                     <AlertDescription>{ideaError}</AlertDescription>
                 </Alert>
             )}
@@ -338,7 +431,7 @@ export function AiMatcher() {
                  {generatedIdea.details && <p className="text-sm text-muted-foreground mb-3">{generatedIdea.details}</p>}
                  <div className="text-xs space-y-1">
                       <p><Calendar className="inline h-3 w-3 mr-1"/> Timeline: {generatedIdea.estimatedTimeline}</p>
-                      <p><Hourglass className="inline h-3 w-3 mr-1"/> Hours: ~{generatedIdea.estimatedHours}</p>
+                      <p><Hourglass className="inline h-3 w-3 mr-1"/> Hours: ~{generatedIdea.estimatedHours ?? 'N/A'}</p>
                        {generatedIdea.requiredSkills && generatedIdea.requiredSkills.length > 0 && (
                            <div className="flex flex-wrap gap-1 items-center">
                                <Tag className="inline h-3 w-3 mr-1"/> Skills:
@@ -357,15 +450,14 @@ export function AiMatcher() {
             {generatedIdea && !ideaLoading && !ideaError && (
               <Button
                  onClick={() => {
-                   // Set project brief and optionally skills
+                   // Set project brief
                    form.setValue('projectBrief', `${generatedIdea.idea}: ${generatedIdea.details ?? ''}`);
-                   // Optionally pre-fill skills if the flow supports it
-                   // form.setValue('requiredSkills', generatedIdea.requiredSkills);
                    setIsIdeaChatOpen(false);
+                   toast({ title: "Example Applied", description: "The example brief has been added to the form." });
                  }}
                  className="w-full sm:w-auto"
                >
-                 Use This Idea
+                 Use This Example
                </Button>
             )}
              <Button
