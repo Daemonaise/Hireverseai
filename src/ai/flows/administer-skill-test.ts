@@ -8,7 +8,7 @@
  * - AdministerSkillTestOutput - Output type.
  * - Question - Individual question type.
  */
-import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import ai instance and model selector
+import { callAI } from '@/ai/ai-instance'; // Import the centralized callAI function
 import {
   AdministerSkillTestInputSchema,
   type AdministerSkillTestInput,
@@ -24,8 +24,9 @@ export type { AdministerSkillTestInput, AdministerSkillTestOutput, Question };
 
 // --- Main function ---
 export async function administerSkillTest(input: AdministerSkillTestInput): Promise<AdministerSkillTestOutput> {
-  // Validation is implicitly handled by the Zod schema in the caller or Genkit framework
-  // AdministerSkillTestInputSchema.parse(input); // Uncomment if direct validation needed here
+  // Validation is implicitly handled by Zod schema in the Genkit framework if used there,
+  // or needs to be explicitly called if this function is used directly.
+  AdministerSkillTestInputSchema.parse(input);
 
   const testId = `test_${input.freelancerId}_${Date.now()}`;
   const questions: Question[] = [];
@@ -35,17 +36,11 @@ export async function administerSkillTest(input: AdministerSkillTestInput): Prom
   // Loop through each skill and generate a question
   for (const skill of input.skills) {
     try {
-      // Determine model based on skill (uses centralized logic)
-      const selectedModel = chooseModelBasedOnPrompt(skill); // Use the selector
-      console.log(`Generating question for skill: ${skill} using model: ${selectedModel}`);
+      console.log(`Generating question for skill: ${skill}...`);
 
-      const skillTestPrompt = ai.definePrompt({
-        name: `skillTestQuestion_${skill.replace(/[^a-zA-Z0-9]/g, '')}`, // Create a unique prompt name
-        input: { schema: z.object({ freelancerId: z.string(), skill: z.string() }) },
-        output: { schema: QuestionSchema.pick({ questionText: true }) }, // Only need questionText from AI
-        model: selectedModel, // Use the dynamically selected model
-        prompt: `You are an AI hiring assistant specializing in creating skill assessment questions.
-Generate exactly ONE practical and relevant test question for a freelancer (ID: {{{freelancerId}}}) claiming the following skill: {{{skill}}}.
+      // Construct the prompt for the callAI function
+      const promptText = `You are an AI hiring assistant specializing in creating skill assessment questions.
+Generate exactly ONE practical and relevant test question for a freelancer (ID: ${input.freelancerId}) claiming the following skill: ${skill}.
 The question should effectively probe their proficiency in this specific skill.
 
 Focus on realistic scenarios:
@@ -57,19 +52,35 @@ Return ONLY a JSON object with:
 {
   "questionText": "The test question."
 }
-Do NOT add any extra explanations outside the JSON object.`,
-      });
+Do NOT add any extra explanations outside the JSON object.`;
 
-      // Call the defined prompt
-      const { output } = await skillTestPrompt({ freelancerId: input.freelancerId, skill: skill });
+      // Call the centralized AI function (which handles model selection and validation)
+      const responseText = await callAI(promptText);
 
-      if (!output || !output.questionText) {
-         throw new Error(`AI (${selectedModel}) did not return valid question text for skill "${skill}".`);
+      // Attempt to parse the JSON response
+      let parsedOutput: { questionText: string };
+      try {
+        // Basic JSON extraction (might need refinement based on AI behavior)
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("No JSON object found in response.");
+        parsedOutput = JSON.parse(jsonMatch[0]);
+
+        // Validate the parsed output structure
+        const validationResult = z.object({ questionText: z.string().min(1) }).safeParse(parsedOutput);
+        if (!validationResult.success) {
+          throw new Error(`Invalid JSON structure: ${validationResult.error.errors.map(e => e.message).join(', ')}`);
+        }
+        parsedOutput = validationResult.data; // Use validated data
+
+      } catch (parseError: any) {
+        console.error(`Error parsing question JSON for skill "${skill}":`, parseError.message, "Raw Response:", responseText);
+        throw new Error(`AI did not return valid JSON question text for skill "${skill}".`);
       }
+
 
       // Manually construct the full Question object
       const validatedQuestion: Question = {
-        questionText: output.questionText,
+        questionText: parsedOutput.questionText,
         skillTested: skill, // Ensure the skillTested field is correctly set
       };
 
@@ -77,7 +88,7 @@ Do NOT add any extra explanations outside the JSON object.`,
       console.log(`Successfully generated question for skill: ${skill}`);
 
     } catch (error: any) {
-      console.error(`Error generating or parsing question for skill "${skill}":`, error?.message || error);
+      console.error(`Error generating or processing question for skill "${skill}":`, error?.message || error);
       // Fallback: Insert placeholder question
       questions.push({
         questionText: `Placeholder question for ${skill}: Describe your experience with ${skill}.`,
@@ -113,3 +124,4 @@ Do NOT add any extra explanations outside the JSON object.`,
 
   return output;
 }
+    

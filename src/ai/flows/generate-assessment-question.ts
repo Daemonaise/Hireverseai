@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Generates a single adaptive assessment question.
- * Uses dynamic model selection based on the primary skill.
+ * Uses dynamic model selection via callAI.
  *
  * Exports:
  * - generateAssessmentQuestion - A function that generates one question.
@@ -10,7 +10,7 @@
  * - DifficultyLevel - Difficulty level type.
  */
 
-import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import ai instance and model selector
+import { callAI } from '@/ai/ai-instance'; // Import the centralized callAI function
 import { z } from 'zod';
 import {
   GenerateAssessmentQuestionInputSchema,
@@ -26,42 +26,32 @@ export type { GenerateAssessmentQuestionInput, GenerateAssessmentQuestionOutput,
 
 // Main exported function
 export async function generateAssessmentQuestion(input: GenerateAssessmentQuestionInput): Promise<GenerateAssessmentQuestionOutput> {
-  // Validate input (optional, often handled by caller/framework)
+  // Validate input
   GenerateAssessmentQuestionInputSchema.parse(input);
 
   const timestamp = Date.now();
+  const uniqueQuestionId = `q_${input.freelancerId}_${timestamp}`;
 
-  // Determine model based on primary skill (uses centralized logic)
-  const selectedModel = chooseModelBasedOnPrompt(input.primarySkill); // Use the selector
-  console.log(`Generating assessment question for skill "${input.primarySkill}" (Difficulty: ${input.difficulty}) using model: ${selectedModel}`);
+  console.log(`Generating assessment question for skill "${input.primarySkill}" (Difficulty: ${input.difficulty})...`);
 
-  try {
-    const uniqueQuestionId = `q_${input.freelancerId}_${timestamp}`;
+  // Describe the expected JSON output format for the AI
+  const schemaDescription = `{
+"questionText": "The generated question text (string, min 10 chars)."
+}`;
 
-    // Describe the expected JSON output format for the AI
-    const schemaDescription = `{
-  "questionText": "The generated question text."
-}`; // AI should only return questionText
+  const previousQuestionsList = input.previousQuestions?.length
+    ? `Avoid generating questions similar to:\n${input.previousQuestions.map(q => `- ${q}`).join('\n')}`
+    : '';
 
-    const previousQuestionsList = input.previousQuestions?.length
-      ? `Avoid generating questions similar to:\n${input.previousQuestions.map(q => `- ${q}`).join('\n')}`
-      : '';
+  const allSkillsList = input.allSkills.map(skill => `- ${skill}`).join('\n');
 
-    const allSkillsList = input.allSkills.map(skill => `- ${skill}`).join('\n');
-
-    // Define the Genkit prompt
-    const generateQuestionPrompt = ai.definePrompt({
-        name: `generateQuestion_${input.primarySkill}_${input.difficulty}`,
-        input: { schema: GenerateAssessmentQuestionInputSchema },
-        // AI only needs to output the question text
-        output: { schema: z.object({ questionText: z.string().min(10) }) }, // Ensure question text is not empty
-        model: selectedModel, // Use the dynamically selected model
-        prompt: `You are an AI expert creating adaptive assessment questions for freelancers.
-Generate exactly ONE practical and relevant question for a freelancer (ID: {{{freelancerId}}}) based on their primary skill: {{{primarySkill}}}.
+  // Construct the prompt for the callAI function
+  const promptText = `You are an AI expert creating adaptive assessment questions for freelancers.
+Generate exactly ONE practical and relevant question for a freelancer (ID: ${input.freelancerId}) based on their primary skill: ${input.primarySkill}.
 Their other claimed skills are:
 ${allSkillsList}
 
-The target difficulty level is: {{{difficulty}}}.
+The target difficulty level is: ${input.difficulty}.
 
 ${previousQuestionsList}
 
@@ -77,42 +67,51 @@ For writing skills: request short writing samples, critiques, or strategy explan
 
 Output ONLY a JSON object strictly like this:
 ${schemaDescription}
-No extra text outside the JSON.`,
-    });
+No extra text outside the JSON. Ensure 'questionText' is at least 10 characters long.`;
 
+  try {
+    // Call the centralized AI function
+    const responseText = await callAI(promptText);
 
+    // Attempt to parse the JSON response
+    let aiOutput: { questionText: string };
     try {
-       const { output: aiOutput } = await generateQuestionPrompt(input);
+      // Basic JSON extraction
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("No JSON object found in response.");
+      const rawOutput = JSON.parse(jsonMatch[0]);
 
-       if (!aiOutput || !aiOutput.questionText) {
-           throw new Error(`AI (${selectedModel}) failed to return valid question text.`);
-       }
+      // Validate the parsed output structure
+      const validationResult = z.object({ questionText: z.string().min(10) }).safeParse(rawOutput);
+      if (!validationResult.success) {
+          throw new Error(`Invalid JSON structure: ${validationResult.error.errors.map(e => e.message).join(', ')}`);
+      }
+      aiOutput = validationResult.data; // Use validated data
 
-      // Construct the full output object, manually setting the correct fields
-      const finalOutput: GenerateAssessmentQuestionOutput = {
-        questionId: uniqueQuestionId,
-        questionText: aiOutput.questionText,
-        skillTested: input.primarySkill,
-        difficulty: input.difficulty,
-      };
-
-      // Validate the final constructed output (optional but recommended)
-      GenerateAssessmentQuestionOutputSchema.parse(finalOutput);
-
-      console.log(`Generated question ${finalOutput.questionId} for ${input.primarySkill} at ${input.difficulty} using ${selectedModel}`);
-      return finalOutput;
-
-    } catch (aiError: any) {
-      console.error(`Failed generating/parsing AI response from ${selectedModel}:`, aiError?.errors ?? aiError, "Input:", input);
-      // Throw a new error that will be caught by the outer catch block
-      throw new Error(`Invalid response structure returned by AI when generating question.`);
+    } catch (parseError: any) {
+      console.error(`Error parsing question generation JSON:`, parseError.message, "Raw Response:", responseText);
+      throw new Error(`AI did not return valid JSON question text.`);
     }
 
+    // Construct the full output object, manually setting the correct fields
+    const finalOutput: GenerateAssessmentQuestionOutput = {
+      questionId: uniqueQuestionId,
+      questionText: aiOutput.questionText,
+      skillTested: input.primarySkill,
+      difficulty: input.difficulty,
+    };
+
+    // Validate the final constructed output (optional but recommended)
+    GenerateAssessmentQuestionOutputSchema.parse(finalOutput);
+
+    console.log(`Generated question ${finalOutput.questionId} for ${input.primarySkill} at ${input.difficulty}`);
+    return finalOutput;
+
   } catch (error: any) {
-    // Catch errors from prompt definition or execution
-    console.error(`Failed to generate assessment question for ${input.primarySkill} using ${selectedModel}:`, error);
-    // Propagate the error to the caller
+    // Catch errors from callAI or parsing/validation
+    console.error(`Failed to generate assessment question for ${input.primarySkill}:`, error);
     const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new Error(`Generation error for ${input.primarySkill} (${selectedModel}): ${errorMessage}`);
+    throw new Error(`Generation error for ${input.primarySkill}: ${errorMessage}`);
   }
 }
+    

@@ -1,121 +1,239 @@
+// REMOVED 'use server'; directive
+
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
 import { openAI } from 'genkitx-openai';
 import { anthropic } from 'genkitx-anthropic';
 import { z } from 'zod';
 
+// --- Environment Variables ---
 const GOOGLE_API_KEY    = process.env.GOOGLE_API_KEY;
 const OPENAI_API_KEY    = process.env.OPENAI_API_KEY;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
+// --- AI Plugin Configuration ---
 const plugins = [];
 if (GOOGLE_API_KEY)    plugins.push(googleAI({ apiKey: GOOGLE_API_KEY }));
 if (OPENAI_API_KEY)    plugins.push(openAI({ apiKey: OPENAI_API_KEY }));
 if (ANTHROPIC_API_KEY) plugins.push(anthropic({ apiKey: ANTHROPIC_API_KEY }));
-if (!plugins.length) console.error('[AI] No API keys found: all AI calls will fail');
 
+if (!plugins.length) {
+  console.warn('[AI Configuration] No API keys found. AI functionality will be limited or fail.');
+}
+
+// Initialize Genkit
 export const ai = genkit({
-  promptDir: './prompts',
   plugins,
+  logLevel: 'debug', // Optional: for detailed logs
+  // Default model (can be overridden)
+  // model: 'googleai/gemini-1.5-flash', // Removed default model to force selection
 });
 
-export async function chooseModelBasedOnPrompt(content: string): Promise<string> {
-  const text = content.toLowerCase();
-  const length = content.length;
-  const available: string[] = [];
 
-  if (GOOGLE_API_KEY)    available.push('googleai/gemini-1.5-flash');
-  if (OPENAI_API_KEY)    available.push('openai/gpt-4o', 'openai/gpt-3.5-turbo');
-  if (ANTHROPIC_API_KEY) available.push('anthropic/claude-3-5-sonnet-20240620', 'anthropic/claude-3-opus-20240229');
-  if (!available.length) {
-    console.error('[AI] No models available: defaulting to gemini-1.5-flash');
-    return 'googleai/gemini-1.5-flash';
+// --- Model Selection Logic ---
+// Returns a Genkit-compatible model string (e.g., 'googleai/gemini-1.5-flash').
+export async function chooseModelBasedOnPrompt(promptContent: string): Promise<string> {
+  const promptLength = promptContent.length;
+  const promptLower = promptContent.toLowerCase();
+  const availableModels: string[] = [];
+
+  if (GOOGLE_API_KEY)    availableModels.push('googleai/gemini-1.5-flash');
+  if (OPENAI_API_KEY)    availableModels.push('openai/gpt-4o', 'openai/gpt-3.5-turbo');
+  if (ANTHROPIC_API_KEY) availableModels.push('anthropic/claude-3-5-sonnet-20240620', 'anthropic/claude-3-haiku-20240307'); // Use Haiku for potentially faster/cheaper validation
+
+  if (availableModels.length === 0) {
+    console.error('[AI Model Selection] No models available due to missing API keys.');
+    throw new Error('No AI models available.'); // Throw error if no models can be used
   }
 
-  const graphicKeywords = ['graphic design','visual critique','logo','illustration','branding','ui/ux','palette','typography'];
-  if (graphicKeywords.some(k => text.includes(k)) && available.includes('openai/gpt-4o')) {
+  // Prioritize specific models based on keywords if available
+  if ( (promptLower.includes('graphic design') || promptLower.includes('visual critique')) && availableModels.includes('openai/gpt-4o') ) {
     return 'openai/gpt-4o';
   }
-
-  const codeKeywords = ['```','function','class ','interface','api','typescript','python','react','node.js','sql','bug','error','debug'];
-  if (codeKeywords.some(k => text.includes(k)) && available.includes('openai/gpt-4o')) {
-    return 'openai/gpt-4o';
+  if ( (promptLower.includes('code') || promptLower.includes('```') || promptLower.includes('debug')) && availableModels.includes('openai/gpt-4o') ) {
+     return 'openai/gpt-4o';
   }
-
-  if ((length > 1500 || text.includes('analysis') || text.includes('summarize') || text.includes('report') || text.includes('complex problem'))
-      && available.includes('anthropic/claude-3-opus-20240229')) {
-    return 'anthropic/claude-3-opus-20240229';
-  }
-
-  if (available.includes('anthropic/claude-3-5-sonnet-20240620')) {
+  if ( (promptLength > 1500 || promptLower.includes('analysis') || promptLower.includes('report')) && availableModels.includes('anthropic/claude-3-5-sonnet-20240620') ) {
     return 'anthropic/claude-3-5-sonnet-20240620';
   }
-
-  const creativeKeywords = ['story','creative','marketing','ad copy','poem','blog post','social media'];
-  if (creativeKeywords.some(k => text.includes(k)) && available.includes('openai/gpt-4o')) {
-    return 'openai/gpt-4o';
+  if ( (promptLower.includes('creative') || promptLower.includes('story') || promptLower.includes('marketing')) && availableModels.includes('anthropic/claude-3-5-sonnet-20240620') ) {
+      return 'anthropic/claude-3-5-sonnet-20240620';
   }
 
-  if (length < 300 && available.includes('googleai/gemini-1.5-flash')) {
-    return 'googleai/gemini-1.5-flash';
+  // Fallback logic
+  if (availableModels.includes('googleai/gemini-1.5-flash')) {
+    return 'googleai/gemini-1.5-flash'; // Good general-purpose default
+  }
+  if (availableModels.includes('anthropic/claude-3-haiku-20240307')) {
+     return 'anthropic/claude-3-haiku-20240307'; // Faster/cheaper alternative
+  }
+  if (availableModels.includes('openai/gpt-3.5-turbo')) {
+    return 'openai/gpt-3.5-turbo'; // Another fallback
   }
 
-  return available.includes('googleai/gemini-1.5-flash')
-    ? 'googleai/gemini-1.5-flash'
-    : available[0];
+  // If somehow none of the specific fallbacks match, return the first available
+  return availableModels[0];
 }
 
-export async function callAI(promptText: string, modelOverride?: string): Promise<string> {
-  const modelId = modelOverride ?? await chooseModelBasedOnPrompt(promptText);
-  console.log(`[AI Call] Using model: ${modelId}`);
+
+// --- Prompt Templates ---
+
+// Validation Prompt Template
+const VALIDATION_PROMPT_TEXT = `You are an AI quality assurance assistant.
+Review the following ORIGINAL PROMPT and the RESPONSE generated by another AI.
+Is the RESPONSE an acceptable, relevant, and high-quality answer to the ORIGINAL PROMPT?
+Answer ONLY with "Acceptable" or "Unacceptable".
+
+ORIGINAL PROMPT:
+---
+{{{originalPrompt}}}
+---
+
+RESPONSE:
+---
+{{{responseToValidate}}}
+---
+
+Assessment (Acceptable/Unacceptable):`;
+
+const validationPrompt = ai.definePrompt({
+    name: 'validateAIResponse',
+    input: { schema: z.object({ originalPrompt: z.string(), responseToValidate: z.string() }) },
+    output: { schema: z.string().describe("Either 'Acceptable' or 'Unacceptable'") },
+    prompt: VALIDATION_PROMPT_TEXT,
+});
+
+
+// --- Core AI Call Function with Cross-Validation ---
+export async function callAI(originalPrompt: string, modelOverride?: string): Promise<string> {
+  let primaryModelId: string;
+
+  // 1. Choose Primary Model
   try {
-    const { text } = await ai.generate({ model: modelId, prompt: promptText });
-    if (!text) throw new Error('AI returned empty response');
-    return text;
+    primaryModelId = modelOverride ?? await chooseModelBasedOnPrompt(originalPrompt);
+    console.log(`[AI Call - Primary] Using model: ${primaryModelId}`);
   } catch (err: any) {
-    console.error(`[AI Call Error] ${err.message}`);
-    return `Error: ${err.message}`;
+    console.error('[AI Call Error] Failed to select primary model:', err.message);
+    return `Error: Could not select an AI model. ${err.message}`;
+  }
+
+  // 2. Generate Primary Response
+  let primaryResponse: string;
+  try {
+    const { text } = await ai.generate({ model: primaryModelId, prompt: originalPrompt });
+    if (!text) throw new Error('Primary AI model returned an empty response');
+    primaryResponse = text;
+    console.log(`[AI Call - Primary] Response received from ${primaryModelId}. Length: ${primaryResponse.length}`);
+  } catch (err: any) {
+    console.error(`[AI Call Error - Primary ${primaryModelId}] ${err.message}`);
+    return `Error generating response from ${primaryModelId}: ${err.message}`;
+  }
+
+  // 3. Select Validation Models
+  const availableModels: string[] = [];
+  if (GOOGLE_API_KEY)    availableModels.push('googleai/gemini-1.5-flash');
+  if (OPENAI_API_KEY)    availableModels.push('openai/gpt-4o', 'openai/gpt-3.5-turbo');
+  if (ANTHROPIC_API_KEY) availableModels.push('anthropic/claude-3-5-sonnet-20240620', 'anthropic/claude-3-haiku-20240307');
+
+  // Get up to two *different* models for validation
+  const validationModels = availableModels
+    .filter(modelId => modelId !== primaryModelId) // Exclude the primary model
+    .slice(0, 2); // Take the first two available different models
+
+  // 4. Perform Cross-Validation (if enough models are available)
+  if (validationModels.length < 1) {
+    console.warn(`[AI Call - Validation] Not enough distinct models available to perform cross-validation for primary model ${primaryModelId}. Skipping validation.`);
+    return primaryResponse; // Skip validation if fewer than 2 models total (primary + validator)
+  }
+
+  console.log(`[AI Call - Validation] Using validators: ${validationModels.join(', ')}`);
+  let validationPassedCount = 0;
+  let validationFailedCount = 0;
+
+  for (const validationModelId of validationModels) {
+    console.log(`[AI Call - Validation] Requesting validation from ${validationModelId}...`);
+    try {
+      const { output: validationResult } = await validationPrompt(
+        { originalPrompt, responseToValidate: primaryResponse },
+        { model: validationModelId } // Specify the validation model
+      );
+
+      if (validationResult?.toLowerCase().includes('acceptable')) {
+        validationPassedCount++;
+        console.log(`[AI Call - Validation] ${validationModelId} assessed response as: Acceptable`);
+      } else {
+        validationFailedCount++;
+        console.warn(`[AI Call - Validation] ${validationModelId} assessed response as: Unacceptable (Result: ${validationResult})`);
+      }
+    } catch (err: any) {
+      console.error(`[AI Call Error - Validation ${validationModelId}] Failed to get validation: ${err.message}`);
+      // Treat validation error as a potential failure, but don't stop the whole process unless necessary
+      validationFailedCount++; // Count errors as failures for safety
+    }
+  }
+
+  // 5. Evaluate Validation Results
+  // Require at least one 'Acceptable' and no 'Unacceptable' (or adjust logic as needed)
+  // If only one validator was used, it must pass. If two were used, at least one must pass and none fail.
+  if (validationPassedCount > 0 && validationFailedCount === 0) {
+      console.log(`[AI Call - Validation] Validation passed (${validationPassedCount} acceptable, ${validationFailedCount} unacceptable).`);
+      return primaryResponse;
+  } else {
+      console.error(`[AI Call - Validation] Validation FAILED (${validationPassedCount} acceptable, ${validationFailedCount} unacceptable). Primary response rejected.`);
+      // Consider returning the primary response with a warning, or a specific error message
+      // return `Error: AI response failed cross-validation. Primary model: ${primaryModelId}.`;
+      // For now, return primary response but log the failure. In production, might throw error.
+      console.error(`Cross-validation failed for prompt: "${originalPrompt.substring(0, 100)}..."`)
+      return primaryResponse; // Return primary response despite validation failure, but log it.
   }
 }
 
+// --- Static Prompt Definitions (Examples - Keep or remove as needed) ---
 export const projectDecompositionPrompt = ai.definePrompt({
   name: 'projectDecomposition',
   input:  { schema: z.object({ brief: z.string() }) },
   output: { schema: z.string().describe('Markdown checklist') },
   prompt: ({ brief }) => [{
-    text: `You are an expert AI project manager. Decompose this brief into clear, ordered microtasks (markdown):
+    text: `You are an expert AI project manager. Decompose this brief into clear, ordered microtasks (markdown checklist format):
 
 ${brief}`
   }],
 });
 
 export const generateProjectIdeaPrompt = ai.definePrompt({
-  name: 'generateProjectIdea',
-  input:  { schema: z.object({ industryHint: z.string().optional() }) },
-  output: {
-    schema: z.object({
-      idea:             z.string().min(1),
-      details:          z.string().optional(),
-      estimatedTimeline:z.string().min(1),
-      estimatedHours:   z.number().positive(),
-      requiredSkills:   z.array(z.string()).min(1).max(5),
-    })
-  },
-  prompt: ({ industryHint }) => [{
-    text: `Generate a single, valid JSON object representing a freelance project idea.
+    name: 'generateProjectIdea',
+    input: { schema: z.object({ industryHint: z.string().optional() }) },
+    output: {
+      // IMPORTANT: Ensure this schema uses `minimum` instead of `exclusiveMinimum`
+      schema: z.object({
+        idea:             z.string().min(1),
+        details:          z.string().optional(),
+        estimatedTimeline:z.string().min(1),
+        estimatedHours:   z.number().positive("Estimated hours must be positive").min(0.1, "Estimated hours must be at least 0.1"), // Use min(0.1)
+        requiredSkills:   z.array(z.string()).min(1).max(5),
+      })
+    },
+    prompt: ({ industryHint }) => [{
+      text: `Generate a single, valid JSON object representing a freelance project idea.
 
 STRICTLY adhere to this structure:
 {
-  "idea": "Short, catchy project title",
-  "details": "Detailed description (optional)",
-  "estimatedTimeline": "e.g., '3-5 days'",
-  "estimatedHours": positive integer,
-  "requiredSkills": ["1-5 relevant skills"]
+  "idea": "Short, catchy project title (string, min 1 char)",
+  "details": "Detailed description (string, optional)",
+  "estimatedTimeline": "e.g., '3-5 days' (string, min 1 char)",
+  "estimatedHours": positive number (must be >= 0.1),
+  "requiredSkills": ["Array of 1-5 relevant skill strings (min 1 item)"]
 }
 ${industryHint ? `Industry Hint: Focus on '${industryHint}'.` : ''}
 Return ONLY the JSON. No markdown or explanations.`
-  }],
+    }],
+    // Ensure generation config doesn't use invalid properties like exclusiveMinimum
+    // Example: Adjusting temperature or adding stop sequences if needed
+    // config: {
+    //   temperature: 0.7,
+    // }
 });
+
 
 export const matchFreelancerPrompt = ai.definePrompt({
   name: 'matchFreelancers',
@@ -123,6 +241,12 @@ export const matchFreelancerPrompt = ai.definePrompt({
   output: { schema: z.string().describe('Matching JSON and reasoning') },
   prompt: ({ projectBrief, freelancerId }) => [{
     text: `Match this project brief to an ideal freelancer. Brief: ${projectBrief}` +
-          (freelancerId ? `\nClient ID: ${freelancerId}` : '')
-  }],
+          (freelancerId ? `
+Client ID: ${freelancerId}` : '') }],
 });
+
+
+// Note: Fine-tuning logic (getUserFineTunedModel, triggerFineTuningJob) is removed
+// as it's complex and requires significant infrastructure beyond basic API calls.
+// It would typically involve dedicated services and asynchronous job handling.
+    
