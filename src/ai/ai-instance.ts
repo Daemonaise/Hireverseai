@@ -13,20 +13,38 @@ const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 // --- AI Plugin Configuration ---
 const plugins = [];
-if (GOOGLE_API_KEY)    plugins.push(googleAI({ apiKey: GOOGLE_API_KEY }));
-if (OPENAI_API_KEY)    plugins.push(openAI({ apiKey: OPENAI_API_KEY }));
-if (ANTHROPIC_API_KEY) plugins.push(anthropic({ apiKey: ANTHROPIC_API_KEY }));
+
+if (GOOGLE_API_KEY) {
+    plugins.push(googleAI({ apiKey: GOOGLE_API_KEY }));
+    console.log('[AI Configuration] Google AI plugin configured.');
+} else {
+    console.warn('[AI Configuration] GOOGLE_API_KEY is missing. Google AI features will fail.');
+}
+
+if (OPENAI_API_KEY) {
+    plugins.push(openAI({ apiKey: OPENAI_API_KEY }));
+    console.log('[AI Configuration] OpenAI plugin configured.');
+} else {
+    // console.warn('[AI Configuration] OPENAI_API_KEY is missing. OpenAI features will be unavailable.');
+}
+
+if (ANTHROPIC_API_KEY) {
+    plugins.push(anthropic({ apiKey: ANTHROPIC_API_KEY }));
+     console.log('[AI Configuration] Anthropic plugin configured.');
+} else {
+    // console.warn('[AI Configuration] ANTHROPIC_API_KEY is missing. Anthropic features will be unavailable.');
+}
 
 if (!plugins.length) {
-  console.warn('[AI Configuration] No API keys found. AI functionality will be limited or fail.');
+  console.error('[AI Configuration] No API keys found. AI functionality will be severely limited or fail entirely.');
+  // Potentially throw an error here if no plugins can be initialized
+  // throw new Error('No AI plugins could be configured due to missing API keys.');
 }
 
 // Initialize Genkit
 export const ai = genkit({
   plugins,
   // logLevel: 'debug', // Optional: for detailed logs
-  // Default model (can be overridden)
-  // model: 'googleai/gemini-1.5-flash', // Removed default model to force selection
 });
 
 
@@ -37,9 +55,10 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
   const promptLower = promptContent.toLowerCase();
   const availableModels: string[] = [];
 
+  // Populate availableModels based on which keys are present
   if (GOOGLE_API_KEY)    availableModels.push('googleai/gemini-1.5-flash');
   if (OPENAI_API_KEY)    availableModels.push('openai/gpt-4o', 'openai/gpt-3.5-turbo');
-  if (ANTHROPIC_API_KEY) availableModels.push('anthropic/claude-3-5-sonnet-20240620', 'anthropic/claude-3-haiku-20240307'); // Use Haiku for potentially faster/cheaper validation
+  if (ANTHROPIC_API_KEY) availableModels.push('anthropic/claude-3-5-sonnet-20240620', 'anthropic/claude-3-haiku-20240307');
 
   if (availableModels.length === 0) {
     console.error('[AI Model Selection] No models available due to missing API keys.');
@@ -60,10 +79,11 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
       return 'anthropic/claude-3-5-sonnet-20240620';
   }
 
-  // Fallback logic
+  // Fallback logic - Prioritize Google AI if available and no other specific match
   if (availableModels.includes('googleai/gemini-1.5-flash')) {
     return 'googleai/gemini-1.5-flash'; // Good general-purpose default
   }
+  // Other fallbacks if Google isn't available
   if (availableModels.includes('anthropic/claude-3-haiku-20240307')) {
      return 'anthropic/claude-3-haiku-20240307'; // Faster/cheaper alternative
   }
@@ -72,6 +92,7 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
   }
 
   // If somehow none of the specific fallbacks match, return the first available
+  console.warn("[AI Model Selection] No specific model match found, returning first available:", availableModels[0]);
   return availableModels[0];
 }
 
@@ -96,6 +117,7 @@ RESPONSE:
 
 Assessment (Acceptable/Unacceptable):`;
 
+// Define the validation prompt using genkit
 const validationPrompt = ai.definePrompt({
     name: 'validateAIResponse',
     input: { schema: z.object({ originalPrompt: z.string(), responseToValidate: z.string() }) },
@@ -110,22 +132,27 @@ export async function callAI(originalPrompt: string, modelOverride?: string): Pr
 
   // 1. Choose Primary Model
   try {
+    // Use override if provided, otherwise choose based on prompt content
     primaryModelId = modelOverride ?? await chooseModelBasedOnPrompt(originalPrompt);
     console.log(`[AI Call - Primary] Using model: ${primaryModelId}`);
   } catch (err: any) {
     console.error('[AI Call Error] Failed to select primary model:', err.message);
+    // Return a user-friendly error message
     return `Error: Could not select an AI model. ${err.message}`;
   }
 
   // 2. Generate Primary Response
   let primaryResponse: string;
   try {
+    console.log(`[AI Call - Primary] Calling model ${primaryModelId}...`);
+    // Use the selected model ID to generate the response
     const { text } = await ai.generate({ model: primaryModelId, prompt: originalPrompt });
-    if (!text) throw new Error('Primary AI model returned an empty response');
+    if (!text) throw new Error(`Primary AI model (${primaryModelId}) returned an empty response.`);
     primaryResponse = text;
     console.log(`[AI Call - Primary] Response received from ${primaryModelId}. Length: ${primaryResponse.length}`);
   } catch (err: any) {
     console.error(`[AI Call Error - Primary ${primaryModelId}] ${err.message}`);
+    // Return a user-friendly error message including the model that failed
     return `Error generating response from ${primaryModelId}: ${err.message}`;
   }
 
@@ -140,7 +167,7 @@ export async function callAI(originalPrompt: string, modelOverride?: string): Pr
     .filter(modelId => modelId !== primaryModelId) // Exclude the primary model
     .slice(0, 2); // Take the first two available different models
 
-  // 4. Perform Cross-Validation (if enough models are available)
+  // 4. Perform Cross-Validation (if enough distinct models are available)
   if (validationModels.length < 1) {
     console.warn(`[AI Call - Validation] Not enough distinct models available to perform cross-validation for primary model ${primaryModelId}. Skipping validation.`);
     return primaryResponse; // Skip validation if fewer than 2 models total (primary + validator)
@@ -153,12 +180,17 @@ export async function callAI(originalPrompt: string, modelOverride?: string): Pr
   for (const validationModelId of validationModels) {
     console.log(`[AI Call - Validation] Requesting validation from ${validationModelId}...`);
     try {
+      // Call the defined validationPrompt with the specific validation model
       const { output: validationResult } = await validationPrompt(
         { originalPrompt, responseToValidate: primaryResponse },
         { model: validationModelId } // Specify the validation model
       );
 
-      if (validationResult?.toLowerCase().includes('acceptable')) {
+      if (!validationResult) {
+         throw new Error(`Validation model ${validationModelId} returned an empty result.`);
+      }
+
+      if (validationResult.toLowerCase().includes('acceptable')) {
         validationPassedCount++;
         console.log(`[AI Call - Validation] ${validationModelId} assessed response as: Acceptable`);
       } else {
@@ -167,32 +199,37 @@ export async function callAI(originalPrompt: string, modelOverride?: string): Pr
       }
     } catch (err: any) {
       console.error(`[AI Call Error - Validation ${validationModelId}] Failed to get validation: ${err.message}`);
-      // Treat validation error as a potential failure, but don't stop the whole process unless necessary
+      // Treat validation error as a potential failure, but don't stop the whole process
       validationFailedCount++; // Count errors as failures for safety
     }
   }
 
   // 5. Evaluate Validation Results
-  // Require at least one 'Acceptable' and no 'Unacceptable' (or adjust logic as needed)
-  // If only one validator was used, it must pass. If two were used, at least one must pass and none fail.
+  // Require at least one 'Acceptable' and no 'Unacceptable' for the response to pass.
+  // Adjust logic as needed (e.g., require unanimous acceptance).
   if (validationPassedCount > 0 && validationFailedCount === 0) {
       console.log(`[AI Call - Validation] Validation passed (${validationPassedCount} acceptable, ${validationFailedCount} unacceptable).`);
       return primaryResponse;
   } else {
-      console.error(`[AI Call - Validation] Validation FAILED (${validationPassedCount} acceptable, ${validationFailedCount} unacceptable). Primary response rejected.`);
+      console.error(`[AI Call - Validation] Validation FAILED (${validationPassedCount} acceptable, ${validationFailedCount} unacceptable). Primary response from ${primaryModelId} may be unreliable.`);
       // Consider returning the primary response with a warning, or a specific error message
       // return `Error: AI response failed cross-validation. Primary model: ${primaryModelId}.`;
-      // For now, return primary response but log the failure. In production, might throw error.
-      console.error(`Cross-validation failed for prompt: "${originalPrompt.substring(0, 100)}..."`)
+      // For now, return primary response but log the failure. In production, might throw error or add warning metadata.
+      console.error(`Cross-validation failed for prompt: "${originalPrompt.substring(0, 100)}..."`);
+      // Prepend a warning to the response?
+      // return `[Warning: Cross-validation failed] ${primaryResponse}`;
       return primaryResponse; // Return primary response despite validation failure, but log it.
   }
 }
 
+
 // --- Static Prompt Definitions (Examples - Keep or remove as needed) ---
+// These prompts use the default model configured in `genkit` unless overridden
 export const projectDecompositionPrompt = ai.definePrompt({
   name: 'projectDecomposition',
   input:  { schema: z.object({ brief: z.string() }) },
   output: { schema: z.string().describe('Markdown checklist') },
+  // Uses default model unless overridden when called
   prompt: ({ brief }) => [{
     text: `You are an expert AI project manager. Decompose this brief into clear, ordered microtasks (markdown checklist format):
 
@@ -204,34 +241,39 @@ export const generateProjectIdeaPrompt = ai.definePrompt({
     name: 'generateProjectIdea',
     input: { schema: z.object({ industryHint: z.string().optional() }) },
     output: {
-      // IMPORTANT: Ensure this schema uses `minimum` instead of `exclusiveMinimum`
       schema: z.object({
         idea:             z.string().min(1),
-        details:          z.string().optional(),
+        details:          z.string().min(1), // Made details required as well
         estimatedTimeline:z.string().min(1),
-        estimatedHours:   z.number().positive("Estimated hours must be positive").min(0.1, "Estimated hours must be at least 0.1"), // Use min(0.1)
-        requiredSkills:   z.array(z.string()).min(1).max(5),
+        estimatedHours:   z.number().min(0.1, "Estimated hours must be at least 0.1"), // Correct use of min
+        requiredSkills:   z.array(z.string().min(1)).min(1).max(5),
       })
     },
+    // Specify a model if needed, otherwise uses genkit default
+    // model: 'googleai/gemini-1.5-flash',
     prompt: ({ industryHint }) => [{
       text: `Generate a single, valid JSON object representing a freelance project idea.
 
-STRICTLY adhere to this structure:
+CRITICAL: Your entire response MUST be ONLY a single, valid JSON object.
+Do NOT include ANY introductory text, concluding text, explanations, apologies, or markdown formatting like \`\`\`json.
+Start the response immediately with '{' and end it immediately with '}'.
+
+Strictly adhere to this structure and ensure all fields are present and non-empty:
 {
-  "idea": "Short, catchy project title (string, min 1 char)",
-  "details": "Detailed description (string, optional)",
-  "estimatedTimeline": "e.g., '3-5 days' (string, min 1 char)",
-  "estimatedHours": positive number (must be >= 0.1),
-  "requiredSkills": ["Array of 1-5 relevant skill strings (min 1 item)"]
+  "idea": "string (short, catchy project title, non-empty)",
+  "details": "string (detailed project description, non-empty, min 10 chars)",
+  "estimatedTimeline": "string (e.g., '3-5 days', '1 week', non-empty)",
+  "estimatedHours": number (must be >= 0.1),
+  "requiredSkills": ["array of 1-5 skill strings (non-empty)"]
 }
 ${industryHint ? `Industry Hint: Focus on '${industryHint}'.` : ''}
-Return ONLY the JSON. No markdown or explanations.`
+Return ONLY the JSON. Verify the structure and types carefully, especially 'estimatedHours' (number >= 0.1) and ensure all string fields are non-empty.`
     }],
-    // Ensure generation config doesn't use invalid properties like exclusiveMinimum
-    // Example: Adjusting temperature or adding stop sequences if needed
-    // config: {
-    //   temperature: 0.7,
-    // }
+    // Config to enforce JSON output if the model supports it (Gemini does)
+     config: {
+        responseFormat: 'json',
+        // temperature: 0.7, // Adjust temperature if needed
+     }
 });
 
 
@@ -239,6 +281,7 @@ export const matchFreelancerPrompt = ai.definePrompt({
   name: 'matchFreelancers',
   input:  { schema: z.object({ projectBrief: z.string(), freelancerId: z.string().optional() }) },
   output: { schema: z.string().describe('Matching JSON and reasoning') },
+  // Uses default model unless overridden when called
   prompt: ({ projectBrief, freelancerId }) => [{
     text: `Match this project brief to an ideal freelancer. Brief: ${projectBrief}` +
           (freelancerId ? `
@@ -250,3 +293,4 @@ Client ID: ${freelancerId}` : '') }],
 // as it's complex and requires significant infrastructure beyond basic API calls.
 // It would typically involve dedicated services and asynchronous job handling.
     
+
