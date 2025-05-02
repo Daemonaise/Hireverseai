@@ -8,8 +8,7 @@
  * - GenerateProjectIdeaOutput - Output type including cost details and status.
  */
 
-import { ai } from '@/lib/ai'; // Import the configured ai instance and helpers
-import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import model selector
+import { ai, validateAIOutput, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
 import { z } from 'zod';
 import {
   GenerateProjectIdeaInputSchema,
@@ -120,6 +119,26 @@ const generateProjectIdeaFlow = ai.defineFlow<
              // Note: reasoning field is not in GenerateProjectIdeaAIOutputSchema, removed update
              // aiResultData.reasoning = (aiResultData.reasoning || "") + " (Adjusted hours from minimal AI estimate)";
          }
+
+         // 5. Validate the output with other models
+          const originalPromptText = projectIdeaPromptTemplate
+               .replace('{{{randomNumber}}}', randomNumber)
+               .replace('{{#if industryHint}}Focus on the industry: \'{{{industryHint}}}\'.{{/if}}', input.industryHint ? `Focus on the industry: '${input.industryHint}'.` : '');
+
+          const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
+
+          if (!validation.allValid) {
+              console.warn(`Validation failed for project idea generation (attempt ${attempts}). Reasoning:`, validation.results);
+              // Optionally, retry or use fallback
+              lastError = `Project idea generation failed cross-validation (attempt ${attempts}).`;
+              if (attempts === MAX_ATTEMPTS) {
+                 throw new Error(lastError);
+              }
+              aiResultData = null; // Reset data to retry
+              await new Promise(resolve => setTimeout(resolve, 500));
+              continue;
+          }
+
 
       } catch (err: any) {
         lastError = `Error during AI call or processing (attempt ${attempts}): ${err.message}`;

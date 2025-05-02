@@ -6,8 +6,7 @@
  * - estimateProjectChangeImpact - A function that handles the estimation process.
  */
 
-import { ai, validateAIOutput } from '@/lib/ai'; // Import the configured ai instance and helpers
-import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
+import { ai, validateAIOutput, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
 import { z } from 'zod';
 import {
   RequestProjectChangeInputSchema,
@@ -63,7 +62,7 @@ const estimateProjectChangeImpactFlow = ai.defineFlow<
     try {
         // 1. Choose the primary model for generation
         const promptContext = `Estimate impact of change: ${input.changeDescription} (Priority: ${input.priority}) on project: ${input.currentBrief}`;
-        const primaryModel = chooseModelBasedOnPrompt(promptContext);
+        const primaryModel = await chooseModelBasedOnPrompt(promptContext);
         console.log(`Using model ${primaryModel} for change impact estimation.`);
 
         // 2. Define the prompt using the chosen model and template
@@ -126,4 +125,3 @@ export async function estimateProjectChangeImpact(input: RequestProjectChangeInp
   RequestProjectChangeInputSchema.parse(input);
   return estimateProjectChangeImpactFlow(input);
 }
-

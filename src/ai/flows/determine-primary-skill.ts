@@ -1,7 +1,6 @@
 'use server';
 
-import { ai, validateAIOutput } from '@/lib/ai'; // Import the configured ai instance and helpers
-import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
+import { ai, validateAIOutput, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
 import { z } from 'zod';
 import {
   DeterminePrimarySkillInputSchema,
@@ -43,7 +42,7 @@ const determinePrimarySkillFlow = ai.defineFlow<
 
         try {
             // 1. Choose the primary model for generation
-            const primaryModel = chooseModelBasedOnPrompt(input.skillsDescription);
+            const primaryModel = await chooseModelBasedOnPrompt(input.skillsDescription);
             console.log(`Using model ${primaryModel} for skill determination.`);
 
             // 2. Define the prompt using the chosen model and template
@@ -101,4 +100,3 @@ export async function determinePrimarySkill(
   DeterminePrimarySkillInputSchema.parse(input);
   return determinePrimarySkillFlow(input);
 }
-

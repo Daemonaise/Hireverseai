@@ -3,8 +3,7 @@
  * @fileOverview Match a freelancer to a project with skill extraction, estimation.
  */
 
-import { ai } from '@/lib/ai'; // Import the configured ai instance and helpers
-import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
+import { ai, validateAIOutput, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
 import { z } from 'zod';
 import {
   MatchFreelancerInput,
@@ -96,24 +95,36 @@ const matchFreelancerFlow = ai.defineFlow<
       // --- Skill Extraction (if needed) ---
       if (!skills || skills.length === 0) {
         console.log("No skills provided, extracting from brief...");
+        let skillExtractionModel: string;
+        let skillOutput: ExtractSkillsAIOutput | null = null;
         try {
           // 1a. Choose model for skill extraction
-          const skillModel = chooseModelBasedOnPrompt(`Extract skills from: ${input.projectBrief}`);
-          console.log(`Using model ${skillModel} for skill extraction.`);
+          skillExtractionModel = await chooseModelBasedOnPrompt(`Extract skills from: ${input.projectBrief}`);
+          console.log(`Using model ${skillExtractionModel} for skill extraction.`);
 
           // 1b. Define skill extraction prompt
           const skillExtractionPrompt = ai.definePrompt({
-              name: `skillExtractionPrompt_${skillModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
+              name: `skillExtractionPrompt_${skillExtractionModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
               input: { schema: z.object({ projectBrief: z.string().min(20) }) },
               output: { schema: ExtractSkillsAIOutputSchema },
               prompt: skillExtractionPromptTemplate,
-              model: skillModel,
+              model: skillExtractionModel,
           });
 
           // 1c. Call skill extraction prompt
-          const { output: skillOutput } = await skillExtractionPrompt({ projectBrief: input.projectBrief });
-          if (!skillOutput?.extractedSkills || skillOutput.extractedSkills.length === 0) {
-            throw new Error("AI failed to return a valid array for skills.");
+          const { output } = await skillExtractionPrompt({ projectBrief: input.projectBrief });
+          if (!output?.extractedSkills || output.extractedSkills.length === 0) {
+            throw new Error(`AI (${skillExtractionModel}) failed to return a valid array for skills.`);
+          }
+          skillOutput = output;
+
+          // 1d. Validate the output with other models
+          const originalPromptText = skillExtractionPromptTemplate.replace('{{{projectBrief}}}', input.projectBrief);
+          const validation = await validateAIOutput(originalPromptText, JSON.stringify(skillOutput), skillExtractionModel);
+
+          if (!validation.allValid) {
+              console.warn(`Validation failed for skill extraction. Reasoning:`, validation.results);
+              throw new Error(`Skill extraction failed cross-validation.`);
           }
 
           skills = skillOutput.extractedSkills;
@@ -136,7 +147,7 @@ const matchFreelancerFlow = ai.defineFlow<
       let estimationModel: string;
       try {
         // 2a. Choose model for estimation
-        estimationModel = chooseModelBasedOnPrompt(`Estimate project: ${input.projectBrief} Skills: ${skills.join(', ')}`);
+        estimationModel = await chooseModelBasedOnPrompt(`Estimate project: ${input.projectBrief} Skills: ${skills.join(', ')}`);
         console.log(`Using model ${estimationModel} for estimation.`);
 
         // 2b. Define estimation prompt
@@ -167,6 +178,19 @@ const matchFreelancerFlow = ai.defineFlow<
           estimationResult.estimatedHours = 0.1;
           estimationResult.reasoning += " (Adjusted hours from minimal AI estimate)";
         }
+
+         // 2d. Validate the output with other models
+         const originalPromptText = estimationPromptTemplate
+              .replace('{{{projectBrief}}}', input.projectBrief)
+              .replace('{{#each requiredSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}', skills.join(', '));
+
+         const validation = await validateAIOutput(originalPromptText, JSON.stringify(estimationResult), estimationModel);
+
+          if (!validation.allValid) {
+              console.warn(`Validation failed for project estimation. Reasoning:`, validation.results);
+              throw new Error(`Project estimation failed cross-validation.`);
+          }
+
 
       } catch (estimateError: any) {
         console.error(`Failed to get/validate estimation:`, estimateError.message);
@@ -220,4 +244,3 @@ export async function matchFreelancer(input: MatchFreelancerInput): Promise<Matc
   MatchFreelancerInputSchema.parse(input);
   return matchFreelancerFlow(input);
 }
-

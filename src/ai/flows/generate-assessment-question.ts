@@ -6,8 +6,7 @@
  * - generateAssessmentQuestion - A function that generates one question.
  */
 
-import { ai } from '@/lib/ai'; // Import the configured ai instance and helpers
-import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
+import { ai, validateAIOutput, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
 import { z } from 'zod';
 import {
   GenerateAssessmentQuestionInputSchema,
@@ -75,7 +74,7 @@ const generateAssessmentQuestionFlow = ai.defineFlow<
     try {
       // 1. Choose the primary model for generation
       const promptContext = `Generate ${input.difficulty} question for ${input.primarySkill}. Other skills: ${input.allSkills.join(', ')}. Avoid similar to: ${input.previousQuestions?.join('; ') ?? 'None'}`;
-      const primaryModel = chooseModelBasedOnPrompt(promptContext);
+      const primaryModel = await chooseModelBasedOnPrompt(promptContext);
       console.log(`Using model ${primaryModel} for question generation.`);
 
       // 2. Define the prompt using the chosen model and template
@@ -94,6 +93,26 @@ const generateAssessmentQuestionFlow = ai.defineFlow<
       if (!aiOutput?.questionText) {
         throw new Error(`AI (${primaryModel}) did not return valid JSON question text.`);
       }
+
+      // 4. Validate the output with other models
+       const originalPromptText = generateQuestionPromptTemplate
+            .replace('{{{freelancerId}}}', input.freelancerId)
+            .replace('{{{primarySkill}}}', input.primarySkill)
+            .replace('{{#each allSkills}}- {{{this}}}\n{{/each}}', input.allSkills.map(s => `- ${s}`).join('\n'))
+            .replace('{{{difficulty}}}', input.difficulty)
+            .replace('{{#if previousQuestions}}Avoid generating questions similar to:\n{{#each previousQuestions}}- {{{this}}}\n{{/each}}{{/if}}',
+                     input.previousQuestions && input.previousQuestions.length > 0
+                         ? `Avoid generating questions similar to:\n${input.previousQuestions.map(q => `- ${q}`).join('\n')}`
+                         : '');
+
+       const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
+
+       if (!validation.allValid) {
+           console.warn(`Validation failed for question generation (Skill: ${input.primarySkill}, Difficulty: ${input.difficulty}). Reasoning:`, validation.results);
+           // Optionally, retry or use fallback
+           throw new Error(`Question generation for ${input.primarySkill} (${input.difficulty}) failed cross-validation.`);
+       }
+
 
       // 5. Construct the full output object
       const finalOutput: GenerateAssessmentQuestionOutput = {
@@ -124,4 +143,3 @@ export async function generateAssessmentQuestion(input: GenerateAssessmentQuesti
   GenerateAssessmentQuestionInputSchema.parse(input);
   return generateAssessmentQuestionFlow(input);
 }
-

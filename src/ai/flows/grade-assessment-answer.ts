@@ -4,8 +4,7 @@
  * @fileOverview Grades a single answer from an adaptive assessment.
  */
 
-import { ai, validateAIOutput } from '@/lib/ai'; // Import the configured ai instance and helpers
-import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
+import { ai, validateAIOutput, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
 import { z } from 'zod';
 import {
   GradeAssessmentAnswerInputSchema,
@@ -72,7 +71,7 @@ const gradeAssessmentAnswerFlow = ai.defineFlow<
     try {
         // 1. Choose the primary model for generation
         const promptContext = `Grade answer for question about ${input.skillTested} (${input.difficulty}). Question: ${input.questionText}. Answer: ${input.answerText}`;
-        const primaryModel = chooseModelBasedOnPrompt(promptContext);
+        const primaryModel = await chooseModelBasedOnPrompt(promptContext);
         console.log(`Using model ${primaryModel} for grading.`);
 
         // 2. Define the prompt using the chosen model and template
@@ -97,6 +96,25 @@ const gradeAssessmentAnswerFlow = ai.defineFlow<
            console.warn(`AI returned score (${aiOutput.score}) outside 0-100 range. Clamping.`);
            aiOutput.score = Math.max(0, Math.min(100, aiOutput.score));
        }
+
+       // 5. Validate the output with other models
+        const originalPromptText = gradeAnswerPromptTemplate
+            .replace('{{{freelancerId}}}', input.freelancerId)
+            .replace('{{{primarySkill}}}', input.primarySkill)
+            .replace('{{{questionId}}}', input.questionId)
+            .replace('{{{skillTested}}}', input.skillTested)
+            .replace('{{{difficulty}}}', input.difficulty)
+            .replace('{{{questionText}}}', input.questionText)
+            .replace('{{{answerText}}}', input.answerText);
+
+       const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
+
+       if (!validation.allValid) {
+           console.warn(`Validation failed for grading question ${input.questionId}. Reasoning:`, validation.results);
+           // Optionally, retry or use fallback
+           throw new Error(`Grading for question ${input.questionId} failed cross-validation.`);
+       }
+
 
       // 6. Construct the full output object, adding the questionId back
       const finalOutput: GradeAssessmentAnswerOutput = {
@@ -127,4 +145,3 @@ export async function gradeAssessmentAnswer(input: GradeAssessmentAnswerInput): 
   GradeAssessmentAnswerInputSchema.parse(input);
   return gradeAssessmentAnswerFlow(input);
 }
-

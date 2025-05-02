@@ -3,8 +3,7 @@
  * @fileOverview Scores a freelancer's submitted answers for a skill test.
  */
 
-import { ai, validateAIOutput } from '@/lib/ai'; // Import the configured ai instance and helpers
-import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
+import { ai, validateAIOutput, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
 import { z } from 'zod';
 import { updateFreelancerTestScore } from '@/services/firestore';
 import {
@@ -33,7 +32,7 @@ const SingleSkillScoreInputSchema = z.object({
     answersText: z.string(), // Pre-formatted string of Q&A for the skill
 });
 // AI outputs score and reasoning for one skill
-const SingleSkillScoreAIOutputSchema = SkillScoreSchema.omit({ skill: true }).extend({
+export const SingleSkillScoreAIOutputSchema = SkillScoreSchema.omit({ skill: true }).extend({
   score: z.number().int().min(0).max(100) // Re-validate score range explicitly
 });
 
@@ -118,10 +117,11 @@ Answer: ${a.answerText}
 ---`).join('\n');
 
       let skillScoreOutput: SkillScore | null = null;
+      let scoreModel: string; // Declare model name variable
 
       try {
           // 1a. Choose model for scoring this skill
-          const scoreModel = chooseModelBasedOnPrompt(`Score skill test answers for ${skill}. Answers: ${answersText}`);
+          scoreModel = await chooseModelBasedOnPrompt(`Score skill test answers for ${skill}. Answers: ${answersText}`);
           console.log(`Using model ${scoreModel} for scoring skill: ${skill}`);
 
           // 1b. Define scoring prompt
@@ -143,6 +143,19 @@ Answer: ${a.answerText}
 
           // 1d. Clamp score just in case AI deviates
           aiOutput.score = Math.max(0, Math.min(100, aiOutput.score));
+
+          // 1e. Validate the output with other models
+           const originalPromptText = scoreSingleSkillPromptTemplate
+              .replace('{{{skill}}}', skill)
+              .replace('{{{freelancerId}}}', input.freelancerId)
+              .replace('{{{answersText}}}', answersText);
+
+          const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), scoreModel);
+
+          if (!validation.allValid) {
+              console.warn(`Validation failed for skill scoring (skill: ${skill}). Reasoning:`, validation.results);
+              throw new Error(`Skill scoring for "${skill}" failed cross-validation.`);
+          }
 
           skillScoreOutput = {
               skill: skill,
@@ -173,10 +186,11 @@ Answer: ${a.answerText}
         overallScore = Math.round(validScores.length > 0 ? totalScore / validScores.length : 0);
 
         const scoresText = skillScores.map(ss => `- Skill: ${ss.skill}\n  Score: ${ss.score}/100\n  Reasoning: ${ss.reasoning}`).join('\n');
+        let feedbackModel: string; // Declare model name variable
 
         try {
             // 2a. Choose model for feedback generation
-            const feedbackModel = chooseModelBasedOnPrompt(`Summarize test results: ${scoresText}`);
+            feedbackModel = await chooseModelBasedOnPrompt(`Summarize test results: ${scoresText}`);
             console.log(`Using model ${feedbackModel} for feedback aggregation.`);
 
             // 2b. Define feedback prompt
@@ -197,8 +211,24 @@ Answer: ${a.answerText}
              }
              feedback = feedbackOutput.feedback;
 
-            finalFeedback = feedback; // Use validated feedback
-            console.log(`Generated and validated overall feedback for test ${input.testId}.`);
+             // 2d. Validate the output with other models
+              const originalPromptText = aggregateFeedbackPromptTemplate
+                  .replace('{{{freelancerId}}}', input.freelancerId)
+                  .replace('{{{testId}}}', input.testId)
+                  .replace('{{{overallScore}}}', overallScore.toString())
+                  .replace('{{{scoresText}}}', scoresText);
+
+             const validation = await validateAIOutput(originalPromptText, JSON.stringify(feedbackOutput), feedbackModel);
+
+             if (!validation.allValid) {
+                 console.warn(`Validation failed for feedback aggregation (test ID: ${input.testId}). Reasoning:`, validation.results);
+                 // Use fallback feedback if validation fails
+                 finalFeedback = `Overall score is ${overallScore}/100. Individual skill feedback available. (Feedback summary validation failed).`;
+             } else {
+                finalFeedback = feedback; // Use validated feedback
+                console.log(`Generated and validated overall feedback for test ${input.testId}.`);
+             }
+
 
         } catch (error: any) {
             console.error(`Error generating or validating overall feedback for test ${input.testId}:`, error?.message || error);
@@ -249,4 +279,3 @@ export async function scoreSkillTest(input: ScoreSkillTestInput): Promise<ScoreS
     ScoreSkillTestInputSchema.parse(input);
     return scoreSkillTestFlow(input);
 }
-

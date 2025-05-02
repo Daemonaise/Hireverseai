@@ -5,8 +5,7 @@
  * Exports:
  * - administerSkillTest - Generates and returns test questions.
  */
-import { ai } from '@/lib/ai'; // Import the configured ai instance and helpers
-import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
+import { ai, validateAIOutput, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
 import { z } from 'zod';
 import {
   AdministerSkillTestInputSchema,
@@ -88,7 +87,21 @@ const administerSkillTestFlow = ai.defineFlow<
             throw new Error(`AI (${primaryModel}) did not return valid question text for skill "${skill}".`);
         }
 
-        // 4. Construct and add the validated question
+        // 4. Validate the output with other models
+         const originalPromptText = skillQuestionPromptTemplate
+              .replace('{{{skill}}}', skill)
+              .replace('{{{freelancerId}}}', input.freelancerId);
+
+          const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
+
+          if (!validation.allValid) {
+              console.warn(`Validation failed for question generation (skill: ${skill}). Reasoning:`, validation.results);
+              // Optionally, retry or use fallback
+              throw new Error(`Question generation for skill "${skill}" failed cross-validation.`);
+          }
+
+
+        // 5. Construct and add the validated question
         const validatedQuestion: Question = {
           questionText: aiOutput.questionText,
           skillTested: skill, // Ensure the skillTested field is correctly set
@@ -144,4 +157,3 @@ export async function administerSkillTest(input: AdministerSkillTestInput): Prom
   AdministerSkillTestInputSchema.parse(input);
   return administerSkillTestFlow(input);
 }
-
