@@ -105,7 +105,7 @@ export function AiMatcher() {
     } finally {
        setIdeaLoading(false);
     }
-  }, [ideaGenerationCounter, toast, form]); // Added form dependency
+  }, [ideaGenerationCounter, toast]);
 
 
   const onSubmit = useCallback((values: FormSchema) => {
@@ -187,7 +187,7 @@ export function AiMatcher() {
         // }
       }
     });
-  }, [toast, router, matchResult]); // Added matchResult dependency for cleanup logic
+  }, [toast, router]); // Removed matchResult dependency
 
   const renderResultDetails = useMemo(() => {
     if (!matchResult || matchResult.status === 'error') return null;
@@ -240,18 +240,18 @@ export function AiMatcher() {
     <Card className="w-full shadow-md border-t-4 border-primary">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <CardContent className="pt-6 space-y-4">
+          <CardContent className="pt-6 space-y-4 text-center"> {/* Ensure CardContent is centered */}
             <FormField
               control={form.control}
               name="projectBrief"
               render={({ field }) => (
-                <FormItem className="relative text-center">
+                <FormItem className="relative"> {/* Make FormItem relative */}
                   <FormLabel
                     htmlFor="projectBrief"
                     className={cn(
-                      "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none",
-                      "peer-focus:top-2 peer-focus:left-3 peer-focus:translate-x-0 peer-focus:-translate-y-0 peer-focus:text-xs peer-focus:text-primary",
-                      (field.value || form.formState.isSubmitted) && "top-2 left-3 translate-x-0 -translate-y-0 text-xs text-primary"
+                      "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none", // Centered initial position
+                      "peer-focus:top-2 peer-focus:left-3 peer-focus:translate-x-0 peer-focus:-translate-y-0 peer-focus:text-xs peer-focus:text-primary", // Focused state
+                      (field.value || form.formState.isSubmitted) && "top-2 left-3 translate-x-0 -translate-y-0 text-xs text-primary" // Has value state
                     )}
                   >
                     Describe your project goal, key deliverables, and any specific requirements...
@@ -261,21 +261,7 @@ export function AiMatcher() {
                       id="projectBrief"
                       {...field}
                       placeholder=" " // Use space placeholder for floating label effect
-                      className="min-h-[120px] max-h-[250px] pt-5 resize-y mx-auto border-2 border-input focus:border-primary peer" // Ensure 'peer' class is present
-                      onFocus={(e) => {
-                        const label = e.target.previousElementSibling as HTMLLabelElement;
-                        if (label) {
-                           label.classList.add("top-2", "left-3", "translate-x-0", "-translate-y-0", "text-xs", "text-primary");
-                           label.classList.remove("top-1/2", "left-1/2", "-translate-x-1/2", "-translate-y-1/2", "text-muted-foreground");
-                        }
-                      }}
-                      onBlur={(e) => {
-                         const label = e.target.previousElementSibling as HTMLLabelElement;
-                         if (label && !field.value) {
-                           label.classList.remove("top-2", "left-3", "translate-x-0", "-translate-y-0", "text-xs", "text-primary");
-                           label.classList.add("top-1/2", "left-1/2", "-translate-x-1/2", "-translate-y-1/2", "text-muted-foreground");
-                         }
-                      }}
+                      className="min-h-[120px] max-h-[250px] pt-5 resize-y mx-auto border-2 border-input focus:border-primary peer" // Ensure 'peer' class is present, mx-auto for centering textarea if parent allows
                     />
                   </FormControl>
                   <FormMessage className="text-center" />

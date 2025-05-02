@@ -30,35 +30,16 @@ const MAX_RETRIES          = 3;    // Max attempts to get valid JSON
 // --- Helper: Extract JSON from potentially messy AI output ---
 function extractJson(text: string): unknown | null {
     console.log("Attempting to extract JSON from raw AI text:", text); // Log the raw text FIRST
-    // Prioritize strict JSON object match first
-    // Look for text starting with '{' and ending with '}', potentially with surrounding whitespace
-    const strictMatch = text.match(/^\s*(\{[\s\S]*\})\s*$/);
-    if (strictMatch) {
+    // Look for the start and end of a JSON object, ignoring surrounding characters/markdown
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
         try {
-            // Test if it's valid JSON
-            const parsed = JSON.parse(strictMatch[1]);
-            console.log("Strict JSON parsing successful.");
+            const parsed = JSON.parse(jsonMatch[0]);
+            console.log("JSON parsing successful.");
             return parsed;
         } catch (e: any) {
-             console.warn("Strict JSON parsing failed:", e.message, "Raw Text:", text); // Log raw text on error
-             // Fall through to relaxed match if strict parsing fails
-        }
-    } else {
-         console.log("Strict JSON pattern not found in raw text.");
-    }
-
-    // Relaxed match (handles cases with leading/trailing text, more greedy)
-    // Finds the first '{' and the last '}'
-    const relaxedMatch = text.match(/\{[\s\S]*\}/);
-    if (relaxedMatch) {
-         console.log("Trying relaxed JSON match...");
-        try {
-            const parsed = JSON.parse(relaxedMatch[0]);
-            console.log("Relaxed JSON parsing successful.");
-            return parsed;
-        } catch (e: any){
-            console.error("Relaxed JSON parsing also failed:", e.message, "Raw Text:", text); // Log raw text on error
-            return null; // Return null if relaxed also fails
+             console.warn("JSON parsing failed:", e.message, "Raw Text:", text); // Log raw text on error
+             return null; // Return null if parsing fails
         }
     }
 
@@ -99,12 +80,12 @@ Strictly follow this JSON structure:
   "idea": "string (short, catchy project title, non-empty)",
   "details": "string (detailed project description, non-empty, min 10 chars)",
   "estimatedTimeline": "string (e.g., '3-5 days', '1 week', non-empty)",
-  "estimatedHours": number (must be >= 1),
+  "estimatedHours": number (must be >= 0.1),
   "requiredSkills": ["array of 1-5 skill strings (non-empty)"]
 }
 ${params.industryHint ? `\nFocus on the industry: '${params.industryHint}'.` : ''}
 
-REMEMBER: ONLY the JSON object. Absolutely no other text before or after the JSON. Verify the structure and types carefully.`;
+REMEMBER: ONLY the JSON object. Absolutely no other text before or after the JSON. Verify the structure and types carefully, especially 'estimatedHours' which must be a number >= 0.1.`;
 
   let aiText = '';
   let parsedJson: unknown | null = null;
