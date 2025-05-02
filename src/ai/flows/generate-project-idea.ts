@@ -8,7 +8,7 @@
  * - GenerateProjectIdeaOutput - Output type including cost details and status.
  */
 
-import { callAI } from '@/ai/ai-instance'; // Import the centralized callAI function
+import { callAI } from '@/ai/ai-instance'; // Use the centralized callAI function
 import {
   GenerateProjectIdeaInputSchema,
   GenerateProjectIdeaAIOutputSchema, // Schema for the expected AI JSON output
@@ -29,30 +29,40 @@ const MAX_RETRIES          = 3;    // Max attempts to get valid JSON
 
 // --- Helper: Extract JSON from potentially messy AI output ---
 function extractJson(text: string): unknown | null {
+    console.log("Attempting to extract JSON from text:", text); // Log the raw text
     // Prioritize strict JSON object match first
-    const strictMatch = text.match(/\{[\s\S]*\}/);
+    // Look for text starting with '{' and ending with '}', potentially with surrounding whitespace
+    const strictMatch = text.match(/^\s*(\{[\s\S]*\})\s*$/);
     if (strictMatch) {
         try {
             // Test if it's valid JSON
-            return JSON.parse(strictMatch[0]);
-        } catch {
-             console.warn("Strict JSON parsing failed, trying relaxed match.");
+            const parsed = JSON.parse(strictMatch[1]);
+            console.log("Strict JSON parsing successful.");
+            return parsed;
+        } catch (e: any) {
+             console.warn("Strict JSON parsing failed:", e.message);
              // Fall through to relaxed match if strict parsing fails
         }
+    } else {
+         console.log("Strict JSON pattern not found.");
     }
 
-    // Relaxed match (handles cases with leading/trailing text)
-    const relaxedMatch = text.match(/\{(?:[^{}]|"(?:\\.|[^"\\])*")*\}/);
+    // Relaxed match (handles cases with leading/trailing text, more greedy)
+    // Finds the first '{' and the last '}'
+    const relaxedMatch = text.match(/\{[\s\S]*\}/);
     if (relaxedMatch) {
+         console.log("Trying relaxed JSON match...");
         try {
-            return JSON.parse(relaxedMatch[0]);
-        } catch (e){
-            console.error("Relaxed JSON parsing also failed:", e, "Original Text:", text);
+            const parsed = JSON.parse(relaxedMatch[0]);
+            console.log("Relaxed JSON parsing successful.");
+            return parsed;
+        } catch (e: any){
+            console.error("Relaxed JSON parsing also failed:", e.message);
             return null; // Return null if relaxed also fails
         }
     }
 
-    console.error("Could not find any JSON object in AI response:", text);
+    console.error("Could not find any JSON object in AI response.");
     return null; // Return null if no JSON object is found
 }
 
@@ -80,19 +90,21 @@ export async function generateProjectIdea(
   // Construct the prompt for the callAI function
   const promptText = `Generate a single, valid JSON object representing a freelance project idea.
 
+**Critically important:** Your entire response must be ONLY the JSON object itself. Do NOT include any introductory text, markdown formatting (like \`\`\`json), explanations, apologies, or any characters before the opening '{' or after the closing '}'.
+
 To ensure varied results, use this random number as inspiration: ${randomNumber.toFixed(4)}
 
-STRICTLY adhere to this structure:
+Strictly adhere to this structure, ensuring all fields are present and correctly typed:
 {
   "idea": "Short, catchy project title (string, non-empty)",
-  "details": "Detailed description (string, non-empty, min 10 chars)",
-  "estimatedTimeline": "e.g., '3-5 days', '1 week' (string, non-empty)",
-  "estimatedHours": positive number (integer or float, must be >= 1),
+  "details": "Detailed description of the project (string, non-empty, min 10 chars)",
+  "estimatedTimeline": "Estimated duration, e.g., '3-5 days', '1 week' (string, non-empty)",
+  "estimatedHours": A number representing estimated hours (must be >= 1),
   "requiredSkills": ["Array of 1-5 relevant skill strings (non-empty)"]
 }
 ${params.industryHint ? `\nIndustry Hint: Focus on '${params.industryHint}'.` : ''}
 
-Return ONLY the JSON object. No markdown, explanations, apologies, or other text outside the JSON structure. Ensure 'estimatedHours' is a number greater than or equal to 1.`;
+Remember: ONLY the JSON object. No extra text whatsoever. Double-check the structure and types before responding.`;
 
   let aiText = '';
   let parsedJson: unknown | null = null;
@@ -104,23 +116,25 @@ Return ONLY the JSON object. No markdown, explanations, apologies, or other text
     try {
       // Call the centralized AI function
       aiText = await callAI(promptText); // callAI handles model selection and primary call
+      console.log(`[Attempt ${attempt}] Raw AI Response Text:\n--- START ---\n${aiText}\n--- END ---`); // Log the full raw response
       parsedJson = extractJson(aiText); // Attempt to parse JSON from the response
 
       if (parsedJson) {
           // Validate the parsed JSON against the AI output schema
           const validationResult = GenerateProjectIdeaAIOutputSchema.safeParse(parsedJson);
           if (validationResult.success) {
-             console.log(`Attempt ${attempt} successful. Valid JSON received.`);
+             console.log(`Attempt ${attempt} successful. Valid JSON received and validated.`);
              parsedJson = validationResult.data; // Use the validated data
              break; // Valid JSON obtained, exit loop
           } else {
+             // Log the specific validation errors
              lastErrorReason = `Invalid JSON structure received (attempt ${attempt}): ${validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`;
-             console.warn(lastErrorReason, "Raw AI Text:", aiText);
+             console.warn(lastErrorReason, "Parsed JSON Object:", parsedJson);
              parsedJson = null; // Reset parsedJson to trigger retry
           }
       } else {
           lastErrorReason = `Could not parse JSON from AI response (attempt ${attempt}).`;
-          console.warn(lastErrorReason, "Raw AI Text:", aiText);
+          console.warn(lastErrorReason); // Raw text logged above
       }
     } catch (aiError: any) {
         // Catch errors from callAI itself (e.g., network issues, API errors)
@@ -137,10 +151,11 @@ Return ONLY the JSON object. No markdown, explanations, apologies, or other text
 
   // Handle failure after all retries
   if (!parsedJson) {
-    console.error(`Failed to get valid JSON after ${MAX_RETRIES} attempts.`);
+    const finalErrorMsg = `Failed to get valid JSON after ${MAX_RETRIES} attempts. Last error: ${lastErrorReason}`;
+    console.error(finalErrorMsg);
     return {
       status: 'error',
-      reasoning: lastErrorReason || `Could not parse valid JSON from AI after ${MAX_RETRIES} attempts.`,
+      reasoning: finalErrorMsg,
       idea: 'Error',
       estimatedTimeline: 'N/A',
     };
@@ -168,7 +183,7 @@ Return ONLY the JSON object. No markdown, explanations, apologies, or other text
       platformFee: Math.round(platformFee * 100) / 100,
       totalCostToClient: Math.round(totalCost * 100) / 100,
       monthlySubscriptionCost: Math.round(monthlyCost * 100) / 100,
-      reasoning: `Generated idea. Estimated ${estimatedHours}h @ $${HOURLY_RATE}/h + ${PLATFORM_FEE * 100}% fee.`, // Removed model name as callAI handles it
+      reasoning: `Generated idea. Estimated ${estimatedHours}h @ $${HOURLY_RATE}/h + ${PLATFORM_FEE * 100}% fee.`,
       status: 'success',
     };
 
@@ -193,4 +208,3 @@ Return ONLY the JSON object. No markdown, explanations, apologies, or other text
     };
   }
 }
-
