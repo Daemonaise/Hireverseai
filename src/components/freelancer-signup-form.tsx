@@ -21,7 +21,8 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { MfaSetup } from '@/components/mfa-setup';
 
-const formSchema = z.object({
+// Schema for the initial signup step
+const signupFormSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   email: z.string().email({ message: 'Please enter a valid email address.' }),
   password: z.string().min(8, { message: 'Password must be at least 8 characters.' })
@@ -30,13 +31,18 @@ const formSchema = z.object({
    .regex(/[0-9]/, { message: 'Password must contain at least one number.' })
    .regex(/[^a-zA-Z0-9]/, { message: 'Password must contain at least one special character.' }),
   confirmPassword: z.string(),
-  skillsText: z.string().min(10, {message: 'Please describe your skills in at least 10 characters.'}).optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
 });
 
-type FormSchema = z.infer<typeof formSchema>;
+// Schema for the skills step (includes skillsText)
+const skillsFormSchema = z.object({
+  skillsText: z.string().min(10, {message: 'Please describe your skills in at least 10 characters.'}),
+});
+
+type SignupFormSchema = z.infer<typeof signupFormSchema>;
+type SkillsFormSchema = z.infer<typeof skillsFormSchema>;
 
 
 export function FreelancerSignupForm() {
@@ -51,36 +57,49 @@ export function FreelancerSignupForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [mfaSecret, setMfaSecret] = useState<string | null>(null);
+  const [skillsTextValue, setSkillsTextValue] = useState(''); // Local state for skills textarea
 
   const { toast } = useToast();
   const router = useRouter();
 
-  const form = useForm<FormSchema>({
-    resolver: zodResolver(formSchema),
+  // Form hook for the initial signup fields
+  const signupForm = useForm<SignupFormSchema>({
+    resolver: zodResolver(signupFormSchema),
     defaultValues: {
       name: '',
       email: '',
       password: '',
       confirmPassword: '',
-      skillsText: '',
     },
      mode: "onChange", // Validate on change
   });
 
-  // Destructure formState for easier access and logging
-  const { isValid, errors } = form.formState;
+  // Form hook specifically for the skills step
+   const skillsForm = useForm<SkillsFormSchema>({
+      resolver: zodResolver(skillsFormSchema),
+      defaultValues: {
+        skillsText: '',
+      },
+      mode: 'onChange',
+   });
+
+  // Destructure formState for easier access and logging (specifically for the signup step)
+  const { isValid: isSignupFormValid, errors: signupFormErrors } = signupForm.formState;
+  const { isValid: isSkillsFormValid, errors: skillsFormErrors } = skillsForm.formState;
 
   // Log form validity state and errors for debugging
-  console.log("FreelancerSignupForm State:", {
-    currentStep,
-    isPending,
-    isProcessing,
-    isValid,
-    errors,
-  });
+   console.log("FreelancerSignupForm State:", {
+     currentStep,
+     isPending,
+     isProcessing,
+     isSignupFormValid,
+     signupFormErrors,
+     isSkillsFormValid,
+     skillsFormErrors,
+   });
 
 
-  const handleSignupSubmit = useCallback(async (values: FormSchema) => {
+  const handleSignupSubmit = useCallback(async (values: SignupFormSchema) => {
     console.log('handleSignupSubmit (freelancer) called with values:', values.email);
     setSignupError(null);
     setFreelancerId(null);
@@ -168,7 +187,7 @@ export function FreelancerSignupForm() {
     }
   }, [freelancerId, toast]);
 
-  const handleSkillsSubmit = useCallback(async () => {
+  const handleSkillsSubmit = useCallback(async (values: SkillsFormSchema) => {
     console.log('handleSkillsSubmit called.');
     if (!freelancerId) {
       const errorMsg = "Missing freelancer ID. Cannot process skills.";
@@ -178,12 +197,9 @@ export function FreelancerSignupForm() {
       setCurrentStep('signup'); // Revert if ID is lost
       return;
     }
-    const skillsText = form.getValues('skillsText');
-    if (!skillsText || skillsText.trim().length < 10) {
-      console.log('Skills text validation failed.');
-      form.setError("skillsText", { type: "manual", message: "Please provide a meaningful description (min 10 characters)." });
-      return;
-    }
+    const skillsText = values.skillsText; // Get from validated form values
+    // The check for length < 10 is now handled by the Zod schema
+
     setSignupError(null);
     setIsProcessing(true); // Start processing indicator
     console.log('Starting skills processing transition...');
@@ -223,13 +239,14 @@ export function FreelancerSignupForm() {
           console.log('Skills processing transition finished.');
       }
     });
-  }, [freelancerId, form, toast]);
+  }, [freelancerId, toast]); // Removed skillsForm as it's passed directly to onSubmit
 
   // Callback from AdaptiveSkillAssessment when complete
   const handleAssessmentComplete = useCallback(() => {
     console.log('Assessment complete, transitioning to complete step.');
     setCurrentStep('complete');
-    form.reset(); // Clear form
+    signupForm.reset(); // Clear signup form
+    skillsForm.reset(); // Clear skills form
     toast({
       title: 'Onboarding Complete!',
       description: 'Your skill assessment is finished and saved.',
@@ -246,7 +263,7 @@ export function FreelancerSignupForm() {
           router.push('/freelancer/login');
       }
     }, 3000);
-  }, [form, toast, freelancerId, router]);
+  }, [signupForm, skillsForm, toast, freelancerId, router]); // Added forms to dependencies
 
   // --- Conditional Rendering ---
 
@@ -258,8 +275,8 @@ export function FreelancerSignupForm() {
               mfaSecret={mfaSecret}
               onVerified={handleMfaVerified}
               onCancel={() => {
-                console.log('MFA setup cancelled, returning to signup step.');
-                setSignupError(null); // Clear errors
+                console.log('Client MFA setup cancelled, returning to signup.');
+                setSignupError(null); // Clear errors when cancelling MFA
                 setCurrentStep('signup');
               }}
             />;
@@ -303,8 +320,8 @@ export function FreelancerSignupForm() {
        </CardHeader>
 
        {currentStep === 'signup' && (
-         <Form {...form}>
-           <form onSubmit={form.handleSubmit(handleSignupSubmit)}>
+         <Form {...signupForm}>
+           <form onSubmit={signupForm.handleSubmit(handleSignupSubmit)}>
              <CardContent className="space-y-4">
                {/* Display Signup Error Alert */}
                {signupError && currentStep === 'signup' && (
@@ -314,22 +331,22 @@ export function FreelancerSignupForm() {
                         <AlertDescription>{signupError}</AlertDescription>
                     </Alert>
                 )}
-               <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="e.g., Jane Doe" {...field} disabled={isProcessing || isPending} /></FormControl><FormMessage /></FormItem>)} />
-               <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" placeholder="e.g., jane.doe@example.com" {...field} disabled={isProcessing || isPending} /></FormControl><FormMessage /></FormItem>)} />
-               <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><div className="relative"><Input type={showPassword ? "text" : "password"} placeholder="Enter your password" {...field} disabled={isProcessing || isPending} /><Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowPassword((prev) => !prev)} tabIndex={-1} disabled={isProcessing || isPending}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}<span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span></Button></div></FormControl><p className="text-xs text-muted-foreground pt-1">Min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char.</p><FormMessage /></FormItem>)} />
-               <FormField control={form.control} name="confirmPassword" render={({ field }) => ( <FormItem><FormLabel>Confirm Password</FormLabel><FormControl><div className="relative"><Input type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" {...field} disabled={isProcessing || isPending}/><Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowConfirmPassword((prev) => !prev)} tabIndex={-1} disabled={isProcessing || isPending}>{showConfirmPassword ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}<span className="sr-only">{showConfirmPassword ? "Hide password" : "Show password"}</span></Button></div></FormControl><FormMessage /></FormItem>)} />
+               <FormField control={signupForm.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="e.g., Jane Doe" {...field} disabled={isProcessing || isPending} /></FormControl><FormMessage /></FormItem>)} />
+               <FormField control={signupForm.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" placeholder="e.g., jane.doe@example.com" {...field} disabled={isProcessing || isPending} /></FormControl><FormMessage /></FormItem>)} />
+               <FormField control={signupForm.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><div className="relative"><Input type={showPassword ? "text" : "password"} placeholder="Enter your password" {...field} disabled={isProcessing || isPending} /><Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowPassword((prev) => !prev)} tabIndex={-1} disabled={isProcessing || isPending}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}<span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span></Button></div></FormControl><p className="text-xs text-muted-foreground pt-1">Min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char.</p><FormMessage /></FormItem>)} />
+               <FormField control={signupForm.control} name="confirmPassword" render={({ field }) => ( <FormItem><FormLabel>Confirm Password</FormLabel><FormControl><div className="relative"><Input type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" {...field} disabled={isProcessing || isPending}/><Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowConfirmPassword((prev) => !prev)} tabIndex={-1} disabled={isProcessing || isPending}>{showConfirmPassword ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}<span className="sr-only">{showConfirmPassword ? "Hide password" : "Show password"}</span></Button></div></FormControl><FormMessage /></FormItem>)} />
              </CardContent>
              <CardFooter className="flex flex-col items-center gap-4">
                <Button
                  type="submit"
-                 disabled={isPending || isProcessing || !isValid} // Disable button if form is invalid
+                 disabled={isPending || isProcessing || !isSignupFormValid} // Use isSignupFormValid here
                  className="w-full"
-                 aria-disabled={isPending || isProcessing || !isValid}
+                 aria-disabled={isPending || isProcessing || !isSignupFormValid}
                 >
                  {isPending || isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><UserPlus className="mr-2 h-4 w-4" />Create Account & Set Up MFA</>}
                </Button>
-                {/* Only show invalid fields message when not processing and form is touched/dirty */}
-                {!isValid && currentStep === 'signup' && !isProcessing && form.formState.isDirty && (
+                {/* Show validation message only if form has been interacted with */}
+                {!isSignupFormValid && currentStep === 'signup' && !isProcessing && signupForm.formState.isDirty && (
                     <p className="text-xs text-destructive text-center">Please complete all fields correctly.</p>
                 )}
              </CardFooter>
@@ -338,9 +355,9 @@ export function FreelancerSignupForm() {
        )}
 
        {currentStep === 'skills' && (
-           <Form {...form}>
-               {/* Use a basic form tag or div as we handle submit via button onClick */}
-               <div>
+           <Form {...skillsForm}>
+               {/* Use the specific form instance for skills */}
+               <form onSubmit={skillsForm.handleSubmit(handleSkillsSubmit)}>
                    <CardContent className="space-y-4">
                        <Separator />
                        <h3 className="text-lg font-semibold">Describe Your Skills</h3>
@@ -356,7 +373,7 @@ export function FreelancerSignupForm() {
                              </Alert>
                          )}
                        <FormField
-                           control={form.control}
+                           control={skillsForm.control}
                            name="skillsText"
                            render={({ field }) => (
                                <FormItem>
@@ -375,19 +392,9 @@ export function FreelancerSignupForm() {
                        />
                    </CardContent>
                    <CardFooter className="flex justify-center">
-                        {/* Trigger validation manually before calling handleSkillsSubmit */}
                         <Button
-                             type="button"
-                             onClick={async () => {
-                                 const isValid = await form.trigger('skillsText'); // Trigger validation for skillsText
-                                 if (isValid) {
-                                     handleSkillsSubmit();
-                                 } else {
-                                     console.log("Skills validation failed on button click.");
-                                     // Error message will be shown by FormMessage component
-                                 }
-                             }}
-                             disabled={isPending || isProcessing || !form.getValues('skillsText') || form.getValues('skillsText')!.length < 10} // Add check for skillsText content
+                             type="submit"
+                             disabled={isPending || isProcessing || !isSkillsFormValid} // Use isSkillsFormValid here
                         >
                            {isPending || isProcessing ? (
                                <> <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing Skills... </>
@@ -396,7 +403,7 @@ export function FreelancerSignupForm() {
                            )}
                        </Button>
                    </CardFooter>
-               </div>
+               </form>
            </Form>
        )}
      </Card>
