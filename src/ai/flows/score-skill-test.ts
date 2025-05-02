@@ -3,7 +3,8 @@
  * @fileOverview Scores a freelancer's submitted answers for a skill test.
  */
 
-import { ai } from '@/ai/ai-instance'; // Import the configured ai instance
+import { ai, validateAIOutput } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
+import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
 import { z } from 'zod';
 import { updateFreelancerTestScore } from '@/services/firestore';
 import {
@@ -23,9 +24,9 @@ import {
 export type { ScoreSkillTestInput, ScoreSkillTestOutput, Answer, SkillScore };
 
 
-// --- Define Prompts ---
+// --- Define Prompt Templates ---
 
-// 1. Prompt to score a single skill based on its answers
+// 1. Prompt template to score a single skill based on its answers
 const SingleSkillScoreInputSchema = z.object({
     skill: z.string(),
     freelancerId: z.string(),
@@ -36,12 +37,7 @@ const SingleSkillScoreAIOutputSchema = SkillScoreSchema.omit({ skill: true }).ex
   score: z.number().int().min(0).max(100) // Re-validate score range explicitly
 });
 
-const scoreSingleSkillPrompt = ai.definePrompt({
-    name: 'scoreSingleSkillPrompt',
-    input: { schema: SingleSkillScoreInputSchema },
-    output: { schema: SingleSkillScoreAIOutputSchema },
-    // model: 'googleai/gemini-1.5-flash', // Example: Specify model
-    prompt: `You are an expert AI evaluator assessing a freelancer's skill based on their test answers.
+const scoreSingleSkillPromptTemplate = `You are an expert AI evaluator assessing a freelancer's skill based on their test answers.
 Skill being evaluated: {{{skill}}}
 Freelancer ID: {{{freelancerId}}}
 
@@ -58,11 +54,10 @@ Output ONLY a JSON object following this structure:
   "reasoning": "Concise reasoning for the score based on provided answers (string)."
 }
 Ensure 'score' is between 0 and 100.
-Do not include any explanations or introductory text outside the JSON object.`,
-});
+Do not include any explanations or introductory text outside the JSON object.`;
 
 
-// 2. Prompt to aggregate scores and generate overall feedback
+// 2. Prompt template to aggregate scores and generate overall feedback
 const AggregateFeedbackInputSchema = z.object({
     freelancerId: z.string(),
     testId: z.string(),
@@ -74,12 +69,7 @@ const AggregateFeedbackAIOutputSchema = AggregateScoresOutputSchema.pick({ feedb
     feedback: z.string().min(1) // Ensure feedback is non-empty
 });
 
-const aggregateFeedbackPrompt = ai.definePrompt({
-    name: 'aggregateFeedbackPrompt',
-    input: { schema: AggregateFeedbackInputSchema },
-    output: { schema: AggregateFeedbackAIOutputSchema },
-    // model: 'googleai/gemini-1.5-flash', // Example: Specify model
-    prompt: `You are summarizing the results of a freelancer skill test.
+const aggregateFeedbackPromptTemplate = `You are summarizing the results of a freelancer skill test.
 Freelancer ID: {{{freelancerId}}}
 Test ID: {{{testId}}}
 
@@ -93,8 +83,7 @@ Output ONLY a JSON object following this structure:
 {
   "feedback": "Brief overall feedback (1-2 sentences) summarizing performance (string, non-empty)."
 }
-Do not include any explanations or introductory text outside the JSON object.`,
-});
+Do not include any explanations or introductory text outside the JSON object.`;
 
 
 
@@ -128,30 +117,57 @@ Question: ${a.questionText}
 Answer: ${a.answerText}
 ---`).join('\n');
 
+      let skillScoreOutput: SkillScore | null = null;
+
       try {
-          const { output: aiOutput } = await scoreSingleSkillPrompt({
-              skill,
-              freelancerId: input.freelancerId,
-              answersText,
+          // 1a. Choose model for scoring this skill
+          const scoreModel = chooseModelBasedOnPrompt(`Score skill test answers for ${skill}. Answers: ${answersText}`);
+          console.log(`Using model ${scoreModel} for scoring skill: ${skill}`);
+
+          // 1b. Define scoring prompt
+          const scoreSingleSkillPrompt = ai.definePrompt({
+             name: `scoreSingleSkillPrompt_${skill}_${scoreModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
+             input: { schema: SingleSkillScoreInputSchema },
+             output: { schema: SingleSkillScoreAIOutputSchema },
+             prompt: scoreSingleSkillPromptTemplate,
+             model: scoreModel,
           });
 
+          // 1c. Call scoring prompt
+          const scoreInput = { skill, freelancerId: input.freelancerId, answersText };
+          const { output: aiOutput } = await scoreSingleSkillPrompt(scoreInput);
+
           if (!aiOutput) {
-              throw new Error("AI failed to return valid JSON for skill scoring.");
+              throw new Error(`AI (${scoreModel}) failed to return valid JSON for skill scoring.`);
           }
 
-           // Clamp score just in case AI deviates despite prompt
+          // 1d. Clamp score just in case AI deviates
           aiOutput.score = Math.max(0, Math.min(100, aiOutput.score));
 
-          const validatedSkillScore: SkillScore = {
+          // 1e. Validate scoring output
+           const originalScorePromptText = scoreSingleSkillPromptTemplate
+             .replace('{{{skill}}}', scoreInput.skill)
+             .replace('{{{freelancerId}}}', scoreInput.freelancerId)
+             .replace('{{{answersText}}}', scoreInput.answersText);
+
+           const scoreValidation = await validateAIOutput(originalScorePromptText, JSON.stringify(aiOutput), scoreModel);
+
+           if (!scoreValidation.allValid) {
+               console.warn(`Validation failed for skill score (${skill}). Reasoning:`, scoreValidation.results);
+               throw new Error(`Skill score validation failed for ${skill}.`);
+           }
+
+          skillScoreOutput = {
               skill: skill,
               score: aiOutput.score,
               reasoning: aiOutput.reasoning,
           };
-          console.log(`Successfully scored skill: ${skill} - Score: ${validatedSkillScore.score}`);
-          return validatedSkillScore;
+          console.log(`Successfully scored and validated skill: ${skill} - Score: ${skillScoreOutput.score}`);
+          return skillScoreOutput;
 
       } catch (error: any) {
-           console.error(`Error during scoring setup or AI call for skill "${skill}":`, error?.message || error);
+           console.error(`Error during scoring setup, AI call, or validation for skill "${skill}":`, error?.message || error);
+           // Return error state for this skill
            return { skill: skill, score: 0, reasoning: `Error during automated scoring: ${error?.message || 'Unknown error'}.` };
       }
     });
@@ -162,59 +178,88 @@ Answer: ${a.answerText}
     // --- Aggregate scores and generate feedback ---
     let overallScore = 0;
     let feedback = "No skills were scored.";
+    let finalFeedback = feedback; // Variable to hold validated feedback
 
-    if (skillScores.length > 0) {
-        const totalScore = skillScores.reduce((sum, ss) => sum + ss.score, 0);
-        overallScore = Math.round(totalScore / skillScores.length);
+    if (skillScores.length > 0 && skillScores.some(s => s.score > 0 || !s.reasoning.startsWith('Error'))) { // Check if any scoring was successful
+        const validScores = skillScores.filter(s => !s.reasoning.startsWith('Error'));
+        const totalScore = validScores.reduce((sum, ss) => sum + ss.score, 0);
+        overallScore = Math.round(validScores.length > 0 ? totalScore / validScores.length : 0);
 
         const scoresText = skillScores.map(ss => `- Skill: ${ss.skill}\n  Score: ${ss.score}/100\n  Reasoning: ${ss.reasoning}`).join('\n');
 
         try {
-            const { output: feedbackOutput } = await aggregateFeedbackPrompt({
-                freelancerId: input.freelancerId,
-                testId: input.testId,
-                overallScore: overallScore,
-                scoresText: scoresText,
+            // 2a. Choose model for feedback generation
+            const feedbackModel = chooseModelBasedOnPrompt(`Summarize test results: ${scoresText}`);
+            console.log(`Using model ${feedbackModel} for feedback aggregation.`);
+
+            // 2b. Define feedback prompt
+            const aggregateFeedbackPrompt = ai.definePrompt({
+                name: `aggregateFeedbackPrompt_${input.testId}_${feedbackModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
+                input: { schema: AggregateFeedbackInputSchema },
+                output: { schema: AggregateFeedbackAIOutputSchema },
+                prompt: aggregateFeedbackPromptTemplate,
+                model: feedbackModel,
             });
 
+            // 2c. Call feedback prompt
+            const feedbackInput = { freelancerId: input.freelancerId, testId: input.testId, overallScore: overallScore, scoresText: scoresText };
+            const { output: feedbackOutput } = await aggregateFeedbackPrompt(feedbackInput);
+
              if (!feedbackOutput?.feedback) {
-                throw new Error("AI failed to return valid JSON for feedback aggregation.");
+                throw new Error(`AI (${feedbackModel}) failed to return valid JSON for feedback aggregation.`);
              }
              feedback = feedbackOutput.feedback;
-             console.log(`Generated overall feedback for test ${input.testId}.`);
+
+            // 2d. Validate feedback output
+            const originalFeedbackPromptText = aggregateFeedbackPromptTemplate
+                .replace('{{{freelancerId}}}', feedbackInput.freelancerId)
+                .replace('{{{testId}}}', feedbackInput.testId)
+                .replace('{{{overallScore}}}', feedbackInput.overallScore.toString())
+                .replace('{{{scoresText}}}', feedbackInput.scoresText);
+
+            const feedbackValidation = await validateAIOutput(originalFeedbackPromptText, JSON.stringify(feedbackOutput), feedbackModel);
+
+            if (!feedbackValidation.allValid) {
+                console.warn(`Validation failed for feedback aggregation (Test ${input.testId}). Reasoning:`, feedbackValidation.results);
+                finalFeedback = `Feedback generated, but failed validation. Original: ${feedback}`; // Use generated but note failure
+            } else {
+                finalFeedback = feedback; // Use validated feedback
+                console.log(`Generated and validated overall feedback for test ${input.testId}.`);
+            }
 
         } catch (error: any) {
-            console.error(`Error generating overall feedback for test ${input.testId}:`, error?.message || error);
-            feedback = `Feedback generation failed due to an API error: ${error?.message || 'Unknown error'}.`;
+            console.error(`Error generating or validating overall feedback for test ${input.testId}:`, error?.message || error);
+            finalFeedback = `Feedback generation/validation failed due to an API error: ${error?.message || 'Unknown error'}.`;
         }
     } else {
-         feedback = input.answers.length === 0
+         finalFeedback = input.answers.length === 0
             ? "No answers submitted for scoring."
             : "Error: Could not score any skills.";
-        console.warn(`${feedback} for test ${input.testId}`);
+        console.warn(`${finalFeedback} for test ${input.testId}`);
     }
 
 
     // --- Update Firestore ---
-    if (skillScores.length > 0) {
+    const successfulScores = skillScores.filter(s => !s.reasoning.startsWith('Error'));
+    if (successfulScores.length > 0) {
         try {
-            const updatePromises = skillScores.map(skillScore =>
+            const updatePromises = successfulScores.map(skillScore =>
                 updateFreelancerTestScore(input.freelancerId, skillScore.skill, skillScore.score)
             );
             await Promise.all(updatePromises);
-            console.log(`Successfully updated all test scores in Firestore for freelancer ${input.freelancerId}`);
+            console.log(`Successfully updated ${successfulScores.length} test scores in Firestore for freelancer ${input.freelancerId}`);
         } catch (error) {
             console.error(`Failed to update one or more scores in Firestore for freelancer ${input.freelancerId}:`, error);
         }
     } else {
-        console.warn(`No skill scores generated for freelancer ${input.freelancerId}, test ${input.testId}. Skipping Firestore update.`);
+        console.warn(`No successful skill scores generated for freelancer ${input.freelancerId}, test ${input.testId}. Skipping Firestore update.`);
     }
 
     // --- Construct final output ---
     const finalOutput: ScoreSkillTestOutput = {
         overallScore,
-        skillScores,
-        feedback,
+        skillScores, // Include all scores, even errors
+        feedback: finalFeedback, // Use the potentially validated feedback
     };
 
     // Validate final output before returning

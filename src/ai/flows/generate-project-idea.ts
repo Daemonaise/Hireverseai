@@ -8,7 +8,8 @@
  * - GenerateProjectIdeaOutput - Output type including cost details and status.
  */
 
-import { ai } from '@/ai/ai-instance'; // Import the configured ai instance
+import { ai, validateAIOutput } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
+import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import model selector
 import { z } from 'zod';
 import {
   GenerateProjectIdeaInputSchema,
@@ -26,32 +27,8 @@ const PLATFORM_FEE         = 0.15; // 15%
 const HOURLY_RATE          = 65;   // Example hourly rate in USD
 const SUBSCRIPTION_MONTHS  = 6;    // Example subscription term
 
-// --- Helper: Extract JSON from potentially messy AI output ---
-function extractJson(text: string): unknown | null {
-    // Improved regex to handle potential markdown code blocks
-    const match = text.match(/```json\s*([\s\S]*?)\s*```|(\{[\s\S]*\})/);
-    if (match) {
-        try {
-            // Use the first capturing group if it exists (markdown block), otherwise use the second (raw JSON)
-            const jsonString = match[1] ? match[1].trim() : match[2].trim();
-            return JSON.parse(jsonString);
-        } catch (e) {
-            console.warn("JSON parsing failed:", e, "Raw Text:", text);
-            return null;
-        }
-    }
-    console.error("Could not find any JSON object in AI response:", text);
-    return null;
-}
-
-// --- Define the Prompt ---
-const projectIdeaPrompt = ai.definePrompt({
-  name: 'generateProjectIdeaPrompt',
-  input: { schema: GenerateProjectIdeaInputSchema },
-  output: { schema: GenerateProjectIdeaAIOutputSchema }, // Expect AI to output in this format
-  // Specify the model directly or rely on a default configured in `ai`
-  // model: 'googleai/gemini-1.5-flash', // Example: Explicitly set model
-  prompt: `CRITICAL: Your entire response MUST be ONLY a single, valid JSON object.
+// --- Define the Prompt Template ---
+const projectIdeaPromptTemplate = `CRITICAL: Your entire response MUST be ONLY a single, valid JSON object.
 Do NOT include ANY introductory text, concluding text, explanations, apologies, or markdown formatting like \`\`\`json unless specifically requested by the schema.
 Start the response immediately with '{' and end it immediately with '}'.
 
@@ -68,8 +45,7 @@ Strictly follow this JSON structure:
 }
 {{#if industryHint}}Focus on the industry: '{{{industryHint}}}'.{{/if}}
 
-REMEMBER: ONLY the JSON object. Absolutely no other text before or after the JSON. Verify the structure and types carefully, especially 'estimatedHours' which must be a number >= 1.`,
-});
+REMEMBER: ONLY the JSON object. Absolutely no other text before or after the JSON. Verify the structure and types carefully, especially 'estimatedHours' which must be a number >= 1.`;
 
 
 // --- Define the Flow ---
@@ -83,42 +59,107 @@ const generateProjectIdeaFlow = ai.defineFlow<
     outputSchema: GenerateProjectIdeaOutputSchema,
   },
   async (input) => {
-    const randomNumber = Math.random().toFixed(4); // Generate random factor inside flow
-    let aiResultData: GenerateProjectIdeaAIOutput;
-    let reasoning = '';
+    const MAX_ATTEMPTS = 3;
+    let attempts = 0;
+    let aiResultData: z.infer<typeof GenerateProjectIdeaAIOutputSchema> | null = null;
+    let lastError: string | null = null;
+    let rawResponse: string | null = null;
+    let primaryModel: string = ''; // Store the model used for generation
 
-    try {
-      console.log("Generating project idea via prompt...");
-      // Call the defined prompt with the input and the random number
-      const { output } = await projectIdeaPrompt({ ...input, randomNumber });
+    while (attempts < MAX_ATTEMPTS && !aiResultData) {
+      attempts++;
+      console.log(`Generating project idea (attempt ${attempts})...`);
+      const randomNumber = Math.random().toFixed(4); // Generate fresh random number each attempt
+      lastError = null; // Reset error for this attempt
 
-      if (!output) {
-          throw new Error("AI failed to return a valid output for project idea.");
-      }
-      // Validate the output against the AI schema
-      const validationResult = GenerateProjectIdeaAIOutputSchema.safeParse(output);
-        if (!validationResult.success) {
-          // Provide detailed validation errors
-          const errorDetails = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-          reasoning = `Invalid JSON structure received: ${errorDetails}`;
-          throw new Error(reasoning);
+      try {
+        // 1. Choose the primary model for generation
+        const promptContext = `Generate project idea. Hint: ${input.industryHint || 'Any'}. Random: ${randomNumber}`;
+        primaryModel = chooseModelBasedOnPrompt(promptContext);
+        console.log(`Using model ${primaryModel} for project idea generation (attempt ${attempts}).`);
+
+        // 2. Define the prompt using the chosen model and template
+        const projectIdeaPrompt = ai.definePrompt({
+          name: `generateProjectIdeaPrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name
+          model: primaryModel, // Explicitly specify the model here
+          input: { schema: GenerateProjectIdeaInputSchema.extend({ randomNumber: z.string() }) },
+          output: { schema: GenerateProjectIdeaAIOutputSchema }, // Expect AI to output in this format
+          prompt: projectIdeaPromptTemplate,
+        });
+
+        // 3. Call the defined prompt with the input and the random number
+        const promptInput = { ...input, randomNumber };
+        const { output: aiOutput } = await projectIdeaPrompt(promptInput);
+
+        if (!aiOutput) {
+          throw new Error(`AI (${primaryModel}) returned null or undefined output.`);
         }
-      aiResultData = validationResult.data;
 
-      // Additional check for minimum hours (already in schema, but defense-in-depth)
-      if (aiResultData.estimatedHours < 1) {
-        console.warn(`AI returned estimated hours (${aiResultData.estimatedHours}) less than 1. Adjusting to 1.`);
-        aiResultData.estimatedHours = 1;
-        reasoning += " (Adjusted hours from minimal AI estimate)";
+        // 4. Validate the structured output against the AI schema
+         console.log(`Raw AI Output (Attempt ${attempts}, Model: ${primaryModel}):`, JSON.stringify(aiOutput, null, 2));
+         rawResponse = JSON.stringify(aiOutput); // Store raw parsed output for logging on final failure
+
+         const validationResult = GenerateProjectIdeaAIOutputSchema.safeParse(aiOutput);
+         if (!validationResult.success) {
+             const errorDetails = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+             lastError = `Invalid JSON structure received from ${primaryModel} (attempt ${attempts}): ${errorDetails}`;
+             console.error(lastError, "Raw Output:", rawResponse);
+             if (attempts === MAX_ATTEMPTS) {
+                throw new Error(`Failed to get valid JSON after ${MAX_ATTEMPTS} attempts. Last error: ${lastError}. Raw response logged above.`);
+             }
+             await new Promise(resolve => setTimeout(resolve, 500)); // Wait before retry
+             continue; // Go to next attempt
+         }
+
+         // 5. Validate the output with other models
+          let originalPromptText = projectIdeaPromptTemplate
+              .replace('{{{randomNumber}}}', randomNumber);
+          if (input.industryHint) {
+              originalPromptText = originalPromptText.replace('{{#if industryHint}}Focus on the industry: \'{{{industryHint}}}\'.{{/if}}', `Focus on the industry: '${input.industryHint}'.`);
+          } else {
+              originalPromptText = originalPromptText.replace('{{#if industryHint}}Focus on the industry: \'{{{industryHint}}}\'.{{/if}}', '');
+          }
+
+         const validation = await validateAIOutput(originalPromptText, JSON.stringify(validationResult.data), primaryModel);
+
+         if (!validation.allValid) {
+             console.warn(`Validation failed for generated project idea (Attempt ${attempts}). Reasoning:`, validation.results);
+             lastError = `Generated idea failed cross-validation (Attempt ${attempts}).`;
+             // Optionally, could retry generation with a different model based on validation feedback
+             if (attempts === MAX_ATTEMPTS) {
+                throw new Error(`Failed to get validated JSON after ${MAX_ATTEMPTS} attempts. Last error: ${lastError}.`);
+             }
+             await new Promise(resolve => setTimeout(resolve, 500)); // Wait before retry
+             continue; // Go to next attempt
+         }
+
+         aiResultData = validationResult.data; // Use the successfully parsed and validated data
+
+         // Additional check for minimum hours
+         if (aiResultData.estimatedHours < 1) {
+             console.warn(`AI returned estimated hours (${aiResultData.estimatedHours}) less than 1. Adjusting to 1.`);
+             aiResultData.estimatedHours = 1;
+             // Note: reasoning field is not in GenerateProjectIdeaAIOutputSchema, removed update
+             // aiResultData.reasoning = (aiResultData.reasoning || "") + " (Adjusted hours from minimal AI estimate)";
+         }
+
+      } catch (err: any) {
+        lastError = `Error during AI call or processing (attempt ${attempts}): ${err.message}`;
+        console.error(lastError, err);
+         rawResponse = err.message; // Store error message if AI call failed
+        if (attempts === MAX_ATTEMPTS) {
+           throw new Error(`Failed to get valid JSON after ${MAX_ATTEMPTS} attempts. Last error: ${lastError}. Raw response logged above.`);
+        }
+        await new Promise(resolve => setTimeout(resolve, 500)); // Wait before retry
       }
+    } // End of while loop
 
-    } catch (err: any) {
-      console.error(`Error generating/validating idea JSON:`, err.message);
-      reasoning = `Could not generate or validate AI response: ${err.message}.`;
-      // Return structured error matching the output schema
+    if (!aiResultData) {
+      // Should be caught by the throw inside the loop, but as a fallback
+      console.error("Exited loop without valid AI data. Last error:", lastError);
       return {
         status: 'error',
-        reasoning: reasoning,
+        reasoning: `Could not generate a valid project idea after ${MAX_ATTEMPTS} attempts. Last error: ${lastError}. Raw Response: ${rawResponse || 'N/A'}`,
         idea: 'Error',
         estimatedTimeline: 'N/A',
       };
@@ -142,11 +183,11 @@ const generateProjectIdeaFlow = ai.defineFlow<
       platformFee: Math.round(platformFee * 100) / 100,
       totalCostToClient: Math.round(totalCost * 100) / 100,
       monthlySubscriptionCost: Math.round(monthlyCost * 100) / 100,
-      reasoning: reasoning || `Generated idea. Est ${estimatedHours}h @ $${HOURLY_RATE}/h + ${PLATFORM_FEE * 100}% fee.`,
-      status: 'success',
+      reasoning: `Generated idea using ${primaryModel}. Est ${estimatedHours}h @ $${HOURLY_RATE}/h + ${PLATFORM_FEE * 100}% fee.`,
+      status: 'success', // Set status to success
     };
 
-    // Final validation of the complete output object (optional but good practice)
+    // Final validation of the complete output object
     try {
        GenerateProjectIdeaOutputSchema.parse(result);
     } catch (finalValidationError: any) {

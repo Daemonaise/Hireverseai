@@ -8,7 +8,8 @@
  * - AdministerSkillTestOutput - Output type.
  * - Question - Individual question type.
  */
-import { ai } from '@/ai/ai-instance'; // Import the configured ai instance
+import { ai, validateAIOutput } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
+import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
 import {
   AdministerSkillTestInputSchema,
   type AdministerSkillTestInput,
@@ -22,7 +23,7 @@ import { z } from 'zod';
 // Only export the async function and related types
 export type { AdministerSkillTestInput, AdministerSkillTestOutput, Question };
 
-// --- Define the Prompt for a single question ---
+// --- Define the Prompt Template (without model) ---
 const SingleQuestionInputSchema = z.object({
   skill: z.string(),
   freelancerId: z.string(),
@@ -31,12 +32,7 @@ const SingleQuestionOutputSchema = z.object({
   questionText: z.string().min(10), // Expecting just the question text from AI
 });
 
-const skillQuestionPrompt = ai.definePrompt({
-  name: 'skillQuestionPrompt',
-  input: { schema: SingleQuestionInputSchema },
-  output: { schema: SingleQuestionOutputSchema },
-  // model: 'googleai/gemini-1.5-flash', // Example: Specify model if needed
-  prompt: `You are an AI hiring assistant specializing in creating skill assessment questions.
+const skillQuestionPromptTemplate = `You are an AI hiring assistant specializing in creating skill assessment questions.
 Generate exactly ONE practical and relevant test question for a freelancer (ID: {{{freelancerId}}}) claiming the following skill: {{{skill}}}.
 The question should effectively probe their proficiency in this specific skill.
 
@@ -49,8 +45,8 @@ Return ONLY a JSON object with:
 {
   "questionText": "The test question."
 }
-Do NOT add any extra explanations outside the JSON object. Ensure 'questionText' is at least 10 characters long.`,
-});
+Do NOT add any extra explanations outside the JSON object. Ensure 'questionText' is at least 10 characters long.`;
+
 
 // --- Define the Flow ---
 const administerSkillTestFlow = ai.defineFlow<
@@ -73,24 +69,51 @@ const administerSkillTestFlow = ai.defineFlow<
       try {
         console.log(`Generating question for skill: ${skill}...`);
 
-        // Call the defined prompt for the current skill
-        const { output: aiOutput } = await skillQuestionPrompt({ skill, freelancerId: input.freelancerId });
+        // 1. Choose the primary model for generation
+        const primaryModel = chooseModelBasedOnPrompt(`Generate skill test question for: ${skill}`);
+        console.log(`Using model ${primaryModel} for generation.`);
+
+        // 2. Define the prompt using the chosen model and template
+        const skillQuestionPrompt = ai.definePrompt({
+          name: `skillQuestionPrompt_${skill}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name
+          input: { schema: SingleQuestionInputSchema },
+          output: { schema: SingleQuestionOutputSchema },
+          prompt: skillQuestionPromptTemplate,
+          model: primaryModel, // Set the chosen model
+        });
+
+        // 3. Generate the initial question
+        const promptInput = { skill, freelancerId: input.freelancerId };
+        const { output: aiOutput } = await skillQuestionPrompt(promptInput);
 
         if (!aiOutput?.questionText) {
-            throw new Error(`AI did not return valid question text for skill "${skill}".`);
+            throw new Error(`AI (${primaryModel}) did not return valid question text for skill "${skill}".`);
         }
 
-        // Manually construct the full Question object
+        // 4. Validate the output with other models
+        const originalPromptText = skillQuestionPromptTemplate
+            .replace('{{{freelancerId}}}', input.freelancerId)
+            .replace('{{{skill}}}', skill); // Reconstruct the prompt text sent to AI
+
+        const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
+
+        if (!validation.allValid) {
+            console.warn(`Validation failed for skill "${skill}". Reasoning:`, validation.results);
+            // Optionally, could retry generation with a different model or use a fallback
+            throw new Error(`Generated question for skill "${skill}" failed cross-validation.`);
+        }
+
+        // 5. Construct and add the validated question
         const validatedQuestion: Question = {
           questionText: aiOutput.questionText,
           skillTested: skill, // Ensure the skillTested field is correctly set
         };
 
         questions.push(validatedQuestion);
-        console.log(`Successfully generated question for skill: ${skill}`);
+        console.log(`Successfully generated and validated question for skill: ${skill}`);
 
       } catch (error: any) {
-        console.error(`Error generating or processing question for skill "${skill}":`, error?.message || error);
+        console.error(`Error generating or validating question for skill "${skill}":`, error?.message || error);
         // Fallback: Insert placeholder question
         questions.push({
           questionText: `Placeholder question for ${skill}: Describe your experience with ${skill}.`,

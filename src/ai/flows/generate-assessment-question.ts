@@ -9,7 +9,8 @@
  * - DifficultyLevel - Difficulty level type.
  */
 
-import { ai } from '@/ai/ai-instance'; // Import the configured ai instance
+import { ai, validateAIOutput } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
+import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
 import { z } from 'zod';
 import {
   GenerateAssessmentQuestionInputSchema,
@@ -23,19 +24,13 @@ import {
 // Export types separately
 export type { GenerateAssessmentQuestionInput, GenerateAssessmentQuestionOutput, DifficultyLevel };
 
-// --- Define the Prompt ---
+// --- Define the Prompt Template ---
 // Schema for the AI's direct output (just the question text)
 const AIQuestionOutputSchema = z.object({
   questionText: z.string().min(10, "Question text must be at least 10 characters."),
 });
 
-const generateQuestionPrompt = ai.definePrompt({
-  name: 'generateQuestionPrompt',
-  // The prompt input needs all fields used in the handlebars template
-  input: { schema: GenerateAssessmentQuestionInputSchema.extend({ timestamp: z.number() }) }, // Add timestamp if used for uniqueness in prompt
-  output: { schema: AIQuestionOutputSchema },
-  // model: 'googleai/gemini-1.5-flash', // Example: Specify model if needed
-  prompt: `You are an AI expert creating adaptive assessment questions for freelancers.
+const generateQuestionPromptTemplate = `You are an AI expert creating adaptive assessment questions for freelancers.
 Generate exactly ONE practical and relevant question for a freelancer (ID: {{{freelancerId}}}) based on their primary skill: {{{primarySkill}}}.
 Their other claimed skills are:
 {{#each allSkills}}- {{{this}}}
@@ -61,8 +56,7 @@ Output ONLY a JSON object strictly like this:
 {
 "questionText": "The generated question text (string, min 10 chars)."
 }
-No extra text outside the JSON.`,
-});
+No extra text outside the JSON.`;
 
 
 // --- Define the Flow ---
@@ -82,14 +76,49 @@ const generateAssessmentQuestionFlow = ai.defineFlow<
     console.log(`Generating assessment question for skill "${input.primarySkill}" (Difficulty: ${input.difficulty})...`);
 
     try {
-      // Call the defined prompt
-      const { output: aiOutput } = await generateQuestionPrompt({ ...input, timestamp }); // Pass timestamp if needed by prompt
+      // 1. Choose the primary model for generation
+      const promptContext = `Generate ${input.difficulty} question for ${input.primarySkill}. Other skills: ${input.allSkills.join(', ')}. Avoid similar to: ${input.previousQuestions?.join('; ') ?? 'None'}`;
+      const primaryModel = chooseModelBasedOnPrompt(promptContext);
+      console.log(`Using model ${primaryModel} for question generation.`);
+
+      // 2. Define the prompt using the chosen model and template
+      const generateQuestionPrompt = ai.definePrompt({
+        name: `generateQuestionPrompt_${input.primarySkill}_${input.difficulty}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name
+        input: { schema: GenerateAssessmentQuestionInputSchema.extend({ timestamp: z.number() }) },
+        output: { schema: AIQuestionOutputSchema },
+        prompt: generateQuestionPromptTemplate,
+        model: primaryModel,
+      });
+
+      // 3. Call the defined prompt
+      const promptInput = { ...input, timestamp };
+      const { output: aiOutput } = await generateQuestionPrompt(promptInput);
 
       if (!aiOutput?.questionText) {
-        throw new Error(`AI did not return valid JSON question text.`);
+        throw new Error(`AI (${primaryModel}) did not return valid JSON question text.`);
       }
 
-      // Construct the full output object, manually setting the correct fields
+      // 4. Validate the output with other models
+      let originalPromptText = generateQuestionPromptTemplate
+        .replace('{{{freelancerId}}}', input.freelancerId)
+        .replace('{{{primarySkill}}}', input.primarySkill)
+        .replace('{{{difficulty}}}', input.difficulty);
+      originalPromptText = originalPromptText.replace('{{#each allSkills}}- {{{this}}}\n{{/each}}', input.allSkills.map(s => `- ${s}`).join('\n'));
+      if (input.previousQuestions && input.previousQuestions.length > 0) {
+          originalPromptText = originalPromptText.replace('{{#if previousQuestions}}Avoid generating questions similar to:\n{{#each previousQuestions}}- {{{this}}}\n{{/each}}{{/if}}', `Avoid generating questions similar to:\n${input.previousQuestions.map(q => `- ${q}`).join('\n')}`);
+      } else {
+          originalPromptText = originalPromptText.replace('{{#if previousQuestions}}Avoid generating questions similar to:\n{{#each previousQuestions}}- {{{this}}}\n{{/each}}{{/if}}', '');
+      }
+
+      const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
+
+       if (!validation.allValid) {
+         console.warn(`Validation failed for generated question (Skill: ${input.primarySkill}). Reasoning:`, validation.results);
+         // Optionally, retry or use fallback
+         throw new Error(`Generated question for ${input.primarySkill} failed cross-validation.`);
+       }
+
+      // 5. Construct the full output object
       const finalOutput: GenerateAssessmentQuestionOutput = {
         questionId: uniqueQuestionId,
         questionText: aiOutput.questionText,
@@ -100,7 +129,7 @@ const generateAssessmentQuestionFlow = ai.defineFlow<
       // Validate the final constructed output (optional but recommended)
       GenerateAssessmentQuestionOutputSchema.parse(finalOutput);
 
-      console.log(`Generated question ${finalOutput.questionId} for ${input.primarySkill} at ${input.difficulty}`);
+      console.log(`Generated and validated question ${finalOutput.questionId} for ${input.primarySkill} at ${input.difficulty}`);
       return finalOutput;
 
     } catch (error: any) {

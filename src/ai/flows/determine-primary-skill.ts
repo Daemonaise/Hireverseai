@@ -1,6 +1,7 @@
 'use server';
 
-import { ai } from '@/ai/ai-instance'; // Import the configured ai instance
+import { ai, validateAIOutput } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
+import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
 import { z } from 'zod';
 import {
   DeterminePrimarySkillInputSchema,
@@ -11,13 +12,8 @@ import {
 
 export type { DeterminePrimarySkillInput, DeterminePrimarySkillOutput };
 
-// --- Define the Prompt ---
-const determineSkillPrompt = ai.definePrompt({
-    name: 'determineSkillPrompt',
-    input: { schema: DeterminePrimarySkillInputSchema },
-    output: { schema: DeterminePrimarySkillOutputSchema },
-    // model: 'googleai/gemini-1.5-flash', // Example: Specify model if needed
-    prompt: `You are analyzing a freelancer's skills description.
+// --- Define the Prompt Template ---
+const determineSkillPromptTemplate = `You are analyzing a freelancer's skills description.
 Identify:
 1. The single most prominent (primary) skill.
 2. All distinct skills mentioned or implied.
@@ -29,8 +25,7 @@ Return ONLY a valid JSON object with the following structure:
 {
   "primarySkill": "string (non-empty)",
   "extractedSkills": ["string", "..."] (array of non-empty strings, at least one)
-}`,
-});
+}`;
 
 
 // --- Define the Flow ---
@@ -47,18 +42,43 @@ const determinePrimarySkillFlow = ai.defineFlow<
         console.log(`Determining primary skill for description starting with: "${input.skillsDescription.substring(0, 50)}..."`);
 
         try {
-            // Call the defined prompt
+            // 1. Choose the primary model for generation
+            const primaryModel = chooseModelBasedOnPrompt(input.skillsDescription);
+            console.log(`Using model ${primaryModel} for skill determination.`);
+
+            // 2. Define the prompt using the chosen model and template
+            const determineSkillPrompt = ai.definePrompt({
+                name: `determineSkillPrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name
+                input: { schema: DeterminePrimarySkillInputSchema },
+                output: { schema: DeterminePrimarySkillOutputSchema },
+                prompt: determineSkillPromptTemplate,
+                model: primaryModel,
+            });
+
+            // 3. Call the defined prompt
             const { output } = await determineSkillPrompt(input);
 
             if (!output) {
-                throw new Error('AI did not return a valid JSON object for skills.');
+                throw new Error(`AI (${primaryModel}) did not return a valid JSON object for skills.`);
             }
 
-            // Validate the AI's output against the schema (already done by prompt definition)
+            // 4. Validate the AI's output structure (already done by prompt definition)
             // Additional checks if needed (e.g., ensuring skills aren't empty strings)
             if (!output.primarySkill) throw new Error("Primary skill cannot be empty.");
             if (!output.extractedSkills || output.extractedSkills.length === 0 || output.extractedSkills.some(s => !s)) {
                 throw new Error("Extracted skills cannot be empty or contain empty strings.");
+            }
+
+            // 5. Validate the output with other models
+            const originalPromptText = determineSkillPromptTemplate
+                .replace('{{{skillsDescription}}}', input.skillsDescription);
+
+            const validation = await validateAIOutput(originalPromptText, JSON.stringify(output), primaryModel);
+
+            if (!validation.allValid) {
+                console.warn(`Validation failed for skill determination. Reasoning:`, validation.results);
+                // Optionally, retry or use fallback
+                throw new Error(`Skill determination failed cross-validation.`);
             }
 
             console.log(`Determined primary skill: ${output.primarySkill}, Extracted: ${output.extractedSkills.join(', ')}`);

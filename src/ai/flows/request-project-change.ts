@@ -8,7 +8,8 @@
  * - RequestProjectChangeOutput - Output type.
  */
 
-import { ai } from '@/ai/ai-instance'; // Import the configured ai instance
+import { ai, validateAIOutput } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
+import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
 import { z } from 'zod';
 import {
   RequestProjectChangeInputSchema,
@@ -20,13 +21,8 @@ import {
 // Export types separately
 export type { RequestProjectChangeInput, RequestProjectChangeOutput };
 
-// --- Define the Prompt ---
-const estimateChangePrompt = ai.definePrompt({
-  name: 'estimateChangePrompt',
-  input: { schema: RequestProjectChangeInputSchema },
-  output: { schema: RequestProjectChangeOutputSchema },
-  // model: 'googleai/gemini-1.5-flash', // Example: Specify model if needed
-  prompt: `You are an AI Project Manager analyzing a change request for an ongoing project.
+// --- Define the Prompt Template ---
+const estimateChangePromptTemplate = `You are an AI Project Manager analyzing a change request for an ongoing project.
 
 Project Details:
 - ID: {{{projectId}}}
@@ -50,8 +46,7 @@ Return ONLY a JSON object matching exactly this structure:
   "estimatedAdditionalCost": number (non-negative),
   "impactAnalysis": "Brief analysis (1-2 sentences) explaining the timeline/cost changes (string)."
 }
-No extra explanations, no markdown, no formatting outside the JSON object. Ensure 'estimatedAdditionalCost' is a non-negative number.`,
-});
+No extra explanations, no markdown, no formatting outside the JSON object. Ensure 'estimatedAdditionalCost' is a non-negative number.`;
 
 
 // --- Define the Flow ---
@@ -68,21 +63,54 @@ const estimateProjectChangeImpactFlow = ai.defineFlow<
     console.log(`Estimating project change impact for project ${input.projectId}...`);
 
     try {
-      // Call the defined prompt
+        // 1. Choose the primary model for generation
+        const promptContext = `Estimate impact of change: ${input.changeDescription} (Priority: ${input.priority}) on project: ${input.currentBrief}`;
+        const primaryModel = chooseModelBasedOnPrompt(promptContext);
+        console.log(`Using model ${primaryModel} for change impact estimation.`);
+
+        // 2. Define the prompt using the chosen model and template
+        const estimateChangePrompt = ai.definePrompt({
+            name: `estimateChangePrompt_${input.projectId}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name
+            input: { schema: RequestProjectChangeInputSchema },
+            output: { schema: RequestProjectChangeOutputSchema },
+            prompt: estimateChangePromptTemplate,
+            model: primaryModel,
+        });
+
+      // 3. Call the defined prompt
       const { output: aiOutput } = await estimateChangePrompt(input);
 
       if (!aiOutput) {
-        throw new Error("AI failed to return a valid JSON object for estimation.");
+        throw new Error(`AI (${primaryModel}) failed to return a valid JSON object for estimation.`);
       }
 
-      // Validate AI output structure (already done by prompt definition)
+      // 4. Validate AI output structure (already done by prompt definition)
       // Additional defensive checks
       if (aiOutput.estimatedAdditionalCost < 0) {
         console.warn(`AI returned negative cost (${aiOutput.estimatedAdditionalCost}). Setting to 0.`);
         aiOutput.estimatedAdditionalCost = 0; // Correct negative cost
       }
 
-      console.log(`Successfully estimated change for project ${input.projectId}: Timeline - ${aiOutput.estimatedNewTimeline}, Additional Cost - $${aiOutput.estimatedAdditionalCost}`);
+       // 5. Validate the output with other models
+       const originalPromptText = estimateChangePromptTemplate
+         .replace('{{{projectId}}}', input.projectId)
+         .replace('{{{currentBrief}}}', input.currentBrief)
+         .replace('{{#each currentSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}', input.currentSkills.join(', '))
+         .replace('{{{currentTimeline}}}', input.currentTimeline)
+         // Note: Cost formatting might need adjustment if schema parsing is strict
+         .replace(`$${ RequestProjectChangeInputSchema.shape.currentCost.parse(0).toFixed(2) }`, `$${input.currentCost.toFixed(2)}`)
+         .replace('{{{changeDescription}}}', input.changeDescription)
+         .replace('{{{priority}}}', input.priority);
+
+       const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
+
+       if (!validation.allValid) {
+           console.warn(`Validation failed for project change estimation ${input.projectId}. Reasoning:`, validation.results);
+           // Optionally, retry or use fallback
+           throw new Error(`Project change estimation for ${input.projectId} failed cross-validation.`);
+       }
+
+      console.log(`Successfully estimated and validated change for project ${input.projectId}: Timeline - ${aiOutput.estimatedNewTimeline}, Additional Cost - $${aiOutput.estimatedAdditionalCost}`);
       return aiOutput;
 
     } catch (error: any) {

@@ -3,7 +3,8 @@
  * @fileOverview Decomposes a project brief into a list of actionable microtasks.
  */
 
-import { ai } from '@/ai/ai-instance'; // Import the configured ai instance
+import { ai, validateAIOutput } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
+import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
 import {
   DecomposeProjectInputSchema,
   type DecomposeProjectInput,
@@ -19,7 +20,7 @@ import { Timestamp } from 'firebase/firestore';
 
 export type { DecomposeProjectInput, DecomposeProjectOutput, SchemaMicrotask as Microtask };
 
-// --- Define the Prompt ---
+// --- Define the Prompt Template ---
 // Schema for the AI's expected direct output (array of basic task info)
 const DecomposeAIOutputSchema = z.array(z.object({
   id: z.string().min(1),
@@ -29,12 +30,7 @@ const DecomposeAIOutputSchema = z.array(z.object({
   dependencies: z.array(z.string()).optional(),
 })).min(1); // Ensure at least one task
 
-const decompositionPrompt = ai.definePrompt({
-  name: 'decompositionPrompt',
-  input: { schema: DecomposeProjectInputSchema },
-  output: { schema: DecomposeAIOutputSchema }, // AI outputs the basic task array
-  // model: 'googleai/gemini-1.5-flash', // Example: Specify model if needed
-  prompt: `You are an expert AI Project Manager. Break this project into clear microtasks.
+const decompositionPromptTemplate = `You are an expert AI Project Manager. Break this project into clear microtasks.
 
 === Project Brief ===
 {{{projectBrief}}}
@@ -52,8 +48,8 @@ const decompositionPrompt = ai.definePrompt({
   "dependencies": "Optional array of prerequisite task IDs"
 }
 
-Return ONLY a JSON array of microtasks. Ensure the response contains only the valid JSON array and nothing else.`,
-});
+Return ONLY a JSON array of microtasks. Ensure the response contains only the valid JSON array and nothing else.`;
+
 
 // --- Helper: Validate task dependencies ---
 function validateTaskDependencies(tasks: SchemaMicrotask[]): SchemaMicrotask[] {
@@ -84,14 +80,27 @@ const decomposeProjectFlow = ai.defineFlow<
     try {
       console.log(`Decomposing project ${input.projectId}...`);
 
-      // Invoke the defined prompt
+      // 1. Choose the primary model for generation
+      const primaryModel = chooseModelBasedOnPrompt(input.projectBrief);
+      console.log(`Using model ${primaryModel} for decomposition.`);
+
+      // 2. Define the prompt using the chosen model and template
+      const decompositionPrompt = ai.definePrompt({
+        name: `decompositionPrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name
+        input: { schema: DecomposeProjectInputSchema },
+        output: { schema: DecomposeAIOutputSchema }, // AI outputs the basic task array
+        prompt: decompositionPromptTemplate,
+        model: primaryModel,
+      });
+
+      // 3. Invoke the defined prompt
       const { output } = await decompositionPrompt(input);
 
       if (!output) {
-        throw new Error('AI did not return a valid JSON array of microtasks.');
+        throw new Error(`AI (${primaryModel}) did not return a valid JSON array of microtasks.`);
       }
 
-      // Validate the AI's direct output structure
+      // 4. Validate the AI's direct output structure
       const validationResult = DecomposeAIOutputSchema.safeParse(output);
         if (!validationResult.success) {
           // Provide detailed validation errors
@@ -104,7 +113,20 @@ const decomposeProjectFlow = ai.defineFlow<
         throw new Error('AI returned no microtasks after parsing.');
       }
 
-      // Enrich into schema microtasks (add status, createdAt)
+      // 5. Validate the output with other models
+       const originalPromptText = decompositionPromptTemplate
+         .replace('{{{projectBrief}}}', input.projectBrief)
+         .replace('{{#each requiredSkills}}- {{{this}}}\n{{/each}}', input.requiredSkills.map(s => `- ${s}`).join('\n')); // Basic substitution
+
+      const validation = await validateAIOutput(originalPromptText, JSON.stringify(rawTasks), primaryModel);
+
+      if (!validation.allValid) {
+        console.warn(`Validation failed for project decomposition ${input.projectId}. Reasoning:`, validation.results);
+        // Optionally, retry or use fallback
+        throw new Error(`Decomposed project ${input.projectId} failed cross-validation.`);
+      }
+
+      // 6. Enrich into schema microtasks (add status, createdAt)
       const timestamp = Timestamp.now(); // Use Firestore Timestamp
       const enriched: SchemaMicrotask[] = rawTasks.map((t) => ({
         id: t.id,
