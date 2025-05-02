@@ -120,7 +120,7 @@ export async function validateAIOutput(
       Is the output valid and does it satisfy the prompt? Respond ONLY with a JSON object matching this structure:
       {
         "isValid": boolean (true or false),
-        "reasoning": "string (required if invalid, or brief confirmation if valid)"
+        "reasoning": "string (required if invalid, or brief confirmation if valid, or short explanation if an error occurred)"
       }`,
   });
 
