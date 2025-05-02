@@ -10,7 +10,7 @@ export const GenerateProjectIdeaAIOutputSchema = z.object({
   idea:              z.string().min(1),
   details:           z.string().min(1),
   estimatedTimeline: z.string().min(1),
-  estimatedHours:    z.number().int().min(1, 'Estimated hours must be at least 1'),
+  estimatedHours:    z.number().min(1, 'Estimated hours must be at least 1'), // Changed from .int().min(1) to .number().min(1)
   requiredSkills:    z.array(z.string().min(1)).min(1).max(5),
 });
 export type GenerateProjectIdeaAIOutput = z.infer<typeof GenerateProjectIdeaAIOutputSchema>;
@@ -29,3 +29,4 @@ export const GenerateProjectIdeaOutputSchema = z.object({
   requiredSkills:           z.array(z.string()).optional(),
 });
 export type GenerateProjectIdeaOutput = z.infer<typeof GenerateProjectIdeaOutputSchema>;
+
