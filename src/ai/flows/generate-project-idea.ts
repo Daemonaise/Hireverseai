@@ -29,7 +29,7 @@ const MAX_RETRIES          = 3;    // Max attempts to get valid JSON
 
 // --- Helper: Extract JSON from potentially messy AI output ---
 function extractJson(text: string): unknown | null {
-    console.log("Attempting to extract JSON from text:", text); // Log the raw text
+    console.log("Attempting to extract JSON from raw AI text:", text); // Log the raw text FIRST
     // Prioritize strict JSON object match first
     // Look for text starting with '{' and ending with '}', potentially with surrounding whitespace
     const strictMatch = text.match(/^\s*(\{[\s\S]*\})\s*$/);
@@ -40,11 +40,11 @@ function extractJson(text: string): unknown | null {
             console.log("Strict JSON parsing successful.");
             return parsed;
         } catch (e: any) {
-             console.warn("Strict JSON parsing failed:", e.message);
+             console.warn("Strict JSON parsing failed:", e.message, "Raw Text:", text); // Log raw text on error
              // Fall through to relaxed match if strict parsing fails
         }
     } else {
-         console.log("Strict JSON pattern not found.");
+         console.log("Strict JSON pattern not found in raw text.");
     }
 
     // Relaxed match (handles cases with leading/trailing text, more greedy)
@@ -57,12 +57,12 @@ function extractJson(text: string): unknown | null {
             console.log("Relaxed JSON parsing successful.");
             return parsed;
         } catch (e: any){
-            console.error("Relaxed JSON parsing also failed:", e.message);
+            console.error("Relaxed JSON parsing also failed:", e.message, "Raw Text:", text); // Log raw text on error
             return null; // Return null if relaxed also fails
         }
     }
 
-    console.error("Could not find any JSON object in AI response.");
+    console.error("Could not find any JSON object in AI response. Raw Text:", text); // Log raw text if no JSON found
     return null; // Return null if no JSON object is found
 }
 
@@ -87,24 +87,24 @@ export async function generateProjectIdea(
   // Use a random number as part of the prompt to encourage variability
   const randomNumber = Math.random();
 
-  // Construct the prompt for the callAI function
-  const promptText = `Generate a single, valid JSON object representing a freelance project idea.
+  // Construct the prompt for the callAI function with STRONGER instructions
+  const promptText = `CRITICAL: Your entire response MUST be ONLY a single, valid JSON object.
+Do NOT include ANY introductory text, concluding text, explanations, apologies, or markdown formatting like \`\`\`json.
+Start the response immediately with '{' and end it immediately with '}'.
 
-**Critically important:** Your entire response must be ONLY the JSON object itself. Do NOT include any introductory text, markdown formatting (like \`\`\`json), explanations, apologies, or any characters before the opening '{' or after the closing '}'.
+Generate a unique freelance project idea. Use this random number for inspiration: ${randomNumber.toFixed(4)}
 
-To ensure varied results, use this random number as inspiration: ${randomNumber.toFixed(4)}
-
-Strictly adhere to this structure, ensuring all fields are present and correctly typed:
+Strictly follow this JSON structure:
 {
-  "idea": "Short, catchy project title (string, non-empty)",
-  "details": "Detailed description of the project (string, non-empty, min 10 chars)",
-  "estimatedTimeline": "Estimated duration, e.g., '3-5 days', '1 week' (string, non-empty)",
-  "estimatedHours": A number representing estimated hours (must be >= 1),
-  "requiredSkills": ["Array of 1-5 relevant skill strings (non-empty)"]
+  "idea": "string (short, catchy project title, non-empty)",
+  "details": "string (detailed project description, non-empty, min 10 chars)",
+  "estimatedTimeline": "string (e.g., '3-5 days', '1 week', non-empty)",
+  "estimatedHours": number (must be >= 1),
+  "requiredSkills": ["array of 1-5 skill strings (non-empty)"]
 }
-${params.industryHint ? `\nIndustry Hint: Focus on '${params.industryHint}'.` : ''}
+${params.industryHint ? `\nFocus on the industry: '${params.industryHint}'.` : ''}
 
-Remember: ONLY the JSON object. No extra text whatsoever. Double-check the structure and types before responding.`;
+REMEMBER: ONLY the JSON object. Absolutely no other text before or after the JSON. Verify the structure and types carefully.`;
 
   let aiText = '';
   let parsedJson: unknown | null = null;
@@ -117,6 +117,7 @@ Remember: ONLY the JSON object. No extra text whatsoever. Double-check the struc
       // Call the centralized AI function
       aiText = await callAI(promptText); // callAI handles model selection and primary call
       console.log(`[Attempt ${attempt}] Raw AI Response Text:\n--- START ---\n${aiText}\n--- END ---`); // Log the full raw response
+
       parsedJson = extractJson(aiText); // Attempt to parse JSON from the response
 
       if (parsedJson) {
@@ -133,8 +134,9 @@ Remember: ONLY the JSON object. No extra text whatsoever. Double-check the struc
              parsedJson = null; // Reset parsedJson to trigger retry
           }
       } else {
-          lastErrorReason = `Could not parse JSON from AI response (attempt ${attempt}).`;
-          console.warn(lastErrorReason); // Raw text logged above
+          // Log the raw response when parsing fails
+          lastErrorReason = `Could not parse JSON from AI response (attempt ${attempt}). Raw response logged above.`;
+          console.warn(lastErrorReason);
       }
     } catch (aiError: any) {
         // Catch errors from callAI itself (e.g., network issues, API errors)
@@ -153,11 +155,13 @@ Remember: ONLY the JSON object. No extra text whatsoever. Double-check the struc
   if (!parsedJson) {
     const finalErrorMsg = `Failed to get valid JSON after ${MAX_RETRIES} attempts. Last error: ${lastErrorReason}`;
     console.error(finalErrorMsg);
+    // Return a structured error that matches the expected output schema fields
     return {
       status: 'error',
       reasoning: finalErrorMsg,
-      idea: 'Error',
-      estimatedTimeline: 'N/A',
+      idea: 'Error', // Default value
+      estimatedTimeline: 'N/A', // Default value
+      // Add other fields with default values if needed by GenerateProjectIdeaOutputSchema
     };
   }
 
@@ -188,7 +192,19 @@ Remember: ONLY the JSON object. No extra text whatsoever. Double-check the struc
     };
 
     // Final validation of the complete output object
-    const validatedResult = GenerateProjectIdeaOutputSchema.parse(result);
+    const validationResult = GenerateProjectIdeaOutputSchema.safeParse(result);
+     if (!validationResult.success) {
+        // If final validation fails (e.g., due to calculation issues)
+        console.error("Final output validation failed:", validationResult.error.errors);
+        lastErrorReason = `Internal error processing AI response: ${validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')}`;
+         return {
+             status: 'error',
+             reasoning: lastErrorReason,
+             idea: 'Error',
+             estimatedTimeline: 'N/A',
+         };
+     }
+     const validatedResult = validationResult.data;
     console.log("Successfully generated and validated project idea:", validatedResult.idea);
     return validatedResult;
 
@@ -208,3 +224,5 @@ Remember: ONLY the JSON object. No extra text whatsoever. Double-check the struc
     };
   }
 }
+
+    
