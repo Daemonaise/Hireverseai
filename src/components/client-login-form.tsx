@@ -1,11 +1,10 @@
-
 'use client';
 
 import { useState, useTransition, useCallback } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Loader2, LogIn, AlertCircle } from 'lucide-react'; // Added AlertCircle
+import { Loader2, LogIn, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
@@ -14,10 +13,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { MfaVerify } from '@/components/mfa-verify'; // Import MFA verification component
-import { isUserMfaEnabled } from '@/services/firestore'; // Import MFA check
-
-// TODO: Import actual client authentication functions
+import { MfaVerify } from '@/components/mfa-verify';
+// Import real authentication functions and MFA check
+import { signInAuthUser, isUserMfaEnabled } from '@/services/firestore';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid business email address.' }),
@@ -25,19 +23,6 @@ const formSchema = z.object({
 });
 
 type FormSchema = z.infer<typeof formSchema>;
-
-// Simulate getting user ID after successful password auth (replace with real auth logic)
-async function simulateClientPasswordLogin(email: string, password: string): Promise<{ userId: string } | null> {
-    console.log("Simulating client password check for:", email);
-    // Replace with actual Firebase/auth provider login
-    // const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    // return { userId: userCredential.user.uid };
-    if (password === 'password') { // Basic placeholder check
-        // Derive a consistent ID based on email for demo purposes
-        return { userId: `client-${email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '')}` };
-    }
-    return null;
-}
 
 export function ClientLoginForm() {
   const [isPending, startTransition] = useTransition();
@@ -60,16 +45,18 @@ export function ClientLoginForm() {
     setUserIdForMfa(null);
     startTransition(async () => {
       try {
-        // 1. Authenticate with password (using placeholder)
-        const loginResult = await simulateClientPasswordLogin(values.email, values.password);
+        // 1. Authenticate with password using the actual authentication service
+        const loginResult = await signInAuthUser(values.email, values.password);
 
-        if (!loginResult) {
+        if (!loginResult || !loginResult.userId) {
+          // signInAuthUser should throw specific errors, but handle null case just in case
           throw new Error("Invalid email or password.");
         }
         const userId = loginResult.userId;
 
         // 2. Check if MFA is enabled for this client
         const mfaEnabled = await isUserMfaEnabled(userId, 'client');
+        console.log(`MFA enabled check for client ${userId}: ${mfaEnabled}`);
 
         if (mfaEnabled) {
           // Proceed to MFA step
@@ -82,31 +69,25 @@ export function ClientLoginForm() {
         }
 
       } catch (error: any) {
-        console.error('Client Password Login failed:', error);
-        let errorMessage = 'Login failed. Please check your credentials.';
-        if (error.message.includes("Invalid email or password")) {
-          errorMessage = 'Invalid email or password.';
-        } else if (error.message.includes("MFA check failed")) {
-          // Handle case where MFA check itself fails unexpectedly
-           errorMessage = 'MFA check failed. Please contact support.';
-        }
+        console.error('Client Login failed:', error);
+        // Use the error message thrown by signInAuthUser or isUserMfaEnabled
+        const errorMessage = error.message || 'Login failed. Please check your credentials or contact support.';
         setLoginError(errorMessage);
-        // toast({ title: 'Login Failed', description: errorMessage, variant: 'destructive' }); // Toast can be redundant if error is shown in form
         setStep('credentials'); // Stay on credentials step
       }
     });
-  }, [toast]); // Added toast dependency
+  }, [toast]);
 
   // Function to complete login after password/MFA success
   const completeLogin = useCallback((userId: string) => {
     toast({
       title: 'Login Successful',
       description: 'Redirecting to your dashboard...',
-      variant: 'default', // Consider using a success variant if available
+      variant: 'default',
     });
-    // Redirect to the client dashboard, passing ID for demo
+    // Redirect to the client dashboard, passing ID (consider session management instead for production)
     router.push(`/client/dashboard?clientId=${userId}`);
-  }, [toast, router]); // Added dependencies
+  }, [toast, router]);
 
   // Callback when MFA is verified successfully
   const handleMfaVerified = useCallback(() => {
@@ -133,9 +114,9 @@ export function ClientLoginForm() {
              userType="client"
              onVerified={handleMfaVerified}
              onCancel={handleMfaCancel}
-             // Handle MFA setup errors during login verification
+             // Handle case where MFA is required but not fully set up (e.g., secret missing)
              onInvalidCredentials={() => {
-               setLoginError("MFA setup incomplete or secret missing. Cannot log in.");
+               setLoginError("MFA setup incomplete or secret missing. Cannot log in. Please contact support.");
                setStep('credentials');
              }}
            />;

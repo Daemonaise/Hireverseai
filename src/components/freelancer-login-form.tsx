@@ -1,11 +1,11 @@
-
 'use client';
 
 import { useState, useTransition, useCallback } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Loader2, LogIn, AlertCircle } from 'lucide-react'; // AlertCircle already imported
+import { Loader2, LogIn, AlertCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation'; // Import useRouter
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,31 +13,17 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { MfaVerify } from '@/components/mfa-verify'; // Import MFA verification component
-import { isUserMfaEnabled, updateFreelancerStatus } from '@/services/firestore'; // Import MFA check and status update
-
-// TODO: Import actual authentication functions
-// import { signInWithEmailAndPassword } from "firebase/auth";
-// import { auth } from "@/lib/firebase";
+import { MfaVerify } from '@/components/mfa-verify';
+// Import real authentication functions and MFA check
+import { signInAuthUser, isUserMfaEnabled, updateFreelancerStatus } from '@/services/firestore';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
-  password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
+  // Adjusted minimum password length based on schema in signup form (min 8)
+  password: z.string().min(8, { message: 'Password must be at least 8 characters.' }),
 });
 
 type FormSchema = z.infer<typeof formSchema>;
-
-// Simulate getting user ID after successful password auth (replace with real auth logic)
-async function simulatePasswordLogin(email: string, password: string): Promise<{ userId: string } | null> {
-    console.log("Simulating password check for:", email);
-    // Replace with actual Firebase/auth provider login
-    // const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    // return { userId: userCredential.user.uid };
-    if (password === 'password') { // Basic placeholder check
-        return { userId: `freelancer-${email.split('@')[0]}` };
-    }
-    return null;
-}
 
 export function FreelancerLoginForm() {
   const [isPending, startTransition] = useTransition();
@@ -45,6 +31,7 @@ export function FreelancerLoginForm() {
   const [step, setStep] = useState<'credentials' | 'mfa'>('credentials');
   const [userIdForMfa, setUserIdForMfa] = useState<string | null>(null);
   const { toast } = useToast();
+  const router = useRouter(); // Initialize router
 
   const form = useForm<FormSchema>({
     resolver: zodResolver(formSchema),
@@ -59,16 +46,18 @@ export function FreelancerLoginForm() {
     setUserIdForMfa(null);
     startTransition(async () => {
       try {
-        // 1. Authenticate with password (using placeholder)
-        const loginResult = await simulatePasswordLogin(values.email, values.password);
+        // 1. Authenticate with password using the actual authentication service
+        const loginResult = await signInAuthUser(values.email, values.password);
 
-        if (!loginResult) {
-            throw new Error("Invalid email or password.");
+        if (!loginResult || !loginResult.userId) {
+          // Handle potential null return, although signInAuthUser should throw
+           throw new Error("Invalid email or password.");
         }
         const userId = loginResult.userId;
 
-        // 2. Check if MFA is enabled for this user
+        // 2. Check if MFA is enabled for this freelancer
         const mfaEnabled = await isUserMfaEnabled(userId, 'freelancer');
+        console.log(`MFA enabled check for freelancer ${userId}: ${mfaEnabled}`);
 
         if (mfaEnabled) {
           // Proceed to MFA step
@@ -81,47 +70,42 @@ export function FreelancerLoginForm() {
         }
 
       } catch (error: any) {
-        console.error('Password Login failed:', error);
-        let errorMessage = 'Login failed. Please check your credentials.';
-        if (error.message.includes("Invalid email or password")) {
-          errorMessage = 'Invalid email or password.';
-        } else if (error.message.includes("MFA check failed")) {
-           errorMessage = 'MFA check failed. Please contact support.';
-        }
+        console.error('Freelancer Login failed:', error);
+        // Use error message from signInAuthUser or isUserMfaEnabled
+        const errorMessage = error.message || 'Login failed. Please check your credentials or contact support.';
         setLoginError(errorMessage);
-        // toast({ title: 'Login Failed', description: errorMessage, variant: 'destructive' }); // Toast can be redundant
         setStep('credentials'); // Stay on credentials step
       }
     });
-  }, [toast]); // Added toast dependency
+  }, [toast]);
 
   // Function to complete login after password/MFA success
   const completeLogin = useCallback(async (userId: string) => {
     try {
-        // --- Update freelancer status in Firestore ---
-        await updateFreelancerStatus(userId, 'available', true); // Set isLoggedIn = true, status = available
-        console.log(`Freelancer ${userId} logged in and status updated.`);
+        // Update freelancer status to 'available' and isLoggedIn to true
+        await updateFreelancerStatus(userId, 'available', true);
+        console.log(`Freelancer ${userId} logged in and status updated to available.`);
 
         toast({
           title: 'Login Successful',
           description: 'Redirecting to your dashboard...',
-          variant: 'default',
         });
         // Redirect to the freelancer dashboard
-        window.location.href = `/freelancer/dashboard?id=${userId}`; // Use Next Router ideally
+        // Use router.push for Next.js navigation
+        router.push(`/freelancer/dashboard?id=${userId}`);
 
     } catch (statusError: any) {
          console.error('Error updating freelancer status after login:', statusError);
          toast({
              title: 'Login Warning',
              description: 'Logged in, but failed to update your status. Please update manually in dashboard.',
-             variant: 'destructive', // Use destructive to highlight the issue
+             variant: 'destructive',
              duration: 7000,
          });
          // Still redirect even if status update fails
-         window.location.href = `/freelancer/dashboard?id=${userId}`;
+         router.push(`/freelancer/dashboard?id=${userId}`);
     }
-  }, [toast]);
+  }, [toast, router]);
 
   // Callback when MFA is verified successfully
   const handleMfaVerified = useCallback(() => {
@@ -150,7 +134,7 @@ export function FreelancerLoginForm() {
                onCancel={handleMfaCancel}
                // Handle MFA setup errors during login verification
                onInvalidCredentials={() => {
-                  setLoginError("MFA setup incomplete or secret missing. Cannot log in.");
+                  setLoginError("MFA setup incomplete or secret missing. Cannot log in. Please contact support.");
                   setStep('credentials');
                }}
             />;
@@ -166,7 +150,7 @@ export function FreelancerLoginForm() {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handlePasswordSubmit)}>
           <CardContent className="space-y-4">
-             {/* Display Login Error Alert within CardContent */}
+             {/* Display Login Error Alert */}
              {loginError && step === 'credentials' && (
                 <Alert variant="destructive" className="w-full">
                     <AlertCircle className="h-4 w-4" />

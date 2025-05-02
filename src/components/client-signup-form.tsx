@@ -4,17 +4,18 @@ import { useState, useTransition, useCallback } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Loader2, CheckCircle, AlertCircle, Send, Eye, EyeOff, QrCode, UserPlus, CreditCard } from 'lucide-react'; // Added CreditCard and AlertCircle
-import { useRouter } from 'next/navigation';           // ← Make sure this line is present
+import { Loader2, CheckCircle, AlertCircle, Send, Eye, EyeOff, QrCode, UserPlus, CreditCard } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { addClient, storeUserMfaSecret, generateMfaSecret } from '@/services/firestore'; // Import client-specific and MFA functions
+// Import real authentication and Firestore functions
+import { createAuthUser, addClient, storeUserMfaSecret, generateMfaSecret, enableUserMfa } from '@/services/firestore';
 import { Separator } from '@/components/ui/separator';
-import { MfaSetup } from '@/components/mfa-setup'; // Import MFA setup component
+import { MfaSetup } from '@/components/mfa-setup';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
@@ -33,15 +34,15 @@ const formSchema = z.object({
 type FormSchema = z.infer<typeof formSchema>;
 
 export function ClientSignupForm() {
-  const [isPending, startTransition] = useTransition();
-  const [isProcessing, setIsProcessing] = useState(false); // Combined loading state
+  const [isPending, startTransition] = useTransition(); // isPending reflects the transition state
+  const [isProcessing, setIsProcessing] = useState(false); // Generic loading state for async ops
   const [currentStep, setCurrentStep] = useState<'signup' | 'mfa' | 'processing_payment' | 'complete'>('signup');
   const [signupError, setSignupError] = useState<string | null>(null);
-  const [clientId, setClientId] = useState<string | null>(null);
-  const [clientEmail, setClientEmail] = useState<string | null>(null); // Store email for MFA URI
+  const [clientId, setClientId] = useState<string | null>(null); // Store the actual Client ID (from auth/firestore)
+  const [clientEmail, setClientEmail] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [mfaSecret, setMfaSecret] = useState<string | null>(null); // Store generated MFA secret
+  const [mfaSecret, setMfaSecret] = useState<string | null>(null);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -57,74 +58,69 @@ export function ClientSignupForm() {
   });
 
   const handleSignupSubmit = useCallback(async (values: FormSchema) => {
-    console.log('handleSignupSubmit (client) called with values:', values);
+    console.log('handleSignupSubmit (client) called with values:', values.email);
     setSignupError(null);
     setClientId(null);
     setClientEmail(null);
     setMfaSecret(null);
-    setIsProcessing(true); // Start processing
+    setIsProcessing(true); // Indicate processing starts
     console.log('Starting client signup transition...');
 
     startTransition(async () => {
       try {
-        // --- TODO: Implement Real Client Authentication & Account Creation ---
-        console.log("Simulating client account creation for:", values.email);
-        // Example: const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        // const newUserId = userCredential.user.uid;
-        const newUserId = `client_${Date.now()}`; // Placeholder ID generation
-        console.log("Simulated client account creation successful, User ID:", newUserId);
-        // --- End Placeholder ---
+        // 1. Create Authentication User (using placeholder, replace with real call)
+        const authResult = await createAuthUser(values.email, values.password);
+        if (!authResult || !authResult.userId) {
+          // createAuthUser should throw, but handle null just in case
+          throw new Error("Failed to create authentication account.");
+        }
+        const newUserId = authResult.userId; // This is the ID from the auth system
+        console.log("Auth user created successfully, User ID:", newUserId);
 
-        // Add client to Firestore
-        console.log(`Attempting to add client ${newUserId} to Firestore...`);
+        // 2. Add client to Firestore using the Auth User ID
+        console.log(`Adding client ${newUserId} to Firestore...`);
+        // Pass the auth ID to addClient
         const newClientId = await addClient({ id: newUserId, name: values.name, email: values.email });
-        console.log(`Client Firestore document created with ID: ${newClientId}`);
+        console.log(`Client Firestore document created/verified with ID: ${newClientId}`); // ID should match newUserId
 
-        // Generate and store MFA secret
+        // 3. Generate and store MFA secret in Firestore
         console.log("Generating MFA secret...");
-        const secret = generateMfaSecret();
-        console.log(`MFA Secret generated. Attempting to store for client ${newClientId}...`);
+        const secret = generateMfaSecret(); // Synchronous
+        console.log(`MFA Secret generated. Storing for client ${newClientId}...`);
         await storeUserMfaSecret(newClientId, secret, 'client');
         console.log("MFA secret stored successfully for client.");
 
-        setClientId(newClientId);
-        setClientEmail(values.email); // Store email for QR code
-        setMfaSecret(secret); // Store secret for MfaSetup component
+        // Set state for the next step (MFA Setup)
+        setClientId(newClientId); // Store the confirmed client ID
+        setClientEmail(values.email);
+        setMfaSecret(secret);
 
-        // Proceed to MFA Setup step
+        // Transition to MFA setup step
         console.log("Client signup successful, transitioning to MFA step.");
         setCurrentStep('mfa');
         toast({
           title: 'Account Created',
           description: 'Please set up Multi-Factor Authentication.',
-          variant: 'default',
         });
 
       } catch (err: any) {
         console.error('Error during client signup transition:', err);
-        // Check for specific error types if needed
-        let errorMessage = 'An unexpected error occurred during signup. Please try again.';
-        if (err.code === 'permission-denied') { // Example Firestore error check
-            errorMessage = 'Signup failed due to insufficient permissions. Please contact support.';
-        } else if (err.message) {
-            errorMessage = `Signup failed: ${err.message}`;
-        }
+        const errorMessage = err.message || 'An unexpected error occurred during signup.';
         setSignupError(errorMessage);
         console.log(`Client signup error set: ${errorMessage}`);
-        // toast({ title: 'Signup Error', description: errorMessage, variant: 'destructive' }); // Optional toast
         setCurrentStep('signup'); // Stay on signup step on error
       } finally {
         setIsProcessing(false); // End processing
         console.log('Client signup transition finished.');
       }
     });
-  }, [toast]); // Added toast dependency
+  }, [toast]);
 
-  // Callback when MFA is successfully verified and enabled
+  // Callback when MFA is successfully verified and enabled (by MfaSetup)
   const handleMfaVerified = useCallback(async () => {
     console.log('Client MFA verified.');
     if (!clientId) {
-        const errorMsg = "Client ID missing after MFA verification. Cannot proceed.";
+        const errorMsg = "Client ID missing after MFA verification. Cannot proceed to payment.";
         console.error(errorMsg);
         setSignupError(errorMsg);
         toast({ title: 'Error', description: 'Could not proceed to payment setup.', variant: 'destructive'});
@@ -132,18 +128,31 @@ export function ClientSignupForm() {
         return;
     }
 
-    setCurrentStep('processing_payment'); // Show loading state for payment setup
+    // Directly enable MFA in Firestore upon successful verification in MfaSetup
+    try {
+       await enableUserMfa(clientId, 'client');
+       console.log(`MFA successfully enabled for client ${clientId} in Firestore.`);
+    } catch (enableError: any) {
+        console.error(`Failed to mark MFA as enabled for client ${clientId}:`, enableError);
+        // Decide how to handle this - maybe proceed but warn? For now, show error and stop.
+        setSignupError(`MFA verified, but failed to save status: ${enableError.message}. Please contact support.`);
+        toast({ title: 'MFA Error', description: 'Could not save MFA status.', variant: 'destructive'});
+        setCurrentStep('mfa'); // Stay on MFA step if saving status fails
+        return;
+    }
+
+
+    setCurrentStep('processing_payment');
     setIsProcessing(true);
     setSignupError(null);
-    console.log('Starting Stripe subscription session creation...');
+    console.log('Starting Stripe subscription session creation for client:', clientId);
 
     try {
-        // *** Start Stripe Checkout Session Creation ***
-        console.log(`MFA verified for client ${clientId}. Creating Stripe subscription session...`);
+        // Fetch the Stripe Checkout Session URL from your API route
         const checkoutResponse = await fetch('/api/stripe/create-subscription', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientId: clientId }), // Pass client ID
+          body: JSON.stringify({ clientId: clientId }), // Pass client ID to backend
         });
 
         if (!checkoutResponse.ok) {
@@ -153,26 +162,24 @@ export function ClientSignupForm() {
 
         const session = await checkoutResponse.json();
         if (session.url) {
-          // Redirect to Stripe Checkout
+          // Redirect user to Stripe Checkout
           console.log("Redirecting to Stripe Checkout...");
           window.location.href = session.url;
-          // User will be redirected back by Stripe. No 'complete' step needed here usually.
-          // The 'processing_payment' state is mainly visual feedback before redirection.
+          // Stripe handles the rest; user gets redirected back based on success/cancel URLs
         } else {
-          throw new Error('Could not get Stripe Checkout session URL from response.');
+          throw new Error('Could not get Stripe Checkout session URL.');
         }
     } catch (err: any) {
-        console.error('Error creating Stripe session after MFA:', err);
-        const errorMessage = err.message || 'Failed to set up subscription. Please try again or contact support.';
+        console.error('Error creating/redirecting to Stripe session:', err);
+        const errorMessage = err.message || 'Failed to set up subscription payment.';
         setSignupError(errorMessage);
         toast({ title: 'Payment Setup Error', description: errorMessage, variant: 'destructive' });
-        setCurrentStep('mfa'); // Allow user to potentially retry from MFA step or see error
-        setIsProcessing(false); // Ensure processing stops if redirection fails
-        console.log('Stripe session creation failed.');
+        setCurrentStep('mfa'); // Go back to MFA step on payment setup error
+        setIsProcessing(false); // Stop processing indicator
     }
-    // Note: setIsProcessing(false) might not be reached if redirection happens successfully.
+     // No 'complete' step needed here as Stripe redirects away
 
-  }, [clientId, toast]); // Added dependencies
+  }, [clientId, toast]);
 
   // --- Conditional Rendering ---
 
@@ -183,7 +190,6 @@ export function ClientSignupForm() {
               userType="client"
               mfaSecret={mfaSecret}
               onVerified={handleMfaVerified}
-              // Handle MFA setup errors displayed within MfaSetup
               onCancel={() => {
                 console.log('Client MFA setup cancelled, returning to signup.');
                 setSignupError(null); // Clear errors when cancelling MFA
@@ -206,6 +212,10 @@ export function ClientSignupForm() {
         );
    }
 
+   // Complete step is usually handled by redirect from Stripe back to the dashboard
+   // Could add a local 'complete' state if needed for UI feedback before redirect,
+   // but Stripe success/cancel URLs are the primary mechanism.
+
 
   // Render Signup Form (Initial Step)
   return (
@@ -217,7 +227,7 @@ export function ClientSignupForm() {
        <Form {...form}>
          <form onSubmit={form.handleSubmit(handleSignupSubmit)}>
            <CardContent className="space-y-4">
-             {/* Display Signup Error Alert within CardContent */}
+             {/* Display Signup Error Alert */}
              {signupError && currentStep === 'signup' && (
                 <Alert variant="destructive" className="w-full">
                     <AlertCircle className="h-4 w-4" />
@@ -225,20 +235,28 @@ export function ClientSignupForm() {
                     <AlertDescription>{signupError}</AlertDescription>
                 </Alert>
              )}
-             <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Company Name / Full Name</FormLabel><FormControl><Input placeholder="e.g., Acme Corp or John Smith" {...field} disabled={isProcessing} /></FormControl><FormMessage /></FormItem> )} />
-             <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Business Email</FormLabel><FormControl><Input type="email" placeholder="e.g., john.smith@company.com" {...field} disabled={isProcessing} /></FormControl><FormMessage /></FormItem> )} />
-             <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><div className="relative"><Input type={showPassword ? "text" : "password"} placeholder="Create a password" {...field} disabled={isProcessing} /><Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowPassword((prev) => !prev)} tabIndex={-1} disabled={isProcessing}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}<span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span></Button></div></FormControl><p className="text-xs text-muted-foreground pt-1">Min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char.</p><FormMessage /></FormItem> )} />
-             <FormField control={form.control} name="confirmPassword" render={({ field }) => ( <FormItem><FormLabel>Confirm Password</FormLabel><FormControl><div className="relative"><Input type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" {...field} disabled={isProcessing}/><Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowConfirmPassword((prev) => !prev)} tabIndex={-1} disabled={isProcessing}>{showConfirmPassword ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}<span className="sr-only">{showConfirmPassword ? "Hide password" : "Show password"}</span></Button></div></FormControl><FormMessage /></FormItem> )} />
+             <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Company Name / Full Name</FormLabel><FormControl><Input placeholder="e.g., Acme Corp or John Smith" {...field} disabled={isProcessing || isPending} /></FormControl><FormMessage /></FormItem> )} />
+             <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Business Email</FormLabel><FormControl><Input type="email" placeholder="e.g., john.smith@company.com" {...field} disabled={isProcessing || isPending} /></FormControl><FormMessage /></FormItem> )} />
+             <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><div className="relative"><Input type={showPassword ? "text" : "password"} placeholder="Create a password" {...field} disabled={isProcessing || isPending} /><Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowPassword((prev) => !prev)} tabIndex={-1} disabled={isProcessing || isPending}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}<span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span></Button></div></FormControl><p className="text-xs text-muted-foreground pt-1">Min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char.</p><FormMessage /></FormItem> )} />
+             <FormField control={form.control} name="confirmPassword" render={({ field }) => ( <FormItem><FormLabel>Confirm Password</FormLabel><FormControl><div className="relative"><Input type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" {...field} disabled={isProcessing || isPending}/><Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowConfirmPassword((prev) => !prev)} tabIndex={-1} disabled={isProcessing || isPending}>{showConfirmPassword ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}<span className="sr-only">{showConfirmPassword ? "Hide password" : "Show password"}</span></Button></div></FormControl><FormMessage /></FormItem> )} />
              <Separator />
               <div className="text-center text-sm text-muted-foreground space-y-1">
-                  <p>You'll set up security (MFA) on the next step.</p>
-                  <p>Includes a <strong>$20/month</strong> subscription, payable after setup.</p>
+                  <p>Multi-Factor Authentication (MFA) setup required next.</p>
+                  <p>Includes a <strong>$20/month</strong> subscription, payable after MFA setup.</p>
              </div>
            </CardContent>
            <CardFooter className="flex flex-col items-center gap-4">
-             <Button type="submit" disabled={isPending || isProcessing || !form.formState.isValid} className="w-full">
+             <Button
+                 type="submit"
+                 disabled={isPending || isProcessing || !form.formState.isValid}
+                 className="w-full"
+                 aria-disabled={isPending || isProcessing || !form.formState.isValid}
+              >
                {isPending || isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><UserPlus className="mr-2 h-4 w-4" />Create Account & Set Up MFA</>}
              </Button>
+             {!form.formState.isValid && currentStep === 'signup' && !isProcessing && (
+                 <p className="text-xs text-destructive text-center">Please complete all fields correctly.</p>
+             )}
            </CardFooter>
          </form>
        </Form>

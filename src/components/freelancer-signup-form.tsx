@@ -4,22 +4,22 @@ import { useState, useTransition, useCallback } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Loader2, CheckCircle, AlertCircle, Send, Eye, EyeOff, QrCode, BrainCircuit, UserPlus } from 'lucide-react'; // Added AlertCircle
-import { useRouter } from 'next/navigation';           // ← Make sure this line is present
+import { Loader2, CheckCircle, AlertCircle, Send, Eye, EyeOff, QrCode, BrainCircuit, UserPlus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { addFreelancer, storeUserMfaSecret, generateMfaSecret, updateFreelancerSkills } from '@/services/firestore'; // Import necessary functions
+// Import real authentication and Firestore functions
+import { createAuthUser, addFreelancer, storeUserMfaSecret, generateMfaSecret, updateFreelancerSkills, enableUserMfa } from '@/services/firestore';
 import { determinePrimarySkill, type DeterminePrimarySkillOutput } from '@/ai/flows/determine-primary-skill';
 import { AdaptiveSkillAssessment } from '@/components/adaptive-skill-assessment';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { MfaSetup } from '@/components/mfa-setup'; // Import MFA setup component
+import { MfaSetup } from '@/components/mfa-setup';
 
-// Keep skillsText optional here, validate in handleSkillsSubmit
 const formSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -43,16 +43,16 @@ export function FreelancerSignupForm() {
   const [isProcessing, setIsProcessing] = useState(false); // Combined loading state
   const [currentStep, setCurrentStep] = useState<'signup' | 'mfa' | 'skills' | 'assessment' | 'complete'>('signup');
   const [signupError, setSignupError] = useState<string | null>(null);
-  const [freelancerId, setFreelancerId] = useState<string | null>(null);
-  const [freelancerEmail, setFreelancerEmail] = useState<string | null>(null); // Store email for MFA URI
+  const [freelancerId, setFreelancerId] = useState<string | null>(null); // Use the actual ID from auth/firestore
+  const [freelancerEmail, setFreelancerEmail] = useState<string | null>(null);
   const [primarySkill, setPrimarySkill] = useState<string | null>(null);
   const [allSkills, setAllSkills] = useState<string[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [mfaSecret, setMfaSecret] = useState<string | null>(null); // Store generated MFA secret
+  const [mfaSecret, setMfaSecret] = useState<string | null>(null);
 
   const { toast } = useToast();
-  const router = useRouter(); // Initialize router
+  const router = useRouter();
 
   const form = useForm<FormSchema>({
     resolver: zodResolver(formSchema),
@@ -66,111 +66,112 @@ export function FreelancerSignupForm() {
      mode: "onChange",
   });
 
-  // Debugging logs
-  // console.log("Signup Form State:", {
-  //   isPending,
-  //   isProcessing,
-  //   isValid: form.formState.isValid,
-  //   errors: form.formState.errors,
-  // });
   const handleSignupSubmit = useCallback(async (values: FormSchema) => {
-    console.log('handleSignupSubmit called with values:', values);
+    console.log('handleSignupSubmit (freelancer) called with values:', values.email);
     setSignupError(null);
     setFreelancerId(null);
     setFreelancerEmail(null);
     setMfaSecret(null);
-    setIsProcessing(true); // Start processing
-    console.log('Starting signup transition...');
+    setIsProcessing(true); // Start processing indicator
+    console.log('Starting freelancer signup transition...');
 
     startTransition(async () => {
       try {
-        // --- TODO: Implement Real Authentication User Creation ---
-        console.log("Simulating user creation for:", values.email);
-        // Example: const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        // const newUserId = userCredential.user.uid;
-        const newUserId = `freelancer_${Date.now()}`; // Placeholder ID generation
-        console.log("Simulated user creation successful, User ID:", newUserId);
-        // --- End Placeholder ---
+        // 1. Create Authentication User (using the actual service)
+        const authResult = await createAuthUser(values.email, values.password);
+        if (!authResult || !authResult.userId) {
+          // createAuthUser should throw specific errors (e.g., email exists)
+          throw new Error("Failed to create authentication account.");
+        }
+        const newUserId = authResult.userId; // This is the actual ID from the auth system
+        console.log("Auth user created successfully, User ID:", newUserId);
 
-        // Add freelancer document to Firestore using the *actual* Auth User ID
-        console.log(`Attempting to add freelancer ${newUserId} to Firestore...`);
+        // 2. Add freelancer document to Firestore using the Auth User ID
+        console.log(`Adding freelancer ${newUserId} to Firestore...`);
         const newFreelancerId = await addFreelancer({
           id: newUserId, // Use the ID from the auth system
           name: values.name,
           email: values.email,
         });
-        console.log(`Firestore document created with ID: ${newFreelancerId}`);
+        console.log(`Firestore document created/verified with ID: ${newFreelancerId}`); // ID should match newUserId
 
-        // Generate and store MFA secret in the newly created Firestore document
+        // 3. Generate and store MFA secret in Firestore
         console.log("Generating MFA secret...");
-        const secret = generateMfaSecret(); // Assuming this is synchronous or implicitly awaited
-        console.log(`MFA Secret generated. Attempting to store for user ${newFreelancerId}...`);
-        await storeUserMfaSecret(newFreelancerId, secret, 'freelancer'); // Pass the correct ID
+        const secret = generateMfaSecret(); // Synchronous
+        console.log(`MFA Secret generated. Storing for freelancer ${newFreelancerId}...`);
+        await storeUserMfaSecret(newFreelancerId, secret, 'freelancer');
         console.log("MFA secret stored successfully.");
 
         // Set state for the next step (MFA Setup)
-        setFreelancerId(newFreelancerId);
-        setFreelancerEmail(values.email); // Store email for QR code label
-        setMfaSecret(secret); // Store the generated secret for the MfaSetup component
+        setFreelancerId(newFreelancerId); // Store the confirmed freelancer ID
+        setFreelancerEmail(values.email);
+        setMfaSecret(secret);
 
-        // Immediately transition to MFA setup after successful signup.
+        // Transition to MFA setup step
         console.log("Signup successful, transitioning to MFA step.");
         setCurrentStep('mfa');
         toast({
           title: 'Account Created',
-          description: 'Please set up Multi-Factor Authentication for security.',
-          variant: 'default',
+          description: 'Please set up Multi-Factor Authentication.',
         });
 
       } catch (err: any) {
         console.error('Error during freelancer signup transition:', err);
-        // Check for specific error types if needed (e.g., Firestore permission errors)
-        let errorMessage = 'An unexpected error occurred during signup. Please try again.';
-        if (err.code === 'permission-denied') { // Example specific Firestore error check
-            errorMessage = 'Signup failed due to insufficient permissions. Please contact support.';
-        } else if (err.message) {
-            errorMessage = `Signup failed: ${err.message}`;
-        }
+        const errorMessage = err.message || 'An unexpected error occurred during signup.';
         setSignupError(errorMessage);
         console.log(`Signup error set: ${errorMessage}`);
-        // toast({ title: 'Signup Error', description: errorMessage, variant: 'destructive' }); // Optional: Show toast as well
         setCurrentStep('signup'); // Stay on signup step on error
       } finally {
-        setIsProcessing(false); // End processing regardless of outcome
+        setIsProcessing(false); // End processing indicator
         console.log('Signup transition finished.');
       }
     });
-  }, [toast]); // Added toast as dependency
+  }, [toast]);
 
-  // Callback when MFA is successfully verified and enabled
-  const handleMfaVerified = useCallback(() => {
+  // Callback when MFA is successfully verified and enabled (by MfaSetup)
+  const handleMfaVerified = useCallback(async () => {
     console.log('MFA verified, moving to skills step.');
-    setCurrentStep('skills');
-    toast({
-      title: 'MFA Enabled!',
-      description: 'Now, please describe your skills.',
-      variant: 'default',
-    });
-  }, [toast]); // Added toast as dependency
+    if (!freelancerId) {
+        setSignupError("Critical error: Freelancer ID missing after MFA verification.");
+        setCurrentStep('signup'); // Revert to signup on critical error
+        return;
+    }
+    // Mark MFA as enabled in Firestore
+    try {
+       await enableUserMfa(freelancerId, 'freelancer');
+       console.log(`MFA successfully enabled for freelancer ${freelancerId} in Firestore.`);
+       setCurrentStep('skills');
+       toast({
+         title: 'MFA Enabled!',
+         description: 'Now, please describe your skills.',
+       });
+    } catch (enableError: any) {
+        console.error(`Failed to mark MFA as enabled for freelancer ${freelancerId}:`, enableError);
+        setSignupError(`MFA verified, but failed to save status: ${enableError.message}. Please contact support.`);
+        // Stay on MFA step if enabling fails, allowing user/system to potentially retry or diagnose
+        setCurrentStep('mfa');
+        toast({ title: 'MFA Error', description: 'Could not save MFA status.', variant: 'destructive'});
+    }
+  }, [freelancerId, toast]);
 
   const handleSkillsSubmit = useCallback(async () => {
     console.log('handleSkillsSubmit called.');
     if (!freelancerId) {
-      const errorMsg = "Missing freelancer ID. Cannot process skills. Please sign up again.";
+      const errorMsg = "Missing freelancer ID. Cannot process skills.";
       console.error(errorMsg);
       setSignupError(errorMsg);
-      toast({ title: "Error", description: "Could not start skill assessment.", variant: "destructive" });
-      setCurrentStep('signup');
+      toast({ title: "Error", description: errorMsg, variant: "destructive" });
+      setCurrentStep('signup'); // Revert if ID is lost
       return;
     }
     const skillsText = form.getValues('skillsText');
     if (!skillsText || skillsText.trim().length < 10) {
       console.log('Skills text validation failed.');
-      form.setError("skillsText", { type: "manual", message: "Please provide a meaningful description of your skills (min 10 characters)." });
+      form.setError("skillsText", { type: "manual", message: "Please provide a meaningful description (min 10 characters)." });
       return;
     }
     setSignupError(null);
-    setIsProcessing(true); // Start processing
+    setIsProcessing(true); // Start processing indicator
     console.log('Starting skills processing transition...');
 
     startTransition(async () => {
@@ -180,7 +181,7 @@ export function FreelancerSignupForm() {
         console.log('Skill determination result:', skillResult);
 
         if (!skillResult.primarySkill || !skillResult.extractedSkills || skillResult.extractedSkills.length === 0) {
-          throw new Error("Could not identify skills from the description provided.");
+          throw new Error("AI could not identify skills from the description. Please try rephrasing.");
         }
 
         setPrimarySkill(skillResult.primarySkill);
@@ -196,38 +197,42 @@ export function FreelancerSignupForm() {
         toast({
           title: 'Skills Identified!',
           description: `Preparing assessment for: ${skillResult.primarySkill}`,
-          variant: 'default',
         });
 
       } catch (err: any) {
         console.error('Error determining/saving skills:', err);
-        const errorMessage = err.message || 'Failed to process skills description. Please check the description and try again.';
+        const errorMessage = err.message || 'Failed to process skills description.';
         setSignupError(errorMessage);
-        // toast({ title: 'Skill Processing Error', description: errorMessage, variant: 'destructive' }); // Optional toast
-        setCurrentStep('skills'); // Allow user to retry entering skills
+        setCurrentStep('skills'); // Allow retry
       } finally {
-          setIsProcessing(false); // End processing
+          setIsProcessing(false); // End processing indicator
           console.log('Skills processing transition finished.');
       }
     });
-  }, [freelancerId, form, toast]); // Added form and toast dependencies
+  }, [freelancerId, form, toast]);
 
   // Callback from AdaptiveSkillAssessment when complete
   const handleAssessmentComplete = useCallback(() => {
     console.log('Assessment complete, transitioning to complete step.');
     setCurrentStep('complete');
-    form.reset(); // Clear form fields
+    form.reset(); // Clear form
     toast({
       title: 'Onboarding Complete!',
       description: 'Your skill assessment is finished and saved.',
-      variant: 'success', // Use success variant
+      variant: 'success',
     });
-    // Redirect to dashboard after a short delay to allow user to see the message
+    // Redirect to dashboard after a delay
     console.log(`Redirecting to dashboard for freelancer ${freelancerId}...`);
     setTimeout(() => {
-      router.push(`/freelancer/dashboard?id=${freelancerId}`);
-    }, 3000); // 3-second delay
-  }, [form, toast, freelancerId, router]); // Added dependencies
+      if (freelancerId) {
+          router.push(`/freelancer/dashboard?id=${freelancerId}`);
+      } else {
+          console.error("Freelancer ID missing, cannot redirect to dashboard.");
+          // Optionally redirect to login or show error
+          router.push('/freelancer/login');
+      }
+    }, 3000);
+  }, [form, toast, freelancerId, router]);
 
   // --- Conditional Rendering ---
 
@@ -238,17 +243,15 @@ export function FreelancerSignupForm() {
               userType="freelancer"
               mfaSecret={mfaSecret}
               onVerified={handleMfaVerified}
-              // Handle MFA setup errors displayed within MfaSetup
               onCancel={() => {
                 console.log('MFA setup cancelled, returning to signup step.');
-                setSignupError(null); // Clear errors when cancelling MFA
+                setSignupError(null); // Clear errors
                 setCurrentStep('signup');
               }}
             />;
    }
 
    if (currentStep === 'assessment' && freelancerId && primarySkill && allSkills.length > 0) {
-     // AdaptiveSkillAssessment handles its own errors internally
      return <AdaptiveSkillAssessment
               freelancerId={freelancerId}
               primarySkill={primarySkill}
@@ -267,19 +270,15 @@ export function FreelancerSignupForm() {
                <CardContent className="text-center">
                     <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
                     <p className="text-muted-foreground mb-4">
-                        Your profile is set up and your skills have been assessed. Redirecting to your dashboard...
+                        Your profile is set up and skills assessed. Redirecting to your dashboard...
                     </p>
                     <Loader2 className="h-6 w-6 mx-auto animate-spin text-primary" />
-                    {/* Optional: Add manual link in case redirect fails */}
-                    {/* <Button asChild variant="link" className="mt-2">
-                         <a href={`/freelancer/dashboard?id=${freelancerId}`}>Go to Dashboard Now</a>
-                    </Button> */}
                </CardContent>
            </Card>
         );
    }
 
-  // Render Signup Form or Skills Input Form within a Card
+  // Render Signup Form or Skills Input Form
   return (
      <Card className="w-full max-w-lg shadow-lg">
        <CardHeader>
@@ -293,7 +292,7 @@ export function FreelancerSignupForm() {
          <Form {...form}>
            <form onSubmit={form.handleSubmit(handleSignupSubmit)}>
              <CardContent className="space-y-4">
-               {/* Display Signup Error Alert within CardContent */}
+               {/* Display Signup Error Alert */}
                {signupError && currentStep === 'signup' && (
                     <Alert variant="destructive" className="w-full">
                         <AlertCircle className="h-4 w-4" />
@@ -301,10 +300,10 @@ export function FreelancerSignupForm() {
                         <AlertDescription>{signupError}</AlertDescription>
                     </Alert>
                 )}
-               <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="e.g., Jane Doe" {...field} disabled={isProcessing} /></FormControl><FormMessage /></FormItem>)} />
-               <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" placeholder="e.g., jane.doe@example.com" {...field} disabled={isProcessing} /></FormControl><FormMessage /></FormItem>)} />
-               <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><div className="relative"><Input type={showPassword ? "text" : "password"} placeholder="Enter your password" {...field} disabled={isProcessing} /><Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowPassword((prev) => !prev)} tabIndex={-1} disabled={isProcessing}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}<span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span></Button></div></FormControl><p className="text-xs text-muted-foreground pt-1">Min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char.</p><FormMessage /></FormItem>)} />
-               <FormField control={form.control} name="confirmPassword" render={({ field }) => ( <FormItem><FormLabel>Confirm Password</FormLabel><FormControl><div className="relative"><Input type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" {...field} disabled={isProcessing}/><Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowConfirmPassword((prev) => !prev)} tabIndex={-1} disabled={isProcessing}>{showConfirmPassword ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}<span className="sr-only">{showConfirmPassword ? "Hide password" : "Show password"}</span></Button></div></FormControl><FormMessage /></FormItem>)} />
+               <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Full Name</FormLabel><FormControl><Input placeholder="e.g., Jane Doe" {...field} disabled={isProcessing || isPending} /></FormControl><FormMessage /></FormItem>)} />
+               <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email Address</FormLabel><FormControl><Input type="email" placeholder="e.g., jane.doe@example.com" {...field} disabled={isProcessing || isPending} /></FormControl><FormMessage /></FormItem>)} />
+               <FormField control={form.control} name="password" render={({ field }) => ( <FormItem><FormLabel>Password</FormLabel><FormControl><div className="relative"><Input type={showPassword ? "text" : "password"} placeholder="Enter your password" {...field} disabled={isProcessing || isPending} /><Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowPassword((prev) => !prev)} tabIndex={-1} disabled={isProcessing || isPending}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}<span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span></Button></div></FormControl><p className="text-xs text-muted-foreground pt-1">Min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char.</p><FormMessage /></FormItem>)} />
+               <FormField control={form.control} name="confirmPassword" render={({ field }) => ( <FormItem><FormLabel>Confirm Password</FormLabel><FormControl><div className="relative"><Input type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" {...field} disabled={isProcessing || isPending}/><Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowConfirmPassword((prev) => !prev)} tabIndex={-1} disabled={isProcessing || isPending}>{showConfirmPassword ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}<span className="sr-only">{showConfirmPassword ? "Hide password" : "Show password"}</span></Button></div></FormControl><FormMessage /></FormItem>)} />
              </CardContent>
              <CardFooter className="flex flex-col items-center gap-4">
                <Button
@@ -312,12 +311,12 @@ export function FreelancerSignupForm() {
                  disabled={isPending || isProcessing || !form.formState.isValid}
                  className="w-full"
                  aria-disabled={isPending || isProcessing || !form.formState.isValid}
-                 title={!form.formState.isValid ? "Please fill out all fields correctly" : ""} // Add tooltip for disabled state
                 >
                  {isPending || isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><UserPlus className="mr-2 h-4 w-4" />Create Account & Set Up MFA</>}
                </Button>
-               {/* Optional: Add a visual hint if the form is invalid */}
-                {!form.formState.isValid && <p className="text-xs text-destructive text-center">Please complete all fields correctly.</p>}
+                {!form.formState.isValid && currentStep === 'signup' && !isProcessing && (
+                    <p className="text-xs text-destructive text-center">Please complete all fields correctly.</p>
+                )}
              </CardFooter>
            </form>
          </Form>
@@ -331,7 +330,7 @@ export function FreelancerSignupForm() {
                        <Separator />
                        <h3 className="text-lg font-semibold">Describe Your Skills</h3>
                        <p className="text-sm text-muted-foreground">
-                           Briefly describe your main skills and experience (e.g., "Expert in React, Node.js, and database design", "Professional copywriter specializing in marketing materials", "Skilled graphic designer with experience in branding and UI/UX"). Our AI will identify your primary skill for the assessment.
+                           Briefly describe your main skills and experience (e.g., "Expert in React, Node.js, and database design", "Professional copywriter specializing in marketing materials"). Our AI will identify your primary skill for the assessment.
                        </p>
                        {/* Display Skill Processing Error Alert */}
                        {signupError && currentStep === 'skills' && (
@@ -352,7 +351,7 @@ export function FreelancerSignupForm() {
                                            placeholder="Describe your skills here..."
                                            className="min-h-[100px]"
                                            {...field}
-                                           disabled={isProcessing} // Disable while processing
+                                           disabled={isProcessing || isPending} // Disable while processing
                                        />
                                    </FormControl>
                                    <FormMessage />
@@ -361,7 +360,20 @@ export function FreelancerSignupForm() {
                        />
                    </CardContent>
                    <CardFooter className="flex justify-center">
-                       <Button type="button" onClick={handleSkillsSubmit} disabled={isPending || isProcessing || !form.watch('skillsText') || form.watch('skillsText')!.length < 10} >
+                        {/* Trigger validation manually before calling handleSkillsSubmit */}
+                        <Button
+                             type="button"
+                             onClick={async () => {
+                                 const isValid = await form.trigger('skillsText'); // Trigger validation for skillsText
+                                 if (isValid) {
+                                     handleSkillsSubmit();
+                                 } else {
+                                     console.log("Skills validation failed on button click.");
+                                     // Error message will be shown by FormMessage component
+                                 }
+                             }}
+                             disabled={isPending || isProcessing} // Only disable based on processing state
+                        >
                            {isPending || isProcessing ? (
                                <> <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing Skills... </>
                            ) : (
