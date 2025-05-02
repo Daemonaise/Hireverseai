@@ -3,8 +3,7 @@
  * @fileOverview Decomposes a project brief into a list of actionable microtasks.
  */
 
-import { ai } from '@/lib/ai'; // Import the configured ai instance and helpers
-import { chooseModelBasedOnPrompt } from '@/lib/ai'; // Import from new location
+import { ai, chooseModelBasedOnPrompt, validateAIOutput } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
 import {
   DecomposeProjectInputSchema,
   type DecomposeProjectInput,
@@ -64,12 +63,13 @@ function validateTaskDependencies(tasks: SchemaMicrotask[]): SchemaMicrotask[] {
 }
 
 // --- Define the Prompt ---
-const decompositionPrompt = ai.definePrompt({
-    name: 'aiProjectDecompositionPrompt',
-    input: { schema: DecomposeProjectInputSchema },
-    output: { schema: z.array(z.string()) },
-    prompt: `Decompose the following project brief into a series of microtasks:\n\n{{projectBrief}}\n\nTasks:`,
-});
+// This definition seems unused in the main flow, consider removing or integrating it
+// const decompositionPrompt = ai.definePrompt({
+//     name: 'aiProjectDecompositionPrompt',
+//     input: { schema: DecomposeProjectInputSchema },
+//     output: { schema: z.array(z.string()) }, // This output schema seems incorrect based on template
+//     prompt: `Decompose the following project brief into a series of microtasks:\n\n{{projectBrief}}\n\nTasks:`,
+// });
 
 // --- Main Exported Function (Wrapper) ---
 export async function decomposeProject(
@@ -78,32 +78,75 @@ export async function decomposeProject(
   // Validate input before calling the flow
   DecomposeProjectInputSchema.parse(input);
 
-    await updateProjectStatus(input.projectId, 'decomposing');
+  await updateProjectStatus(input.projectId, 'decomposing');
+  let microtasks: SchemaMicrotask[] = [];
+  let primaryModel: string = '';
 
-    try {
-        const primaryModel = chooseModelBasedOnPrompt(input.projectBrief);
-        console.log(`Using model ${primaryModel} for decomposition.`);
+  try {
+    primaryModel = await chooseModelBasedOnPrompt(input.projectBrief);
+    console.log(`Using model ${primaryModel} for decomposition.`);
 
-        const { output } = await ai.generate(
-            {
-              model: primaryModel,
-                prompt: decompositionPromptTemplate
-                    .replace('{{{projectBrief}}}', input.projectBrief)
-                    .replace('{{#each requiredSkills}}- {{{this}}}\n{{/each}}', input.requiredSkills.map(s => `- ${s}`).join('\n')),
-            }
-        );
+    // Construct the prompt content dynamically
+    const promptContent = decompositionPromptTemplate
+      .replace('{{{projectBrief}}}', input.projectBrief)
+      .replace('{{#each requiredSkills}}- {{{this}}}\n{{/each}}', input.requiredSkills.map(s => `- ${s}`).join('\n'));
 
-        if (!output) {
-            throw new Error(`AI (${primaryModel}) did not return a valid response.`);
-        }
+    // Define the model for generation
+    const decomposeModel = ai.defineModel({
+        name: `decomposeModel_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        model: primaryModel,
+        output: { schema: DecomposeAIOutputSchema }, // Use the correct output schema
+    });
 
-        // Validation and parsing logic remains largely the same
+    // Generate microtasks
+    const { output } = await decomposeModel.generate({
+        prompt: promptContent,
+        output: { schema: DecomposeAIOutputSchema } // Reiterate schema
+    });
 
-    } catch (error: any) {
-      console.error(`Decompose error for ${input.projectId}:`, error?.message || error);
-      await updateProjectStatus(input.projectId, 'pending'); // Revert status on error
-      return { microtasks: [] }; // Return empty on error
+    if (!output) {
+      throw new Error(`AI (${primaryModel}) did not return a valid response.`);
     }
 
-  return { microtasks: [] };
+    // Validate the structure (already done by Genkit if output schema is correct)
+    const parsedOutput = DecomposeAIOutputSchema.parse(output); // Ensure it matches schema
+
+    // Perform cross-validation
+    const validation = await validateAIOutput(promptContent, JSON.stringify(parsedOutput), primaryModel);
+    if (!validation.allValid) {
+      console.warn(`Validation failed for project decomposition (${input.projectId}). Reasoning:`, validation.results);
+      throw new Error(`Project decomposition failed cross-validation.`);
+    }
+
+    // Process validated output
+    const validatedTasks = validateTaskDependencies(parsedOutput); // Validate dependencies
+    const nowTimestamp = Date.now();
+
+    microtasks = validatedTasks.map(task => ({
+      ...task,
+      status: 'pending' as const, // Explicitly set status
+      createdAt: nowTimestamp, // Add creation timestamp
+    }));
+
+    // --- Update Firestore ---
+    // Convert SchemaMicrotask to ServiceMicrotask (if different)
+    // Assuming they are compatible for now, otherwise mapping is needed
+    const serviceMicrotasks: ServiceMicrotask[] = microtasks.map(mt => ({
+        ...mt,
+        // Convert Timestamps if needed (here assuming createdAt is number)
+        createdAt: Timestamp.fromMillis(mt.createdAt),
+        // Map other fields if ServiceMicrotask structure differs
+    }));
+
+    await updateProjectMicrotasks(input.projectId, serviceMicrotasks);
+    console.log(`Decomposition successful for ${input.projectId}`);
+    // Status is already set to 'decomposed' by updateProjectMicrotasks
+
+    return { microtasks }; // Return the decomposed microtasks
+
+  } catch (error: any) {
+    console.error(`Decompose error for ${input.projectId}:`, error?.message || error);
+    await updateProjectStatus(input.projectId, 'pending'); // Revert status on error
+    return { microtasks: [] }; // Return empty on error
+  }
 }
