@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useTransition, useCallback } from 'react';
@@ -68,39 +67,39 @@ export function FreelancerSignupForm() {
   });
 
   const handleSignupSubmit = useCallback(async (values: FormSchema) => {
+    console.log('handleSignupSubmit called with values:', values);
     setSignupError(null);
     setFreelancerId(null);
     setFreelancerEmail(null);
     setMfaSecret(null);
-    // Do not reset step here, keep it on 'signup' until success
-    // setCurrentStep('signup');
     setIsProcessing(true); // Start processing
+    console.log('Starting signup transition...');
 
     startTransition(async () => {
       try {
         // --- TODO: Implement Real Authentication User Creation ---
-        // This part involves creating the user in your auth system (e.g., Firebase Auth)
         console.log("Simulating user creation for:", values.email);
-        // Example with Firebase Auth (needs setup in firebase.ts and auth context):
-        // import { createUserWithEmailAndPassword } from 'firebase/auth';
-        // import { auth } from '@/lib/firebase'; // Assuming auth is exported from firebase.ts
-        // const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        // Example: const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         // const newUserId = userCredential.user.uid;
-        // Replace placeholder ID generation with actual auth user ID
-        const newUserId = `freelancer_${Date.now()}`; // Placeholder - replace with actual user ID from auth
+        const newUserId = `freelancer_${Date.now()}`; // Placeholder ID generation
         console.log("Simulated user creation successful, User ID:", newUserId);
         // --- End Placeholder ---
 
         // Add freelancer document to Firestore using the *actual* Auth User ID
+        console.log(`Attempting to add freelancer ${newUserId} to Firestore...`);
         const newFreelancerId = await addFreelancer({
           id: newUserId, // Use the ID from the auth system
           name: values.name,
           email: values.email,
         });
+        console.log(`Firestore document created with ID: ${newFreelancerId}`);
 
         // Generate and store MFA secret in the newly created Firestore document
-        const secret = generateMfaSecret();
+        console.log("Generating MFA secret...");
+        const secret = generateMfaSecret(); // Assuming this is synchronous or implicitly awaited
+        console.log(`MFA Secret generated. Attempting to store for user ${newFreelancerId}...`);
         await storeUserMfaSecret(newFreelancerId, secret, 'freelancer'); // Pass the correct ID
+        console.log("MFA secret stored successfully.");
 
         // Set state for the next step (MFA Setup)
         setFreelancerId(newFreelancerId);
@@ -108,6 +107,7 @@ export function FreelancerSignupForm() {
         setMfaSecret(secret); // Store the generated secret for the MfaSetup component
 
         // Immediately transition to MFA setup after successful signup.
+        console.log("Signup successful, transitioning to MFA step.");
         setCurrentStep('mfa');
         toast({
           title: 'Account Created',
@@ -116,23 +116,28 @@ export function FreelancerSignupForm() {
         });
 
       } catch (err: any) {
-        console.error('Error during client signup:', err);
-        const errorMessage = err.message || 'An unexpected error occurred. Please try again.';
+        console.error('Error during freelancer signup transition:', err);
+        // Check for specific error types if needed (e.g., Firestore permission errors)
+        let errorMessage = 'An unexpected error occurred during signup. Please try again.';
+        if (err.code === 'permission-denied') { // Example specific Firestore error check
+            errorMessage = 'Signup failed due to insufficient permissions. Please contact support.';
+        } else if (err.message) {
+            errorMessage = `Signup failed: ${err.message}`;
+        }
         setSignupError(errorMessage);
-        // toast({ // Toast can be redundant
-        //   title: 'Signup Error',
-        //   description: errorMessage,
-        //   variant: 'destructive',
-        // });
+        console.log(`Signup error set: ${errorMessage}`);
+        // toast({ title: 'Signup Error', description: errorMessage, variant: 'destructive' }); // Optional: Show toast as well
         setCurrentStep('signup'); // Stay on signup step on error
       } finally {
         setIsProcessing(false); // End processing regardless of outcome
+        console.log('Signup transition finished.');
       }
     });
   }, [toast]); // Added toast as dependency
 
   // Callback when MFA is successfully verified and enabled
   const handleMfaVerified = useCallback(() => {
+    console.log('MFA verified, moving to skills step.');
     setCurrentStep('skills');
     toast({
       title: 'MFA Enabled!',
@@ -142,32 +147,43 @@ export function FreelancerSignupForm() {
   }, [toast]); // Added toast as dependency
 
   const handleSkillsSubmit = useCallback(async () => {
+    console.log('handleSkillsSubmit called.');
     if (!freelancerId) {
-      setSignupError("Missing freelancer ID. Please sign up again.");
+      const errorMsg = "Missing freelancer ID. Cannot process skills. Please sign up again.";
+      console.error(errorMsg);
+      setSignupError(errorMsg);
       toast({ title: "Error", description: "Could not start skill assessment.", variant: "destructive" });
       setCurrentStep('signup');
       return;
     }
     const skillsText = form.getValues('skillsText');
     if (!skillsText || skillsText.trim().length < 10) {
+      console.log('Skills text validation failed.');
       form.setError("skillsText", { type: "manual", message: "Please provide a meaningful description of your skills (min 10 characters)." });
       return;
     }
     setSignupError(null);
     setIsProcessing(true); // Start processing
+    console.log('Starting skills processing transition...');
 
     startTransition(async () => {
       try {
+        console.log(`Determining primary skill for text: "${skillsText.substring(0, 50)}..."`);
         const skillResult: DeterminePrimarySkillOutput = await determinePrimarySkill({ skillsDescription: skillsText });
+        console.log('Skill determination result:', skillResult);
 
         if (!skillResult.primarySkill || !skillResult.extractedSkills || skillResult.extractedSkills.length === 0) {
-          throw new Error("Could not identify skills from the description.");
+          throw new Error("Could not identify skills from the description provided.");
         }
 
         setPrimarySkill(skillResult.primarySkill);
         setAllSkills(skillResult.extractedSkills);
+        console.log(`Primary skill: ${skillResult.primarySkill}, All skills: ${skillResult.extractedSkills.join(', ')}`);
+
         // Update the freelancer's skills in Firestore
+        console.log(`Updating skills for freelancer ${freelancerId} in Firestore...`);
         await updateFreelancerSkills(freelancerId, skillResult.extractedSkills);
+        console.log('Freelancer skills updated successfully.');
 
         setCurrentStep('assessment');
         toast({
@@ -178,18 +194,20 @@ export function FreelancerSignupForm() {
 
       } catch (err: any) {
         console.error('Error determining/saving skills:', err);
-        const errorMessage = err.message || 'Failed to process skills description.';
+        const errorMessage = err.message || 'Failed to process skills description. Please check the description and try again.';
         setSignupError(errorMessage);
-        // toast({ title: 'Error', description: errorMessage, variant: 'destructive' }); // Redundant toast
+        // toast({ title: 'Skill Processing Error', description: errorMessage, variant: 'destructive' }); // Optional toast
         setCurrentStep('skills'); // Allow user to retry entering skills
       } finally {
           setIsProcessing(false); // End processing
+          console.log('Skills processing transition finished.');
       }
     });
   }, [freelancerId, form, toast]); // Added form and toast dependencies
 
   // Callback from AdaptiveSkillAssessment when complete
   const handleAssessmentComplete = useCallback(() => {
+    console.log('Assessment complete, transitioning to complete step.');
     setCurrentStep('complete');
     form.reset(); // Clear form fields
     toast({
@@ -198,6 +216,7 @@ export function FreelancerSignupForm() {
       variant: 'success', // Use success variant
     });
     // Redirect to dashboard after a short delay to allow user to see the message
+    console.log(`Redirecting to dashboard for freelancer ${freelancerId}...`);
     setTimeout(() => {
       router.push(`/freelancer/dashboard?id=${freelancerId}`);
     }, 3000); // 3-second delay
@@ -214,6 +233,7 @@ export function FreelancerSignupForm() {
               onVerified={handleMfaVerified}
               // Handle MFA setup errors displayed within MfaSetup
               onCancel={() => {
+                console.log('MFA setup cancelled, returning to signup step.');
                 setSignupError(null); // Clear errors when cancelling MFA
                 setCurrentStep('signup');
               }}

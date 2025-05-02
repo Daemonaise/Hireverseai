@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useTransition, useCallback } from 'react';
@@ -58,13 +57,13 @@ export function ClientSignupForm() {
   });
 
   const handleSignupSubmit = useCallback(async (values: FormSchema) => {
+    console.log('handleSignupSubmit (client) called with values:', values);
     setSignupError(null);
     setClientId(null);
     setClientEmail(null);
     setMfaSecret(null);
-    // Do not reset step here, keep it on 'signup' until success
-    // setCurrentStep('signup');
     setIsProcessing(true); // Start processing
+    console.log('Starting client signup transition...');
 
     startTransition(async () => {
       try {
@@ -73,20 +72,27 @@ export function ClientSignupForm() {
         // Example: const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         // const newUserId = userCredential.user.uid;
         const newUserId = `client_${Date.now()}`; // Placeholder ID generation
+        console.log("Simulated client account creation successful, User ID:", newUserId);
         // --- End Placeholder ---
 
         // Add client to Firestore
+        console.log(`Attempting to add client ${newUserId} to Firestore...`);
         const newClientId = await addClient({ id: newUserId, name: values.name, email: values.email });
+        console.log(`Client Firestore document created with ID: ${newClientId}`);
 
         // Generate and store MFA secret
+        console.log("Generating MFA secret...");
         const secret = generateMfaSecret();
+        console.log(`MFA Secret generated. Attempting to store for client ${newClientId}...`);
         await storeUserMfaSecret(newClientId, secret, 'client');
+        console.log("MFA secret stored successfully for client.");
 
         setClientId(newClientId);
         setClientEmail(values.email); // Store email for QR code
         setMfaSecret(secret); // Store secret for MfaSetup component
 
         // Proceed to MFA Setup step
+        console.log("Client signup successful, transitioning to MFA step.");
         setCurrentStep('mfa');
         toast({
           title: 'Account Created',
@@ -95,21 +101,32 @@ export function ClientSignupForm() {
         });
 
       } catch (err: any) {
-        console.error('Error during client signup:', err);
-        const errorMessage = err.message || 'An unexpected error occurred. Please try again.';
+        console.error('Error during client signup transition:', err);
+        // Check for specific error types if needed
+        let errorMessage = 'An unexpected error occurred during signup. Please try again.';
+        if (err.code === 'permission-denied') { // Example Firestore error check
+            errorMessage = 'Signup failed due to insufficient permissions. Please contact support.';
+        } else if (err.message) {
+            errorMessage = `Signup failed: ${err.message}`;
+        }
         setSignupError(errorMessage);
-        // toast({ title: 'Signup Error', description: errorMessage, variant: 'destructive' }); // Toast can be redundant
+        console.log(`Client signup error set: ${errorMessage}`);
+        // toast({ title: 'Signup Error', description: errorMessage, variant: 'destructive' }); // Optional toast
         setCurrentStep('signup'); // Stay on signup step on error
       } finally {
         setIsProcessing(false); // End processing
+        console.log('Client signup transition finished.');
       }
     });
   }, [toast]); // Added toast dependency
 
   // Callback when MFA is successfully verified and enabled
   const handleMfaVerified = useCallback(async () => {
+    console.log('Client MFA verified.');
     if (!clientId) {
-        setSignupError("Client ID missing after MFA verification.");
+        const errorMsg = "Client ID missing after MFA verification. Cannot proceed.";
+        console.error(errorMsg);
+        setSignupError(errorMsg);
         toast({ title: 'Error', description: 'Could not proceed to payment setup.', variant: 'destructive'});
         setCurrentStep('signup'); // Go back to signup on critical error
         return;
@@ -118,10 +135,11 @@ export function ClientSignupForm() {
     setCurrentStep('processing_payment'); // Show loading state for payment setup
     setIsProcessing(true);
     setSignupError(null);
+    console.log('Starting Stripe subscription session creation...');
 
     try {
         // *** Start Stripe Checkout Session Creation ***
-        console.log(`MFA verified for ${clientId}. Creating Stripe subscription session...`);
+        console.log(`MFA verified for client ${clientId}. Creating Stripe subscription session...`);
         const checkoutResponse = await fetch('/api/stripe/create-subscription', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -130,7 +148,7 @@ export function ClientSignupForm() {
 
         if (!checkoutResponse.ok) {
           const errorData = await checkoutResponse.json();
-          throw new Error(errorData.error || 'Failed to create subscription session.');
+          throw new Error(errorData.error || `Failed to create subscription session (Status: ${checkoutResponse.status}).`);
         }
 
         const session = await checkoutResponse.json();
@@ -138,9 +156,10 @@ export function ClientSignupForm() {
           // Redirect to Stripe Checkout
           console.log("Redirecting to Stripe Checkout...");
           window.location.href = session.url;
-          // User will be redirected back by Stripe. No 'complete' step needed here.
+          // User will be redirected back by Stripe. No 'complete' step needed here usually.
+          // The 'processing_payment' state is mainly visual feedback before redirection.
         } else {
-          throw new Error('Could not get Stripe Checkout session URL.');
+          throw new Error('Could not get Stripe Checkout session URL from response.');
         }
     } catch (err: any) {
         console.error('Error creating Stripe session after MFA:', err);
@@ -148,10 +167,10 @@ export function ClientSignupForm() {
         setSignupError(errorMessage);
         toast({ title: 'Payment Setup Error', description: errorMessage, variant: 'destructive' });
         setCurrentStep('mfa'); // Allow user to potentially retry from MFA step or see error
-        setIsProcessing(false);
+        setIsProcessing(false); // Ensure processing stops if redirection fails
+        console.log('Stripe session creation failed.');
     }
-    // Note:setIsProcessing(false) might not be reached if redirection happens.
-    // The 'processing_payment' state is mainly for feedback before redirection.
+    // Note: setIsProcessing(false) might not be reached if redirection happens successfully.
 
   }, [clientId, toast]); // Added dependencies
 
@@ -166,6 +185,7 @@ export function ClientSignupForm() {
               onVerified={handleMfaVerified}
               // Handle MFA setup errors displayed within MfaSetup
               onCancel={() => {
+                console.log('Client MFA setup cancelled, returning to signup.');
                 setSignupError(null); // Clear errors when cancelling MFA
                 setCurrentStep('signup');
               }}
