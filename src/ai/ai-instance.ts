@@ -24,7 +24,7 @@ if (!plugins.length) {
 // Initialize Genkit
 export const ai = genkit({
   plugins,
-  logLevel: 'debug', // Optional: for detailed logs
+  // logLevel: 'debug', // Optional: for detailed logs
   // Default model (can be overridden)
   // model: 'googleai/gemini-1.5-flash', // Removed default model to force selection
 });

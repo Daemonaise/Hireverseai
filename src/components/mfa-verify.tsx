@@ -44,8 +44,9 @@ export function MfaVerify({ userId, userType, onVerified, onInvalidCredentials, 
     mode: 'onChange',
   });
 
-  const handleVerify = async (values: FormSchema) => {
+  const handleVerify = async (values: FormSchema): Promise<void> => { // Explicitly return Promise<void>
     setError(null); // Clear any previous errors
+
     setMfaSetupError(null); // Clear setup errors
     startVerificationTransition(async () => {
       try {
@@ -99,8 +100,8 @@ export function MfaVerify({ userId, userType, onVerified, onInvalidCredentials, 
 
   // Optional effect to check MFA status on load if onInvalidCredentials callback exists
   React.useEffect(() => {
-    const checkMfaStatus = async () => {
-      try {
+    const checkMfaStatus = async (): Promise<void> => { // Explicitly return Promise<void>
+      try { // Use try...catch to handle potential errors during the async operation
         const secret = await getUserMfaSecret(userId, userType);
         if (!secret) {
           console.warn(`MFA verification prompted for user ${userId} (${userType}) but no secret found.`);

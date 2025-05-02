@@ -45,14 +45,23 @@ export function MfaSetup({ userId, userEmail, userType, mfaSecret, onVerified, o
   });
 
   useEffect(() => {
-    // Generate QR code URI when component mounts
-    if (mfaSecret && userEmail) {
-      const uri = generateMfaUri(userEmail, 'Hireverse AI', mfaSecret);
-      setQrCodeUri(uri);
+    // Define an async function inside useEffect to handle the promise
+    async function fetchUri() {
+      if (mfaSecret && userEmail) {
+        try {
+          const uri = await generateMfaUri(userEmail, 'Hireverse AI', mfaSecret); // Await the promise
+          setQrCodeUri(uri); // Now uri is a string
+        } catch (err) {
+          console.error("Error generating MFA URI:", err);
+          setError("Could not generate the setup QR code.");
+        }
+      }
     }
-  }, [mfaSecret, userEmail]);
+    fetchUri(); // Call the async function
+  }, [mfaSecret, userEmail]); // Dependencies remain the same
 
-  const handleVerify = useCallback((values: FormSchema) => {
+
+  const handleVerify = useCallback(async (values: FormSchema): Promise<void> => {
     setError(null);
     startVerificationTransition(async () => {
       try {

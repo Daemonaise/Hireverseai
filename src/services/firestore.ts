@@ -41,17 +41,17 @@ const now = (): FirestoreTimestamp => serverTimestamp() as FirestoreTimestamp;
 const getDocRef = (collectionName: string, id: string) => doc(firestoreDB, collectionName, id);
 
 // --- MFA ---
-export function generateMfaSecret() {
-  return authenticator.generateSecret();
+export async function generateMfaSecret(): Promise<string> {
+  return Promise.resolve(authenticator.generateSecret());
 }
 
-export function generateMfaUri(accountName: string, issuer: string, secret: string) {
-  return authenticator.keyuri(accountName, issuer, secret);
+export async function generateMfaUri(accountName: string, issuer: string, secret: string): Promise<string> {
+  return Promise.resolve(authenticator.keyuri(accountName, issuer, secret));
 }
 
-export function verifyMfaToken(secret: string, token: string) {
+export async function verifyMfaToken(secret: string, token: string): Promise<boolean> {
   try {
-    return authenticator.verify({ secret, token });
+    return Promise.resolve(authenticator.verify({ secret, token }));
   } catch {
     return false;
   }
