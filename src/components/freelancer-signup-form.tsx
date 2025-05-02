@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useTransition, useCallback } from 'react';
@@ -63,8 +64,21 @@ export function FreelancerSignupForm() {
       confirmPassword: '',
       skillsText: '',
     },
-     mode: "onChange",
+     mode: "onChange", // Validate on change
   });
+
+  // Destructure formState for easier access and logging
+  const { isValid, errors } = form.formState;
+
+  // Log form validity state and errors for debugging
+  console.log("FreelancerSignupForm State:", {
+    currentStep,
+    isPending,
+    isProcessing,
+    isValid,
+    errors,
+  });
+
 
   const handleSignupSubmit = useCallback(async (values: FormSchema) => {
     console.log('handleSignupSubmit (freelancer) called with values:', values.email);
@@ -81,7 +95,7 @@ export function FreelancerSignupForm() {
         const authResult = await createAuthUser(values.email, values.password);
         if (!authResult || !authResult.userId) {
           // createAuthUser should throw specific errors (e.g., email exists)
-          throw new Error("Failed to create authentication account.");
+          throw new Error(authResult?.error || "Failed to create authentication account.");
         }
         const newUserId = authResult.userId; // This is the actual ID from the auth system
         console.log("Auth user created successfully, User ID:", newUserId);
@@ -308,13 +322,14 @@ export function FreelancerSignupForm() {
              <CardFooter className="flex flex-col items-center gap-4">
                <Button
                  type="submit"
-                 disabled={isPending || isProcessing || !form.formState.isValid}
+                 disabled={isPending || isProcessing || !isValid} // Disable button if form is invalid
                  className="w-full"
-                 aria-disabled={isPending || isProcessing || !form.formState.isValid}
+                 aria-disabled={isPending || isProcessing || !isValid}
                 >
                  {isPending || isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><UserPlus className="mr-2 h-4 w-4" />Create Account & Set Up MFA</>}
                </Button>
-                {!form.formState.isValid && currentStep === 'signup' && !isProcessing && (
+                {/* Only show invalid fields message when not processing and form is touched/dirty */}
+                {!isValid && currentStep === 'signup' && !isProcessing && form.formState.isDirty && (
                     <p className="text-xs text-destructive text-center">Please complete all fields correctly.</p>
                 )}
              </CardFooter>
@@ -372,7 +387,7 @@ export function FreelancerSignupForm() {
                                      // Error message will be shown by FormMessage component
                                  }
                              }}
-                             disabled={isPending || isProcessing} // Only disable based on processing state
+                             disabled={isPending || isProcessing || !form.getValues('skillsText') || form.getValues('skillsText')!.length < 10} // Add check for skillsText content
                         >
                            {isPending || isProcessing ? (
                                <> <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing Skills... </>
