@@ -66,6 +66,13 @@ export function FreelancerSignupForm() {
      mode: "onChange",
   });
 
+  // Debugging logs
+  // console.log("Signup Form State:", {
+  //   isPending,
+  //   isProcessing,
+  //   isValid: form.formState.isValid,
+  //   errors: form.formState.errors,
+  // });
   const handleSignupSubmit = useCallback(async (values: FormSchema) => {
     console.log('handleSignupSubmit called with values:', values);
     setSignupError(null);
@@ -300,9 +307,17 @@ export function FreelancerSignupForm() {
                <FormField control={form.control} name="confirmPassword" render={({ field }) => ( <FormItem><FormLabel>Confirm Password</FormLabel><FormControl><div className="relative"><Input type={showConfirmPassword ? "text" : "password"} placeholder="Confirm your password" {...field} disabled={isProcessing}/><Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowConfirmPassword((prev) => !prev)} tabIndex={-1} disabled={isProcessing}>{showConfirmPassword ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}<span className="sr-only">{showConfirmPassword ? "Hide password" : "Show password"}</span></Button></div></FormControl><FormMessage /></FormItem>)} />
              </CardContent>
              <CardFooter className="flex flex-col items-center gap-4">
-               <Button type="submit" disabled={isPending || isProcessing || !form.formState.isValid} className="w-full">
+               <Button
+                 type="submit"
+                 disabled={isPending || isProcessing || !form.formState.isValid}
+                 className="w-full"
+                 aria-disabled={isPending || isProcessing || !form.formState.isValid}
+                 title={!form.formState.isValid ? "Please fill out all fields correctly" : ""} // Add tooltip for disabled state
+                >
                  {isPending || isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><UserPlus className="mr-2 h-4 w-4" />Create Account & Set Up MFA</>}
                </Button>
+               {/* Optional: Add a visual hint if the form is invalid */}
+                {!form.formState.isValid && <p className="text-xs text-destructive text-center">Please complete all fields correctly.</p>}
              </CardFooter>
            </form>
          </Form>
