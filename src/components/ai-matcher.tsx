@@ -87,9 +87,10 @@ export function AiMatcher() {
        if (result.status === 'error') {
          // Use the error reasoning provided by the flow, or a specific message
          const errorMessage = result.reasoning || `Failed to generate example: Invalid response from AI.`;
-         setIdeaError(errorMessage);
+         setIdeaError(errorMessage); // Set the error state to display in the dialog
          console.error("Error generating example:", result.reasoning);
-         toast({ title: "Error Generating Idea", description: errorMessage, variant: "destructive" }); // Show toast on error
+         // No need for toast here, error is shown in dialog
+         // toast({ title: "Error Generating Idea", description: errorMessage, variant: "destructive" });
        } else {
          setGeneratedIdea(result);
        }
@@ -98,8 +99,9 @@ export function AiMatcher() {
        // Set the error state with the caught error message
        const errorDetails = err.errors ? JSON.stringify(err.errors) : '';
        const errorMessage = `${err.message || "An unexpected error occurred while generating the example."} ${errorDetails}`;
-       setIdeaError(errorMessage);
-       toast({ title: "Error Generating Idea", description: errorMessage, variant: "destructive" }); // Show toast on catch
+       setIdeaError(errorMessage); // Set the error state to display in the dialog
+       // No need for toast here, error is shown in dialog
+       // toast({ title: "Error Generating Idea", description: errorMessage, variant: "destructive" });
     } finally {
        setIdeaLoading(false);
     }
@@ -243,15 +245,13 @@ export function AiMatcher() {
               control={form.control}
               name="projectBrief"
               render={({ field }) => (
-                <FormItem className="relative text-center"> {/* Center alignment */}
-                  {/* Floating Label */}
+                <FormItem className="relative text-center">
                   <FormLabel
                     htmlFor="projectBrief"
                     className={cn(
-                      "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none", // Centered by default
-                      // Animate upwards on focus or when value exists
-                      "peer-focus:top-2 peer-focus:left-3 peer-focus:translate-x-0 peer-focus:-translate-y-0 peer-focus:text-xs peer-focus:text-primary", // Moves to top-left on focus
-                      field.value && "top-2 left-3 translate-x-0 -translate-y-0 text-xs text-primary" // Stays top-left if value exists
+                      "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none",
+                      "peer-focus:top-2 peer-focus:left-3 peer-focus:translate-x-0 peer-focus:-translate-y-0 peer-focus:text-xs peer-focus:text-primary",
+                      (field.value || form.formState.isSubmitted) && "top-2 left-3 translate-x-0 -translate-y-0 text-xs text-primary"
                     )}
                   >
                     Describe your project goal, key deliverables, and any specific requirements...
@@ -260,11 +260,25 @@ export function AiMatcher() {
                     <Textarea
                       id="projectBrief"
                       {...field}
-                      placeholder=" " // Use space as placeholder for floating label trick
-                      className="min-h-[120px] max-h-[250px] pt-5 resize-y mx-auto border-2 border-input focus:border-primary" // Center textarea, add thicker border on focus
+                      placeholder=" " // Use space placeholder for floating label effect
+                      className="min-h-[120px] max-h-[250px] pt-5 resize-y mx-auto border-2 border-input focus:border-primary peer" // Ensure 'peer' class is present
+                      onFocus={(e) => {
+                        const label = e.target.previousElementSibling as HTMLLabelElement;
+                        if (label) {
+                           label.classList.add("top-2", "left-3", "translate-x-0", "-translate-y-0", "text-xs", "text-primary");
+                           label.classList.remove("top-1/2", "left-1/2", "-translate-x-1/2", "-translate-y-1/2", "text-muted-foreground");
+                        }
+                      }}
+                      onBlur={(e) => {
+                         const label = e.target.previousElementSibling as HTMLLabelElement;
+                         if (label && !field.value) {
+                           label.classList.remove("top-2", "left-3", "translate-x-0", "-translate-y-0", "text-xs", "text-primary");
+                           label.classList.add("top-1/2", "left-1/2", "-translate-x-1/2", "-translate-y-1/2", "text-muted-foreground");
+                         }
+                      }}
                     />
                   </FormControl>
-                  <FormMessage className="text-center" /> {/* Center message */}
+                  <FormMessage className="text-center" />
                 </FormItem>
               )}
             />
@@ -312,7 +326,7 @@ export function AiMatcher() {
                            ref={freelancerIdInputRef}
                            {...field}
                            placeholder=" "
-                           className="pt-4" // Added padding-top
+                           className="pt-4 peer" // Ensure peer class is present
                          />
                          {field.value && (
                            <Button
@@ -421,6 +435,7 @@ export function AiMatcher() {
                 <Alert variant="destructive">
                      <AlertCircle className="h-4 w-4" />
                      <AlertTitle>Error Generating Example</AlertTitle>
+                    {/* Directly display the error message from the state */}
                     <AlertDescription>{ideaError}</AlertDescription>
                 </Alert>
             )}

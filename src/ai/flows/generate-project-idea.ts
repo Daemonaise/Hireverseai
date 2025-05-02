@@ -153,6 +153,7 @@ REMEMBER: ONLY the JSON object. Absolutely no other text before or after the JSO
 
   // Handle failure after all retries
   if (!parsedJson) {
+    // Include the last known error reason in the final message
     const finalErrorMsg = `Failed to get valid JSON after ${MAX_RETRIES} attempts. Last error: ${lastErrorReason}`;
     console.error(finalErrorMsg);
     // Return a structured error that matches the expected output schema fields
@@ -224,5 +225,3 @@ REMEMBER: ONLY the JSON object. Absolutely no other text before or after the JSO
     };
   }
 }
-
-    
