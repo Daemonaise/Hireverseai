@@ -1,7 +1,6 @@
 'use server';
 /**
  * @fileOverview Estimates the impact of a client's project change request on timeline and cost.
- * Uses dynamic model selection via callAI.
  *
  * Exports:
  * - estimateProjectChangeImpact - A function that handles the estimation process.
@@ -9,7 +8,7 @@
  * - RequestProjectChangeOutput - Output type.
  */
 
-import { callAI } from '@/ai/ai-instance'; // Import the centralized callAI function
+import { ai } from '@/ai/ai-instance'; // Import the configured ai instance
 import { z } from 'zod';
 import {
   RequestProjectChangeInputSchema,
@@ -21,42 +20,24 @@ import {
 // Export types separately
 export type { RequestProjectChangeInput, RequestProjectChangeOutput };
 
-
-// --- Helper: Extract JSON from potentially messy AI output ---
-function extractJson(text: string): unknown | null {
-    const match = text.match(/\{[\s\S]*\}/); // Basic object match
-    if (match) {
-        try {
-            return JSON.parse(match[0]);
-        } catch (e) {
-            console.warn("JSON parsing failed:", e, "Raw Text:", text);
-            return null;
-        }
-    }
-    console.error("Could not find any JSON object in AI response:", text);
-    return null;
-}
-
-// --- Main function ---
-export async function estimateProjectChangeImpact(input: RequestProjectChangeInput): Promise<RequestProjectChangeOutput> {
-  // Validate input
-  RequestProjectChangeInputSchema.parse(input);
-
-  console.log(`Estimating project change impact for project ${input.projectId}...`);
-
-  // Construct the prompt for the callAI function
-  const promptText = `You are an AI Project Manager analyzing a change request for an ongoing project.
+// --- Define the Prompt ---
+const estimateChangePrompt = ai.definePrompt({
+  name: 'estimateChangePrompt',
+  input: { schema: RequestProjectChangeInputSchema },
+  output: { schema: RequestProjectChangeOutputSchema },
+  // model: 'googleai/gemini-1.5-flash', // Example: Specify model if needed
+  prompt: `You are an AI Project Manager analyzing a change request for an ongoing project.
 
 Project Details:
-- ID: ${input.projectId}
-- Original Brief: ${input.currentBrief}
-- Original Skills: ${input.currentSkills.join(', ')}
-- Current Estimated Timeline: ${input.currentTimeline}
-- Current Estimated Cost: $${input.currentCost.toFixed(2)}
+- ID: {{{projectId}}}
+- Original Brief: {{{currentBrief}}}
+- Original Skills: {{#each currentSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
+- Current Estimated Timeline: {{{currentTimeline}}}
+- Current Estimated Cost: $${ RequestProjectChangeInputSchema.shape.currentCost.parse(0).toFixed(2) /* Placeholder formatting, adjust if needed */}
 
 Change Request:
-- Description: ${input.changeDescription}
-- Priority: ${input.priority}
+- Description: {{{changeDescription}}}
+- Priority: {{{priority}}}
 
 Instructions:
 - Estimate the new delivery timeline based on the requested change. Provide a specific string (e.g., 'approx. 3 additional days', 'New target: YYYY-MM-DD', 'No significant impact').
@@ -69,43 +50,53 @@ Return ONLY a JSON object matching exactly this structure:
   "estimatedAdditionalCost": number (non-negative),
   "impactAnalysis": "Brief analysis (1-2 sentences) explaining the timeline/cost changes (string)."
 }
-No extra explanations, no markdown, no formatting outside the JSON object. Ensure 'estimatedAdditionalCost' is a non-negative number.`;
+No extra explanations, no markdown, no formatting outside the JSON object. Ensure 'estimatedAdditionalCost' is a non-negative number.`,
+});
 
-  try {
-    // Call the centralized AI function
-    const responseText = await callAI(promptText);
 
-    // Attempt to parse the JSON response
-    let aiOutput: RequestProjectChangeOutput;
+// --- Define the Flow ---
+const estimateProjectChangeImpactFlow = ai.defineFlow<
+  typeof RequestProjectChangeInputSchema,
+  typeof RequestProjectChangeOutputSchema
+>(
+  {
+    name: 'estimateProjectChangeImpactFlow',
+    inputSchema: RequestProjectChangeInputSchema,
+    outputSchema: RequestProjectChangeOutputSchema,
+  },
+  async (input) => {
+    console.log(`Estimating project change impact for project ${input.projectId}...`);
+
     try {
-      const parsedJson = extractJson(responseText);
-      if (!parsedJson) throw new Error("AI failed to return a valid JSON object for estimation.");
+      // Call the defined prompt
+      const { output: aiOutput } = await estimateChangePrompt(input);
 
-      // Validate the parsed JSON against the output schema
-      const validationResult = RequestProjectChangeOutputSchema.safeParse(parsedJson);
-      if (!validationResult.success) {
-          throw new Error(`Invalid estimation structure: ${validationResult.error.errors.map(e => e.message).join(', ')}`);
+      if (!aiOutput) {
+        throw new Error("AI failed to return a valid JSON object for estimation.");
       }
-      aiOutput = validationResult.data; // Use validated data
 
-      // Additional defensive checks (schema should catch negative cost)
+      // Validate AI output structure (already done by prompt definition)
+      // Additional defensive checks
       if (aiOutput.estimatedAdditionalCost < 0) {
         console.warn(`AI returned negative cost (${aiOutput.estimatedAdditionalCost}). Setting to 0.`);
         aiOutput.estimatedAdditionalCost = 0; // Correct negative cost
       }
-    } catch (parseError: any) {
-      console.error(`Error parsing change impact JSON for project ${input.projectId}:`, parseError.message, "Raw Response:", responseText);
-      throw new Error(`Invalid AI response structure during change impact estimation: ${parseError.message}`);
+
+      console.log(`Successfully estimated change for project ${input.projectId}: Timeline - ${aiOutput.estimatedNewTimeline}, Additional Cost - $${aiOutput.estimatedAdditionalCost}`);
+      return aiOutput;
+
+    } catch (error: any) {
+      // Catch errors from AI call or parsing/validation
+      console.error(`Error estimating project change impact for project ${input.projectId}:`, error?.message ?? error);
+      // Propagate the error to the caller
+      throw new Error(`Failed to estimate project change impact: ${error?.message ?? 'Unknown error'}`);
     }
-
-    console.log(`Successfully estimated change for project ${input.projectId}: Timeline - ${aiOutput.estimatedNewTimeline}, Additional Cost - $${aiOutput.estimatedAdditionalCost}`);
-    return aiOutput;
-
-  } catch (error: any) {
-    // Catch errors from callAI or parsing/validation
-    console.error(`Error estimating project change impact for project ${input.projectId}:`, error?.message ?? error);
-    // Propagate the error to the caller
-    throw new Error(`Failed to estimate project change impact: ${error?.message ?? 'Unknown error'}`);
   }
+);
+
+// --- Main Exported Function (Wrapper) ---
+export async function estimateProjectChangeImpact(input: RequestProjectChangeInput): Promise<RequestProjectChangeOutput> {
+  // Input validation handled by the flow
+  RequestProjectChangeInputSchema.parse(input);
+  return estimateProjectChangeImpactFlow(input);
 }
-    
