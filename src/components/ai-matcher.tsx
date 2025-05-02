@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useTransition, useRef, useEffect, useCallback, useMemo } from 'react';
@@ -248,14 +247,14 @@ export function AiMatcher() {
                     htmlFor="projectBrief"
                     className={cn(
                       "absolute left-1/2 -translate-x-1/2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none", // Centered label
-                      // Adjust initial vertical position
+                      // Adjust initial vertical position and ensure it's centered
                       "peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:text-base", // Centered when placeholder shown
                       // Animate upwards on focus or when value exists
                       "peer-focus:top-2 peer-focus:-translate-y-0 peer-focus:text-xs peer-focus:text-primary",
                        field.value && "top-2 -translate-y-0 text-xs text-primary"
                     )}
                   >
-                    Describe your project goal, deliverables, and any specifics...
+                    Describe your project goal, key deliverables, and any specific requirements...
                   </FormLabel>
                   <FormControl>
                     <Textarea
