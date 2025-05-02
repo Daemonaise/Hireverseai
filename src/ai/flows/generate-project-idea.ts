@@ -74,8 +74,13 @@ export async function generateProjectIdea(
   }
   const params = parsedInput.data;
 
+  // Use a random number as part of the prompt to encourage variability
+  const randomNumber = Math.random();
+
   // Construct the prompt for the callAI function
   const promptText = `Generate a single, valid JSON object representing a freelance project idea.
+
+To ensure varied results, use this random number as inspiration: ${randomNumber.toFixed(4)}
 
 STRICTLY adhere to this structure:
 {
@@ -188,3 +193,4 @@ Return ONLY the JSON object. No markdown, explanations, apologies, or other text
     };
   }
 }
+
