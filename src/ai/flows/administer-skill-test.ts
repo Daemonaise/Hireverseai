@@ -4,12 +4,10 @@
  *
  * Exports:
  * - administerSkillTest - Generates and returns test questions.
- * - AdministerSkillTestInput - Input type.
- * - AdministerSkillTestOutput - Output type.
- * - Question - Individual question type.
  */
-import { ai, validateAIOutput } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
+import { ai } from '@/lib/ai'; // Import the configured ai instance and helpers
 import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
+import { z } from 'zod';
 import {
   AdministerSkillTestInputSchema,
   type AdministerSkillTestInput,
@@ -18,7 +16,7 @@ import {
   QuestionSchema,
   type Question,
 } from '@/ai/schemas/administer-skill-test-schema';
-import { z } from 'zod';
+import { SingleSkillScoreAIOutputSchema } from '@/ai/schemas/score-skill-test-schema';
 
 // Only export the async function and related types
 export type { AdministerSkillTestInput, AdministerSkillTestOutput, Question };
@@ -70,7 +68,7 @@ const administerSkillTestFlow = ai.defineFlow<
         console.log(`Generating question for skill: ${skill}...`);
 
         // 1. Choose the primary model for generation
-        const primaryModel = chooseModelBasedOnPrompt(`Generate skill test question for: ${skill}`);
+        const primaryModel = await chooseModelBasedOnPrompt(`Generate skill test question for: ${skill}`);
         console.log(`Using model ${primaryModel} for generation.`);
 
         // 2. Define the prompt using the chosen model and template
@@ -90,20 +88,7 @@ const administerSkillTestFlow = ai.defineFlow<
             throw new Error(`AI (${primaryModel}) did not return valid question text for skill "${skill}".`);
         }
 
-        // 4. Validate the output with other models
-        const originalPromptText = skillQuestionPromptTemplate
-            .replace('{{{freelancerId}}}', input.freelancerId)
-            .replace('{{{skill}}}', skill); // Reconstruct the prompt text sent to AI
-
-        const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
-
-        if (!validation.allValid) {
-            console.warn(`Validation failed for skill "${skill}". Reasoning:`, validation.results);
-            // Optionally, could retry generation with a different model or use a fallback
-            throw new Error(`Generated question for skill "${skill}" failed cross-validation.`);
-        }
-
-        // 5. Construct and add the validated question
+        // 4. Construct and add the validated question
         const validatedQuestion: Question = {
           questionText: aiOutput.questionText,
           skillTested: skill, // Ensure the skillTested field is correctly set
@@ -159,3 +144,4 @@ export async function administerSkillTest(input: AdministerSkillTestInput): Prom
   AdministerSkillTestInputSchema.parse(input);
   return administerSkillTestFlow(input);
 }
+

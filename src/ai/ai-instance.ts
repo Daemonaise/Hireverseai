@@ -1,5 +1,4 @@
-
-'use server'; // Moved to the top
+/ src/ai/ai-instance.ts
 
 // Keep imports minimal: genkit core, plugins, zod
 import { genkit } from 'genkit';
@@ -160,3 +159,4 @@ export async function validateAIOutput(
 // and requires significant infrastructure beyond basic API calls.
 // It would typically involve dedicated services and asynchronous job handling.
 // It would typically involve dedicated services and asynchronous job handling.
+

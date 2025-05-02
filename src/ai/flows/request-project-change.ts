@@ -4,11 +4,9 @@
  *
  * Exports:
  * - estimateProjectChangeImpact - A function that handles the estimation process.
- * - RequestProjectChangeInput - Input type.
- * - RequestProjectChangeOutput - Output type.
  */
 
-import { ai, validateAIOutput } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
+import { ai, validateAIOutput } from '@/lib/ai'; // Import the configured ai instance and helpers
 import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
 import { z } from 'zod';
 import {
@@ -128,3 +126,4 @@ export async function estimateProjectChangeImpact(input: RequestProjectChangeInp
   RequestProjectChangeInputSchema.parse(input);
   return estimateProjectChangeImpactFlow(input);
 }
+

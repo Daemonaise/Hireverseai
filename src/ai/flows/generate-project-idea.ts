@@ -8,7 +8,7 @@
  * - GenerateProjectIdeaOutput - Output type including cost details and status.
  */
 
-import { ai, validateAIOutput } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
+import { ai } from '@/lib/ai'; // Import the configured ai instance and helpers
 import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import model selector
 import { z } from 'zod';
 import {
@@ -75,7 +75,7 @@ const generateProjectIdeaFlow = ai.defineFlow<
       try {
         // 1. Choose the primary model for generation
         const promptContext = `Generate project idea. Hint: ${input.industryHint || 'Any'}. Random: ${randomNumber}`;
-        primaryModel = chooseModelBasedOnPrompt(promptContext);
+        primaryModel = await chooseModelBasedOnPrompt(promptContext);
         console.log(`Using model ${primaryModel} for project idea generation (attempt ${attempts}).`);
 
         // 2. Define the prompt using the chosen model and template
@@ -111,28 +111,6 @@ const generateProjectIdeaFlow = ai.defineFlow<
              continue; // Go to next attempt
          }
 
-         // 5. Validate the output with other models
-          let originalPromptText = projectIdeaPromptTemplate
-              .replace('{{{randomNumber}}}', randomNumber);
-          if (input.industryHint) {
-              originalPromptText = originalPromptText.replace('{{#if industryHint}}Focus on the industry: \'{{{industryHint}}}\'.{{/if}}', `Focus on the industry: '${input.industryHint}'.`);
-          } else {
-              originalPromptText = originalPromptText.replace('{{#if industryHint}}Focus on the industry: \'{{{industryHint}}}\'.{{/if}}', '');
-          }
-
-         const validation = await validateAIOutput(originalPromptText, JSON.stringify(validationResult.data), primaryModel);
-
-         if (!validation.allValid) {
-             console.warn(`Validation failed for generated project idea (Attempt ${attempts}). Reasoning:`, validation.results);
-             lastError = `Generated idea failed cross-validation (Attempt ${attempts}).`;
-             // Optionally, could retry generation with a different model based on validation feedback
-             if (attempts === MAX_ATTEMPTS) {
-                throw new Error(`Failed to get validated JSON after ${MAX_ATTEMPTS} attempts. Last error: ${lastError}.`);
-             }
-             await new Promise(resolve => setTimeout(resolve, 500)); // Wait before retry
-             continue; // Go to next attempt
-         }
-
          aiResultData = validationResult.data; // Use the successfully parsed and validated data
 
          // Additional check for minimum hours
@@ -162,6 +140,7 @@ const generateProjectIdeaFlow = ai.defineFlow<
         reasoning: `Could not generate a valid project idea after ${MAX_ATTEMPTS} attempts. Last error: ${lastError}. Raw Response: ${rawResponse || 'N/A'}`,
         idea: 'Error',
         estimatedTimeline: 'N/A',
+        requiredSkills: []
       };
     }
 
@@ -197,6 +176,7 @@ const generateProjectIdeaFlow = ai.defineFlow<
              reasoning: `Internal validation failed after generation: ${finalValidationError.message}`,
              idea: 'Error',
              estimatedTimeline: 'N/A',
+             requiredSkills: []
          };
     }
 

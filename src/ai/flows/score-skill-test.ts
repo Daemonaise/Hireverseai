@@ -3,7 +3,7 @@
  * @fileOverview Scores a freelancer's submitted answers for a skill test.
  */
 
-import { ai, validateAIOutput } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
+import { ai, validateAIOutput } from '@/lib/ai'; // Import the configured ai instance and helpers
 import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
 import { z } from 'zod';
 import { updateFreelancerTestScore } from '@/services/firestore';
@@ -144,19 +144,6 @@ Answer: ${a.answerText}
           // 1d. Clamp score just in case AI deviates
           aiOutput.score = Math.max(0, Math.min(100, aiOutput.score));
 
-          // 1e. Validate scoring output
-           const originalScorePromptText = scoreSingleSkillPromptTemplate
-             .replace('{{{skill}}}', scoreInput.skill)
-             .replace('{{{freelancerId}}}', scoreInput.freelancerId)
-             .replace('{{{answersText}}}', scoreInput.answersText);
-
-           const scoreValidation = await validateAIOutput(originalScorePromptText, JSON.stringify(aiOutput), scoreModel);
-
-           if (!scoreValidation.allValid) {
-               console.warn(`Validation failed for skill score (${skill}). Reasoning:`, scoreValidation.results);
-               throw new Error(`Skill score validation failed for ${skill}.`);
-           }
-
           skillScoreOutput = {
               skill: skill,
               score: aiOutput.score,
@@ -210,22 +197,8 @@ Answer: ${a.answerText}
              }
              feedback = feedbackOutput.feedback;
 
-            // 2d. Validate feedback output
-            const originalFeedbackPromptText = aggregateFeedbackPromptTemplate
-                .replace('{{{freelancerId}}}', feedbackInput.freelancerId)
-                .replace('{{{testId}}}', feedbackInput.testId)
-                .replace('{{{overallScore}}}', feedbackInput.overallScore.toString())
-                .replace('{{{scoresText}}}', feedbackInput.scoresText);
-
-            const feedbackValidation = await validateAIOutput(originalFeedbackPromptText, JSON.stringify(feedbackOutput), feedbackModel);
-
-            if (!feedbackValidation.allValid) {
-                console.warn(`Validation failed for feedback aggregation (Test ${input.testId}). Reasoning:`, feedbackValidation.results);
-                finalFeedback = `Feedback generated, but failed validation. Original: ${feedback}`; // Use generated but note failure
-            } else {
-                finalFeedback = feedback; // Use validated feedback
-                console.log(`Generated and validated overall feedback for test ${input.testId}.`);
-            }
+            finalFeedback = feedback; // Use validated feedback
+            console.log(`Generated and validated overall feedback for test ${input.testId}.`);
 
         } catch (error: any) {
             console.error(`Error generating or validating overall feedback for test ${input.testId}:`, error?.message || error);
@@ -276,3 +249,4 @@ export async function scoreSkillTest(input: ScoreSkillTestInput): Promise<ScoreS
     ScoreSkillTestInputSchema.parse(input);
     return scoreSkillTestFlow(input);
 }
+

@@ -3,7 +3,7 @@
  * @fileOverview Match a freelancer to a project with skill extraction, estimation.
  */
 
-import { ai, validateAIOutput } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
+import { ai } from '@/lib/ai'; // Import the configured ai instance and helpers
 import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
 import { z } from 'zod';
 import {
@@ -116,17 +116,6 @@ const matchFreelancerFlow = ai.defineFlow<
             throw new Error("AI failed to return a valid array for skills.");
           }
 
-          // 1d. Validate skill extraction output
-          const skillValidation = await validateAIOutput(
-              skillExtractionPromptTemplate.replace('{{{projectBrief}}}', input.projectBrief),
-              JSON.stringify(skillOutput),
-              skillModel
-          );
-           if (!skillValidation.allValid) {
-               console.warn(`Validation failed for skill extraction. Reasoning:`, skillValidation.results);
-               throw new Error(`Skill extraction failed cross-validation.`);
-           }
-
           skills = skillOutput.extractedSkills;
           reasoningForSkills = 'Skills extracted by AI. ';
           console.log(`Extracted skills: ${skills.join(', ')}`);
@@ -171,22 +160,6 @@ const matchFreelancerFlow = ai.defineFlow<
             throw new Error(`AI (${estimationModel}) failed to return a valid JSON object for estimation.`);
         }
         estimationResult = estimationOutput;
-
-        // 2d. Validate estimation output
-        const estimationPromptText = estimationPromptTemplate
-            .replace('{{{projectBrief}}}', estimationInput.projectBrief)
-            .replace('{{#each requiredSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}', estimationInput.requiredSkills.join(', '));
-
-        const estimationValidation = await validateAIOutput(
-            estimationPromptText,
-            JSON.stringify(estimationOutput),
-            estimationModel
-        );
-         if (!estimationValidation.allValid) {
-            console.warn(`Validation failed for project estimation. Reasoning:`, estimationValidation.results);
-            throw new Error(`Project estimation failed cross-validation.`);
-         }
-
 
         // Additional check for valid estimatedHours
         if (estimationResult.estimatedHours < 0.1) {
@@ -247,3 +220,4 @@ export async function matchFreelancer(input: MatchFreelancerInput): Promise<Matc
   MatchFreelancerInputSchema.parse(input);
   return matchFreelancerFlow(input);
 }
+

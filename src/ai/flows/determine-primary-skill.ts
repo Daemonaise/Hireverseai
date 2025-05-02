@@ -1,6 +1,6 @@
 'use server';
 
-import { ai, validateAIOutput } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
+import { ai, validateAIOutput } from '@/lib/ai'; // Import the configured ai instance and helpers
 import { chooseModelBasedOnPrompt } from '@/lib/model-selector'; // Import from new location
 import { z } from 'zod';
 import {
@@ -101,3 +101,4 @@ export async function determinePrimarySkill(
   DeterminePrimarySkillInputSchema.parse(input);
   return determinePrimarySkillFlow(input);
 }
+
