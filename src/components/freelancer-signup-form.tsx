@@ -84,19 +84,19 @@ export function FreelancerSignupForm() {
    });
 
   // Destructure formState for easier access and logging (specifically for the signup step)
-  const { isValid: isSignupFormValid, errors: signupFormErrors } = signupForm.formState;
+  const { isValid: isSignupFormValid, errors: signupFormErrors, isDirty: isSignupFormDirty } = signupForm.formState;
   const { isValid: isSkillsFormValid, errors: skillsFormErrors } = skillsForm.formState;
 
   // Log form validity state and errors for debugging
-   console.log("FreelancerSignupForm State:", {
-     currentStep,
-     isPending,
-     isProcessing,
-     isSignupFormValid,
-     signupFormErrors,
-     isSkillsFormValid,
-     skillsFormErrors,
-   });
+   // console.log("FreelancerSignupForm State:", {
+   //   currentStep,
+   //   isPending,
+   //   isProcessing,
+   //   isSignupFormValid,
+   //   signupFormErrors,
+   //   isSkillsFormValid,
+   //   skillsFormErrors,
+   // });
 
 
   const handleSignupSubmit = useCallback(async (values: SignupFormSchema) => {
@@ -150,7 +150,13 @@ export function FreelancerSignupForm() {
 
       } catch (err: any) {
         console.error('Error during freelancer signup transition:', err);
-        const errorMessage = err.message || 'An unexpected error occurred during signup.';
+        let errorMessage = err.message || 'An unexpected error occurred during signup.';
+        // Check for specific Firestore offline error code or message
+        if (err.code === 'unavailable' || errorMessage.includes('client is offline')) {
+            errorMessage = 'Network connection issue. Please check your internet and try again.';
+        } else if (errorMessage.includes('already exists')) {
+            errorMessage = 'An account with this email already exists.';
+        }
         setSignupError(errorMessage);
         console.log(`Signup error set: ${errorMessage}`);
         setCurrentStep('signup'); // Stay on signup step on error
@@ -346,7 +352,7 @@ export function FreelancerSignupForm() {
                  {isPending || isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><UserPlus className="mr-2 h-4 w-4" />Create Account & Set Up MFA</>}
                </Button>
                 {/* Show validation message only if form has been interacted with */}
-                {!isSignupFormValid && currentStep === 'signup' && !isProcessing && signupForm.formState.isDirty && (
+                {!isSignupFormValid && currentStep === 'signup' && !isProcessing && isSignupFormDirty && (
                     <p className="text-xs text-destructive text-center">Please complete all fields correctly.</p>
                 )}
              </CardFooter>
