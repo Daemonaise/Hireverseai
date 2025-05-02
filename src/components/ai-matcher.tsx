@@ -82,14 +82,14 @@ export function AiMatcher() {
     try {
        console.log("Generating project idea example...");
        // Pass a hint to get varied examples if desired
-       const hint = Math.random() > 0.5 ? 'creative' : 'technical';
-       const result = await generateProjectIdea({ industryHint: hint });
+       const result = await generateProjectIdea(); // Removed hint for simplicity
        console.log("AI Idea Generation Result:", result);
        if (result.status === 'error') {
          // Use the error reasoning provided by the flow, or a specific message
          const errorMessage = result.reasoning || `Failed to generate example: Invalid response from AI.`;
          setIdeaError(errorMessage);
          console.error("Error generating example:", result.reasoning);
+         toast({ title: "Error Generating Idea", description: errorMessage, variant: "destructive" }); // Show toast on error
        } else {
          setGeneratedIdea(result);
        }
@@ -97,11 +97,13 @@ export function AiMatcher() {
        console.error('Error in handleGenerateIdea:', err);
        // Set the error state with the caught error message
        const errorDetails = err.errors ? JSON.stringify(err.errors) : '';
-       setIdeaError(`${err.message || "An unexpected error occurred while generating the example."} ${errorDetails}`);
+       const errorMessage = `${err.message || "An unexpected error occurred while generating the example."} ${errorDetails}`;
+       setIdeaError(errorMessage);
+       toast({ title: "Error Generating Idea", description: errorMessage, variant: "destructive" }); // Show toast on catch
     } finally {
        setIdeaLoading(false);
     }
-  }, [ideaGenerationCounter, toast]); // Added toast dependency
+  }, [ideaGenerationCounter, toast, form]); // Added form dependency
 
 
   const onSubmit = useCallback((values: FormSchema) => {
@@ -241,17 +243,15 @@ export function AiMatcher() {
               control={form.control}
               name="projectBrief"
               render={({ field }) => (
-                <FormItem className="relative text-center"> {/* Added text-center */}
+                <FormItem className="relative text-center"> {/* Center alignment */}
                   {/* Floating Label */}
                   <FormLabel
                     htmlFor="projectBrief"
                     className={cn(
-                      "absolute left-1/2 -translate-x-1/2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none", // Centered label
-                      // Adjust initial vertical position and ensure it's centered
-                      "peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:text-base", // Centered when placeholder shown
+                      "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none", // Centered by default
                       // Animate upwards on focus or when value exists
-                      "peer-focus:top-2 peer-focus:-translate-y-0 peer-focus:text-xs peer-focus:text-primary",
-                       field.value && "top-2 -translate-y-0 text-xs text-primary"
+                      "peer-focus:top-2 peer-focus:left-3 peer-focus:translate-x-0 peer-focus:-translate-y-0 peer-focus:text-xs peer-focus:text-primary", // Moves to top-left on focus
+                      field.value && "top-2 left-3 translate-x-0 -translate-y-0 text-xs text-primary" // Stays top-left if value exists
                     )}
                   >
                     Describe your project goal, key deliverables, and any specific requirements...
@@ -261,10 +261,10 @@ export function AiMatcher() {
                       id="projectBrief"
                       {...field}
                       placeholder=" " // Use space as placeholder for floating label trick
-                      className="min-h-[120px] max-h-[250px] pt-5 resize-y mx-auto border-2 border-input focus:border-primary" // Added thicker border on focus
+                      className="min-h-[120px] max-h-[250px] pt-5 resize-y mx-auto border-2 border-input focus:border-primary" // Center textarea, add thicker border on focus
                     />
                   </FormControl>
-                  <FormMessage className="text-center" /> {/* Centered message */}
+                  <FormMessage className="text-center" /> {/* Center message */}
                 </FormItem>
               )}
             />
@@ -298,7 +298,7 @@ export function AiMatcher() {
                       htmlFor="freelancerId"
                       className={cn(
                         "absolute left-3 top-2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none",
-                        "peer-placeholder-shown:top-2 peer-placeholder-shown:text-base",
+                        "peer-placeholder-shown:top-2 peer-placeholder-shown:text-base", // Adjusted initial state
                         "peer-focus:top-[-0.7rem] peer-focus:text-xs peer-focus:text-primary",
                          field.value && "top-[-0.7rem] text-xs text-primary"
                       )}
