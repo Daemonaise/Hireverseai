@@ -3,7 +3,7 @@
  * @fileOverview Cross-validation logic for AI outputs.
  */
 
-import { ai } from '@/ai/ai-instance'; // Import the base AI instance
+import { ai } from '@/lib/ai'; // Import the base AI instance from the correct location
 import { z } from 'zod';
 
 // --- Zod Schema for Validation Output ---

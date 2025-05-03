@@ -8,7 +8,8 @@
  * - GenerateProjectIdeaOutput - Output type including cost details and status.
  */
 
-import { ai, chooseModelBasedOnPrompt } from '@/lib/ai'; // Import the configured ai instance and helpers
+import { ai } from '@/lib/ai'; // Import the configured ai instance
+import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
 import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
 import { z } from 'zod';
 import {
@@ -90,7 +91,6 @@ const generateProjectIdeaFlow = ai.defineFlow<
         });
 
         // 3. Call the defined prompt with the input and the random number
-        const promptInput = { ...input, randomNumber };
         // The actual AI call happens here
         const { output: aiOutput } = await projectIdeaPrompt(promptInput);
 

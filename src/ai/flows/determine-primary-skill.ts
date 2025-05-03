@@ -1,6 +1,7 @@
 'use server';
 
-import { ai, chooseModelBasedOnPrompt } from '@/lib/ai'; // Import the configured ai instance and helpers
+import { ai } from '@/lib/ai'; // Import the configured ai instance
+import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
 import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
 import { z } from 'zod';
 import {

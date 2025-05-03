@@ -41,3 +41,5 @@ export const ai = genkit({
   plugins,
   // logLevel: 'debug', // Uncomment for detailed Genkit logs
 });
+
+// Removed chooseModelBasedOnPrompt function - moved to src/lib/ai-server-helpers.ts
