@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Generates freelance project ideas with cost estimation using AI.
@@ -92,6 +93,7 @@ const generateProjectIdeaFlow = ai.defineFlow<
 
         // 3. Call the defined prompt with the input and the random number
         // The actual AI call happens here
+        const promptInput = { ...input, randomNumber }; // Define promptInput here
         const { output: aiOutput } = await projectIdeaPrompt(promptInput);
 
         if (!aiOutput) {
