@@ -6,6 +6,8 @@
 import { ai } from '@/ai/ai-instance'; // Import the base AI instance
 import { z } from 'zod';
 
+// --- Zod Schema for Validation Output ---
+// Placed before the function that uses it
 const ValidationSchema = z.object({
   isValid: z.boolean().describe("Whether the original output is valid and accurate based on the original request."),
   reasoning: z.string().optional().describe("Explanation if invalid, or brief confirmation if valid."),

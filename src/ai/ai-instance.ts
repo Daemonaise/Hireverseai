@@ -1,4 +1,4 @@
-'use server'; // Ensure this is at the top for server actions like validateAIOutput
+'use server'; // Ensure this is at the top for server actions like chooseModelBasedOnPrompt
 
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
@@ -6,7 +6,7 @@ import { openAI } from 'genkitx-openai';
 import { anthropic } from 'genkitx-anthropic';
 import { z } from 'zod'; // Use standard Zod import
 
-// --- Environment Variables (Read at runtime in chooseModelBasedOnPrompt and validateAIOutput) ---
+// --- Environment Variables (Read at runtime in chooseModelBasedOnPrompt) ---
 // These are accessed dynamically within the functions that need them.
 
 // --- AI Plugin Configuration ---
@@ -50,7 +50,7 @@ export const ai = genkit({
 // --- Model Selection Logic ---
 /**
  * Chooses an AI model based on the prompt's content and API key availability.
- * This function reads environment variables at runtime.
+ * This function reads environment variables at runtime. Needs 'use server'.
  */
 export async function chooseModelBasedOnPrompt(promptContent: string): Promise<string> {
   // Re-evaluate API keys at runtime inside the function
@@ -120,14 +120,14 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
 }
 
 // --- Removed validateAIOutput function ---
-// It has been moved to src/ai/validate-output.ts
+// It has been moved to src/ai/validate-output.ts and has 'use server' directive there.
 
 /*
 // --- EXAMPLE: How to include validateAIOutput in a flow file ---
 // File: src/ai/flows/generate-project-idea.ts
 'use server';
 
-import { ai } from '@/lib/ai'; // Use instance from lib
+import { ai } from '@/ai/ai-instance'; // Use instance from lib
 import { chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import helpers
 import { validateAIOutput } from '@/ai/validate-output'; // Import validation function from its new location
 import { z } from 'zod';
