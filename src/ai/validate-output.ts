@@ -29,8 +29,8 @@ export async function validateAIOutput(
   const allModels = {
     google: 'googleai/gemini-1.5-flash', // Use Flash for faster validation
     openai: 'openai/gpt-4o-mini', // Use Mini for faster/cheaper validation
-    anthropic: 'anthropic/claude-3-haiku-20240307', // Use Haiku for faster/cheaper validation
-    anthropicSonnet: 'anthropic/claude-3-5-sonnet-20240620' // Corrected Sonnet 3.5 identifier with date
+    anthropicHaiku: 'anthropic/claude-3-haiku-20240307', // Use Haiku for faster/cheaper validation
+    anthropicSonnet: 'claude-3-7-sonnet-20250219' // UPDATED Sonnet identifier
   };
 
   // Re-read env vars inside this function to ensure up-to-date checks
@@ -43,7 +43,7 @@ export async function validateAIOutput(
   if (OPENAI_API_KEY && primaryModelName !== allModels.openai) validatorModels.push(allModels.openai);
   if (ANTHROPIC_API_KEY) {
        // Add Anthropic models if available and not the primary model
-       if (primaryModelName !== allModels.anthropic) validatorModels.push(allModels.anthropic);
+       if (primaryModelName !== allModels.anthropicHaiku) validatorModels.push(allModels.anthropicHaiku);
        // Also consider Sonnet for validation if it wasn't the primary model
        if (primaryModelName !== allModels.anthropicSonnet) validatorModels.push(allModels.anthropicSonnet);
   }

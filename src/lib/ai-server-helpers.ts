@@ -18,10 +18,10 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
   const allModels = {
     googleFast: 'googleai/gemini-1.5-flash',
     googlePro: 'googleai/gemini-1.5-pro',
-    openaiMini: 'openai/gpt-4o-mini',
+    openaiMini: 'openai/gpt-4o-mini', // Renamed for clarity
     openaiFull: 'openai/gpt-4o',
     anthropicHaiku: 'anthropic/claude-3-haiku-20240307',
-    anthropicSonnet: 'anthropic/claude-3-5-sonnet-20240620', // Use the correct identifier with date
+    anthropicSonnet: 'claude-3-7-sonnet-20250219', // UPDATED Model ID
     anthropicOpus: 'anthropic/claude-3-opus-20240229'
   };
 
@@ -53,7 +53,7 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
     console.log(`[AI Model Selection] Choosing ${allModels.anthropicOpus} for long/analysis task.`);
     return allModels.anthropicOpus;
   }
-  // Use Sonnet 3.5 for creative tasks or long context
+  // Use Sonnet for creative tasks or long context
   if ( (promptLower.includes('creative') || promptLower.includes('story') || promptLower.includes('marketing') || promptLength > 1500) && availableModels.includes(allModels.anthropicSonnet) ) {
       console.log(`[AI Model Selection] Choosing ${allModels.anthropicSonnet} for creative/long task.`);
       return allModels.anthropicSonnet;
@@ -67,7 +67,7 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
 
   // Fallback logic - Prioritize cost-effective models
 
-  // Default general model: Sonnet 3.5
+  // Default general model: Sonnet
   if (availableModels.includes(allModels.anthropicSonnet)) {
     console.log(`[AI Model Selection] Defaulting to ${allModels.anthropicSonnet}.`);
     return allModels.anthropicSonnet;
