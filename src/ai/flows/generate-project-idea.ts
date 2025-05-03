@@ -8,9 +8,8 @@
  * - GenerateProjectIdeaOutput - Output type including cost details and status.
  */
 
-import { ai } from '@/ai/ai-instance'; // Use instance from lib
-import { chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import helpers
-import { validateAIOutput } from '@/ai/validate-output'; // Import validation function
+import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
+import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
 import { z } from 'zod';
 import {
   GenerateProjectIdeaInputSchema,
