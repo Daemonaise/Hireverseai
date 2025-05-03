@@ -79,7 +79,8 @@ const gradeAssessmentAnswerFlow = ai.defineFlow<
 
         // 2. Define the prompt using the chosen model and template
         const gradeAnswerPrompt = ai.definePrompt({
-            name: `gradeAnswerPrompt_${input.questionId}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name
+            // Correctly use backticks for template literal
+            name: `gradeAnswerPrompt_${input.questionId}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
             input: { schema: GradeAssessmentAnswerInputSchema },
             output: { schema: AIGradeOutputSchema },
             prompt: gradeAnswerPromptTemplate,

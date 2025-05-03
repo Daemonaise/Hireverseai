@@ -24,10 +24,10 @@ export async function validateAIOutput(
   primaryModelName: string
 ): Promise<{ allValid: boolean; results: ValidationResult[] }> {
 
-  console.log("[AI Validation] Starting validation process...");
+  console.log(`[AI Validation] Starting validation process...`);
   console.log(`[AI Validation] Primary Model: ${primaryModelName}`);
-  console.log("[AI Validation] Original Prompt (first 100 chars):", originalPrompt.substring(0, 100) + "...");
-  console.log("[AI Validation] Original Output (first 100 chars):", originalOutput.substring(0, 100) + "...");
+  console.log(`[AI Validation] Original Prompt (first 100 chars):`, originalPrompt.substring(0, 100) + "...");
+  console.log(`[AI Validation] Original Output (first 100 chars):`, originalOutput.substring(0, 100) + "...");
 
   const validatorModels: string[] = [];
   const allModels = {
@@ -49,7 +49,7 @@ export async function validateAIOutput(
   if (ANTHROPIC_API_KEY && !primaryModelName.startsWith('anthropic/')) validatorModels.push(allModels.anthropic[0]);
 
   if (validatorModels.length === 0) {
-    console.warn("[AI Validation] No other models available for cross-validation. Skipping.");
+    console.warn(`[AI Validation] No other models available for cross-validation. Skipping.`);
     return { allValid: true, results: [] }; // Assume valid if no validators
   }
 
@@ -79,10 +79,11 @@ Respond ONLY with the JSON object: {"isValid": boolean, "reasoning": string}`;
       // Define the prompt dynamically within the loop for validation
       // Use the imported `ai` instance to define the prompt
       const validationPrompt = ai.definePrompt({
-          name: `validationPrompt_${modelName.replace(/[^a-zA-Z0-9]/g, '_')}`, // Unique name for dynamic prompt definition
+          // Correctly use backticks for template literal
+          name: `validationPrompt_${modelName.replace(/[^a-zA-Z0-9]/g, '_')}`,
           input: { schema: z.object({ originalPrompt: z.string(), originalOutput: z.string() }) },
           output: { schema: ValidationSchema }, // Request JSON output
-          prompt: validationPromptTemplate, // Use the template string
+          prompt: validationPromptTemplate, // Use the template variable directly
           model: modelName, // Specify the model string directly
       });
 
@@ -92,8 +93,6 @@ Respond ONLY with the JSON object: {"isValid": boolean, "reasoning": string}`;
       // Destructure only 'output' as 'debugInfo' is not guaranteed
       const { output } = await validationPrompt({ originalPrompt, originalOutput });
       console.log(`[AI Validation] Raw output from ${modelName}:`, JSON.stringify(output, null, 2)); // Log raw output
-
-      // Removed logging for debugInfo as it's not consistently available
 
       if (output) {
          // Attempt to parse the output against the schema
@@ -117,17 +116,15 @@ Respond ONLY with the JSON object: {"isValid": boolean, "reasoning": string}`;
         // Handle Zod parsing errors or other generation errors
         console.error(`[AI Validation] Error validating with ${modelName}:`, error.message);
         // Log the error object for more details if needed
-        console.error("[AI Validation] Full error object:", error);
+        console.error(`[AI Validation] Full error object:`, error);
         validationResults.push({ isValid: false, reasoning: `Error during validation with ${modelName}: ${error.message}` });
         allValid = false;
     }
-    console.log(`[AI Validation] --- Finished validation with ${modelName} ---`); // Fixed unterminated template literal
+    console.log(`[AI Validation] --- Finished validation with ${modelName} ---`);
   }
 
-  // Fixed corrupted logging line
   console.log(`[AI Validation] Final overall validation result: allValid=${allValid}`);
-  console.log("[AI Validation] Detailed results:", JSON.stringify(validationResults, null, 2));
+  console.log(`[AI Validation] Detailed results:`, JSON.stringify(validationResults, null, 2));
 
-  // Added explicit return statement
   return { allValid, results: validationResults };
 }

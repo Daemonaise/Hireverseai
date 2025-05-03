@@ -127,6 +127,7 @@ Answer: ${a.answerText}
 
           // 1b. Define scoring prompt
           const scoreSingleSkillPrompt = ai.definePrompt({
+             // Correctly use backticks for template literal
              name: `scoreSingleSkillPrompt_${skill}_${scoreModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
              input: { schema: SingleSkillScoreInputSchema },
              output: { schema: SingleSkillScoreAIOutputSchema },
@@ -196,6 +197,7 @@ Answer: ${a.answerText}
 
             // 2b. Define feedback prompt
             const aggregateFeedbackPrompt = ai.definePrompt({
+                // Correctly use backticks for template literal
                 name: `aggregateFeedbackPrompt_${input.testId}_${feedbackModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
                 input: { schema: AggregateFeedbackInputSchema },
                 output: { schema: AggregateFeedbackAIOutputSchema },
@@ -237,8 +239,8 @@ Answer: ${a.answerText}
         }
     } else {
          finalFeedback = input.answers.length === 0
-            ? "No answers submitted for scoring."
-            : "Error: Could not score any skills.";
+            ? `No answers submitted for scoring.`
+            : `Error: Could not score any skills.`;
         console.warn(`${finalFeedback} for test ${input.testId}`);
     }
 

@@ -17,8 +17,6 @@ import {
   QuestionSchema,
   type Question,
 } from '@/ai/schemas/administer-skill-test-schema';
-// Removed unused schema import
-// import { SingleSkillScoreAIOutputSchema } from '@/ai/schemas/score-skill-test-schema';
 
 // Export types separately
 export type { AdministerSkillTestInput, AdministerSkillTestOutput, Question };
@@ -76,7 +74,8 @@ const administerSkillTestFlow = ai.defineFlow<
 
         // 2. Define the prompt using the chosen model and template
         const skillQuestionPrompt = ai.definePrompt({
-          name: `skillQuestionPrompt_${skill}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name
+          // Correctly use backticks for template literal
+          name: `skillQuestionPrompt_${skill}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
           input: { schema: SingleQuestionInputSchema },
           output: { schema: SingleQuestionOutputSchema },
           prompt: skillQuestionPromptTemplate,
@@ -131,7 +130,7 @@ const administerSkillTestFlow = ai.defineFlow<
     }
 
     if (questions.length === 0) {
-      console.error("No questions generated. Returning empty test.");
+      console.error(`No questions generated. Returning empty test.`);
       return {
         testId,
         instructions: 'Error: Could not generate test questions. Please try again later.',

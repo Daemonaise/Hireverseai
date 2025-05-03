@@ -96,7 +96,7 @@ const matchFreelancerFlow = ai.defineFlow<
     try {
       // --- Skill Extraction (if needed) ---
       if (!skills || skills.length === 0) {
-        console.log("No skills provided, extracting from brief...");
+        console.log(`No skills provided, extracting from brief...`);
         let skillExtractionModel: string;
         let skillOutput: z.infer<typeof ExtractSkillsAIOutputSchema> | null = null;
         try {
@@ -106,6 +106,7 @@ const matchFreelancerFlow = ai.defineFlow<
 
           // 1b. Define skill extraction prompt
           const skillExtractionPrompt = ai.definePrompt({
+              // Correctly use backticks for template literal
               name: `skillExtractionPrompt_${skillExtractionModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
               input: { schema: z.object({ projectBrief: z.string().min(20) }) },
               output: { schema: ExtractSkillsAIOutputSchema },
@@ -140,7 +141,7 @@ const matchFreelancerFlow = ai.defineFlow<
 
       // Ensure skills is an array before proceeding
       if (!Array.isArray(skills) || skills.length === 0) {
-        throw new Error("Cannot proceed without required skills.");
+        throw new Error(`Cannot proceed without required skills.`);
       }
 
       // --- Estimation and Freelancer Selection ---
@@ -154,6 +155,7 @@ const matchFreelancerFlow = ai.defineFlow<
 
         // 2b. Define estimation prompt
         const estimationPrompt = ai.definePrompt({
+            // Correctly use backticks for template literal
             name: `estimationPrompt_${estimationModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
             input: { schema: EstimationInputSchema },
             output: { schema: EstimateAndSelectAIOutputSchema },
@@ -229,7 +231,7 @@ const matchFreelancerFlow = ai.defineFlow<
 
     } catch (error: any) {
       // Catch errors from skill extraction, estimation, or calculation
-      console.error('Error during matchFreelancer flow:', error?.message ?? error);
+      console.error(`Error during matchFreelancer flow:`, error?.message ?? error);
       return {
         projectId: projectId, // Include projectId even in error state if known
         reasoning: `An error occurred during the matching process: ${error instanceof Error ? error.message : String(error)}`,

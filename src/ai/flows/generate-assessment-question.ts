@@ -81,7 +81,8 @@ const generateAssessmentQuestionFlow = ai.defineFlow<
 
       // 2. Define the prompt using the chosen model and template
       const generateQuestionPrompt = ai.definePrompt({
-        name: `generateQuestionPrompt_${input.primarySkill}_${input.difficulty}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name
+        // Correctly use backticks for template literal
+        name: `generateQuestionPrompt_${input.primarySkill}_${input.difficulty}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
         input: { schema: GenerateAssessmentQuestionInputSchema.extend({ timestamp: z.number() }) },
         output: { schema: AIQuestionOutputSchema },
         prompt: generateQuestionPromptTemplate,

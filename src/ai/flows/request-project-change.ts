@@ -70,7 +70,8 @@ const estimateProjectChangeImpactFlow = ai.defineFlow<
 
         // 2. Define the prompt using the chosen model and template
         const estimateChangePrompt = ai.definePrompt({
-            name: `estimateChangePrompt_${input.projectId}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name
+            // Correctly use backticks for template literal
+            name: `estimateChangePrompt_${input.projectId}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
             input: { schema: RequestProjectChangeInputSchema },
             output: { schema: RequestProjectChangeOutputSchema },
             prompt: estimateChangePromptTemplate,

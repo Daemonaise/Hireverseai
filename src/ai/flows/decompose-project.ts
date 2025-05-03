@@ -89,6 +89,7 @@ export async function decomposeProject(
 
     // Define the model for generation
     const decomposePrompt = ai.definePrompt({
+        // Correctly use backticks for template literal
         name: `decomposePrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
         model: primaryModel,
         input: { schema: z.object({ promptContent: z.string() }) }, // Pass the rendered content

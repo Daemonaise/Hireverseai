@@ -52,7 +52,8 @@ const determinePrimarySkillFlow = ai.defineFlow<
 
             // 2. Define the prompt using the chosen model and template
             const determineSkillPrompt = ai.definePrompt({
-                name: `determineSkillPrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name
+                // Correctly use backticks for template literal
+                name: `determineSkillPrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
                 input: { schema: DeterminePrimarySkillInputSchema },
                 output: { schema: DeterminePrimarySkillOutputSchema },
                 prompt: determineSkillPromptTemplate,

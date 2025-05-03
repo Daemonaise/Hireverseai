@@ -9,7 +9,7 @@
  * - GenerateProjectIdeaOutput - Output type including cost details and status.
  */
 
-import { ai } from '@/lib/ai'; // Import the configured ai instance and helpers
+import { ai } from '@/lib/ai'; // Import the configured ai instance
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import model selector
 import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
 import { z } from 'zod';
@@ -86,13 +86,13 @@ const generateProjectIdeaFlow = ai.defineFlow<
       try {
         // 1. Choose the primary model for generation
         const promptContext = `Generate project idea. Hint: ${input.industryHint || 'Any'}. Random: ${randomNumber}`;
-        // chooseModelBasedOnPrompt needs 'use server' which it has
         primaryModel = await chooseModelBasedOnPrompt(promptContext);
         console.log(`Using model ${primaryModel} for project idea generation (attempt ${attempts}).`);
 
         // 2. Define the prompt using the chosen model and template
         const projectIdeaPrompt = ai.definePrompt({
-          name: `generateProjectIdeaPrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name
+          // Correctly use backticks for template literal
+          name: `generateProjectIdeaPrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
           model: primaryModel, // Explicitly specify the model here
           input: { schema: PromptInputSchema }, // Use the extended schema here
           output: { schema: GenerateProjectIdeaAIOutputSchema }, // Expect AI to output in this format
@@ -100,11 +100,9 @@ const generateProjectIdeaFlow = ai.defineFlow<
         });
 
         // 3. Call the defined prompt with the input and the random number
-        // Assign to the outer promptInput variable
         promptInput = { ...input, randomNumber };
 
-        // *** ADDED LOGGING HERE ***
-        console.log('>>> Calling projectIdeaPrompt with input:', JSON.stringify(promptInput));
+        console.log(`>>> Calling projectIdeaPrompt with input:`, JSON.stringify(promptInput));
 
         const { output: aiOutput } = await projectIdeaPrompt(promptInput); // <--- Error seems to occur here or inside
 
@@ -112,7 +110,6 @@ const generateProjectIdeaFlow = ai.defineFlow<
           throw new Error(`AI (${primaryModel}) returned null or undefined output.`);
         }
 
-        // *** ADDED RAW OUTPUT LOGGING ***
         console.log(`Raw AI Output (Attempt ${attempts}, Model: ${primaryModel}):`, JSON.stringify(aiOutput, null, 2));
 
         // 4. Validate the structured output against the AI schema
@@ -122,7 +119,7 @@ const generateProjectIdeaFlow = ai.defineFlow<
          if (!validationResult.success) {
              const errorDetails = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
              lastError = `Invalid JSON structure received from ${primaryModel} (attempt ${attempts}): ${errorDetails}`;
-             console.error(lastError, "Raw Output:", rawResponse);
+             console.error(lastError, `Raw Output:`, rawResponse);
              if (attempts === MAX_ATTEMPTS) {
                 throw new Error(`Failed to get valid JSON after ${MAX_ATTEMPTS} attempts. Last error: ${lastError}. Raw response logged above.`);
              }
@@ -138,13 +135,12 @@ const generateProjectIdeaFlow = ai.defineFlow<
              aiResultData.estimatedHours = 1;
          }
 
-         // 5. Validate the output with other models <<<< RE-ENABLED >>>>
+         // 5. Validate the output with other models
          const originalPromptText = projectIdeaPromptTemplate
               .replace('{{{randomNumber}}}', randomNumber)
               // Corrected string replacement using template literals
               .replace(`{{#if industryHint}}Focus on the industry: '{{{industryHint}}}'.{{/if}}`, input.industryHint ? `Focus on the industry: '${input.industryHint}'.` : '');
 
-         // validateAIOutput needs 'use server' which it has
          const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiResultData), primaryModel); // Use validated data
 
          if (!validation.allValid) {
@@ -160,8 +156,6 @@ const generateProjectIdeaFlow = ai.defineFlow<
 
 
       } catch (err: any) {
-        // *** ADDED DETAILED ERROR LOGGING ***
-        // Now promptInput is accessible here
         console.error(`Error during AI call or processing (attempt ${attempts}) for promptInput:`, JSON.stringify(promptInput)); // Log the input on error
         console.error(`Error details:`, err); // Log the full error object
 
@@ -174,13 +168,13 @@ const generateProjectIdeaFlow = ai.defineFlow<
            if (lastError?.includes("Invalid JSON structure")) {
                 finalErrorMessage += ` Last error: Invalid AI response structure. Details: ${lastError}`;
            } else if (lastError?.includes("API key not valid")) {
-               finalErrorMessage += " Last error: Invalid API Key.";
+               finalErrorMessage += ` Last error: Invalid API Key.`;
            } else if (lastError?.includes("cross-validation")) {
-                finalErrorMessage += " Last error: AI output failed cross-validation.";
+                finalErrorMessage += ` Last error: AI output failed cross-validation.`;
            } else {
                finalErrorMessage += ` Last error: ${lastError}.`;
            }
-            console.error(finalErrorMessage, "Raw response/error:", rawResponse);
+            console.error(finalErrorMessage, `Raw response/error:`, rawResponse);
             // Return error status to the client instead of throwing
              return {
                status: 'error',
@@ -233,7 +227,7 @@ const generateProjectIdeaFlow = ai.defineFlow<
     try {
        GenerateProjectIdeaOutputSchema.parse(result);
     } catch (finalValidationError: any) {
-         console.error("Final output validation failed:", finalValidationError);
+         console.error(`Final output validation failed:`, finalValidationError);
          return {
              status: 'error',
              reasoning: `Internal validation failed after generation: ${finalValidationError.message}`,
@@ -243,7 +237,7 @@ const generateProjectIdeaFlow = ai.defineFlow<
          };
     }
 
-    console.log("Successfully generated and validated project idea:", result.idea);
+    console.log(`Successfully generated and validated project idea:`, result.idea);
     return result;
   }
 );
