@@ -15,14 +15,13 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
   const availableModels: string[] = [];
 
   // Updated model identifiers as per user request
-  // Note: Corrected anthropic sonnet identifier (removed date initially, will check if this works)
   const allModels = {
     googleFast: 'googleai/gemini-1.5-flash', // Use 1.5 Flash
     googlePro: 'googleai/gemini-1.5-pro',
     openaiMini: 'openai/gpt-4o-mini', // Updated mini model
     openaiFull: 'openai/gpt-4o', // Updated full model
     anthropicHaiku: 'anthropic/claude-3-haiku-20240307', // Keep Haiku
-    anthropicSonnet: 'anthropic/claude-3.5-sonnet', // Corrected Sonnet 3.5 identifier
+    anthropicSonnet: 'anthropic/claude-3-5-sonnet-20240620', // Corrected Sonnet 3.5 identifier with date
     anthropicOpus: 'anthropic/claude-3-opus-20240229' // Keep Opus
   };
 
@@ -51,7 +50,7 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
   }
    // Use Opus for deep analysis
    if ( (promptLength > 1500 || promptLower.includes('analysis') || promptLower.includes('report')) && availableModels.includes(allModels.anthropicOpus) ) {
-    console.log("[AI Model Selection] Choosing anthropic/claude-3-opus-20240229 for long/analysis task.");
+    console.log(`[AI Model Selection] Choosing ${allModels.anthropicOpus} for long/analysis task.`);
     return allModels.anthropicOpus;
   }
   // Use Sonnet 3.5 for creative tasks or long context
@@ -61,7 +60,7 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
   }
   // Use Gemini Pro for high-quality reasoning if not Opus or Sonnet
   if ( (promptLower.includes('reasoning') || promptLower.includes('complex problem')) && availableModels.includes(allModels.googlePro) ) {
-      console.log("[AI Model Selection] Choosing googleai/gemini-1.5-pro for reasoning task.");
+      console.log(`[AI Model Selection] Choosing ${allModels.googlePro} for reasoning task.`);
       return allModels.googlePro;
   }
 
@@ -75,12 +74,12 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
   }
   // Next fallback: Gemini Flash
   if (availableModels.includes(allModels.googleFast)) {
-    console.log("[AI Model Selection] Fallback to googleai/gemini-1.5-flash.");
+    console.log(`[AI Model Selection] Fallback to ${allModels.googleFast}.`);
     return allModels.googleFast;
   }
   // Next fallback: GPT-4o Mini
   if (availableModels.includes(allModels.openaiMini)) {
-    console.log("[AI Model Selection] Fallback to openai/gpt-4o-mini.");
+    console.log(`[AI Model Selection] Fallback to ${allModels.openaiMini}.`);
     return allModels.openaiMini;
   }
   // Next fallback: Anthropic Haiku

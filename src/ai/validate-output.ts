@@ -29,7 +29,8 @@ export async function validateAIOutput(
   const allModels = {
     google: 'googleai/gemini-1.5-flash', // Use Flash for faster validation
     openai: 'openai/gpt-4o-mini', // Use Mini for faster/cheaper validation
-    anthropic: 'anthropic/claude-3-haiku-20240307' // Use Haiku for faster/cheaper validation
+    anthropic: 'anthropic/claude-3-haiku-20240307', // Use Haiku for faster/cheaper validation
+    anthropicSonnet: 'anthropic/claude-3-5-sonnet-20240620' // Add Sonnet 3.5 with date for validation
   };
 
   // Re-read env vars inside this function to ensure up-to-date checks
@@ -40,7 +41,13 @@ export async function validateAIOutput(
   // Determine validator models based on availability and ensuring not to validate with the primary model itself
   if (GOOGLE_API_KEY && primaryModelName !== allModels.google) validatorModels.push(allModels.google);
   if (OPENAI_API_KEY && primaryModelName !== allModels.openai) validatorModels.push(allModels.openai);
-  if (ANTHROPIC_API_KEY && primaryModelName !== allModels.anthropic) validatorModels.push(allModels.anthropic);
+  if (ANTHROPIC_API_KEY) {
+       // Add Anthropic models if available and not the primary model
+       if (primaryModelName !== allModels.anthropic) validatorModels.push(allModels.anthropic);
+       // Also consider Sonnet for validation if it wasn't the primary model
+       if (primaryModelName !== allModels.anthropicSonnet) validatorModels.push(allModels.anthropicSonnet);
+  }
+
 
   if (validatorModels.length === 0) {
     console.warn(`[AI Validation] No other models available for cross-validation. Skipping.`);
