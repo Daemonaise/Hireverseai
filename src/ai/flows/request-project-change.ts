@@ -3,25 +3,22 @@
  * @fileOverview Estimates the impact of a client's project change request on timeline and cost.
  *
  * Exports:
- * - estimateProjectChangeImpact - A function that handles the estimation process.
+ * - estimateProjectChangeImpact - A function that handles the estimation process (async function).
  */
 
 import { ai } from '@/lib/ai'; // Import the configured ai instance
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
+import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
 import { z } from 'zod';
 import {
   RequestProjectChangeInputSchema,
   type RequestProjectChangeInput,
   RequestProjectChangeOutputSchema,
   type RequestProjectChangeOutput,
-} from '@/ai/schemas/request-project-change-schema';
-
-// Export types separately
-export type { RequestProjectChangeInput, RequestProjectChangeOutput };
+} from '@/ai/schemas/request-project-change-schema'; // Import types/schemas from separate file
 
 
-// --- Define the Prompt Template ---
+// Define prompt template (local constant)
 const estimateChangePromptTemplate = `You are an AI Project Manager analyzing a change request for an ongoing project.
 
 Project Details:
@@ -49,7 +46,7 @@ Return ONLY a JSON object matching exactly this structure:
 No extra explanations, no markdown, no formatting outside the JSON object. Ensure 'estimatedAdditionalCost' is a non-negative number.`;
 
 
-// --- Define the Flow ---
+// --- Define the Flow (local to this file, not exported) ---
 const estimateProjectChangeImpactFlow = ai.defineFlow<
   typeof RequestProjectChangeInputSchema,
   typeof RequestProjectChangeOutputSchema
@@ -70,7 +67,6 @@ const estimateProjectChangeImpactFlow = ai.defineFlow<
 
         // 2. Define the prompt using the chosen model and template
         const estimateChangePrompt = ai.definePrompt({
-            // Correctly use backticks for template literal
             name: `estimateChangePrompt_${input.projectId}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
             input: { schema: RequestProjectChangeInputSchema },
             output: { schema: RequestProjectChangeOutputSchema },
@@ -86,7 +82,6 @@ const estimateProjectChangeImpactFlow = ai.defineFlow<
       }
 
       // 4. Validate AI output structure (already done by prompt definition)
-      // Additional defensive checks
       if (aiOutput.estimatedAdditionalCost < 0) {
         console.warn(`AI returned negative cost (${aiOutput.estimatedAdditionalCost}). Setting to 0.`);
         aiOutput.estimatedAdditionalCost = 0; // Correct negative cost
@@ -103,11 +98,11 @@ const estimateProjectChangeImpactFlow = ai.defineFlow<
          .replace('{{{changeDescription}}}', input.changeDescription)
          .replace('{{{priority}}}', input.priority);
 
+       // validateAIOutput is async and exported from its own 'use server' file
        const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
 
        if (!validation.allValid) {
            console.warn(`Validation failed for project change estimation ${input.projectId}. Reasoning:`, validation.results);
-           // Optionally, retry or use fallback
            throw new Error(`Project change estimation for ${input.projectId} failed cross-validation.`);
        }
 
@@ -123,7 +118,8 @@ const estimateProjectChangeImpactFlow = ai.defineFlow<
   }
 );
 
-// --- Main Exported Function (Wrapper) ---
+// --- Main Exported Function (Wrapper - Async) ---
+// This is the only export from this file.
 export async function estimateProjectChangeImpact(input: RequestProjectChangeInput): Promise<RequestProjectChangeOutput> {
   // Input validation handled by the flow
   RequestProjectChangeInputSchema.parse(input);

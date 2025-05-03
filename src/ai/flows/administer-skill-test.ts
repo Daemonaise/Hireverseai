@@ -3,11 +3,11 @@
  * @fileOverview Generates skill test questions for freelancers based on their selected skills.
  *
  * Exports:
- * - administerSkillTest - Generates and returns test questions.
+ * - administerSkillTest - Generates and returns test questions (async function).
  */
 import { ai } from '@/lib/ai'; // Import the configured ai instance
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
+import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
 import { z } from 'zod';
 import {
   AdministerSkillTestInputSchema,
@@ -16,13 +16,9 @@ import {
   type AdministerSkillTestOutput,
   QuestionSchema,
   type Question,
-} from '@/ai/schemas/administer-skill-test-schema';
+} from '@/ai/schemas/administer-skill-test-schema'; // Import types/schemas from separate file
 
-// Export types separately
-export type { AdministerSkillTestInput, AdministerSkillTestOutput, Question };
-
-
-// --- Define the Prompt Template (without model) ---
+// Define schemas used internally within the flow (not exported)
 const SingleQuestionInputSchema = z.object({
   skill: z.string(),
   freelancerId: z.string(),
@@ -47,7 +43,7 @@ Return ONLY a JSON object with:
 Do NOT add any extra explanations outside the JSON object. Ensure 'questionText' is at least 10 characters long.`;
 
 
-// --- Define the Flow ---
+// --- Define the Flow (local to this file, not exported) ---
 const administerSkillTestFlow = ai.defineFlow<
   typeof AdministerSkillTestInputSchema,
   typeof AdministerSkillTestOutputSchema
@@ -73,8 +69,8 @@ const administerSkillTestFlow = ai.defineFlow<
         console.log(`Using model ${primaryModel} for generation.`);
 
         // 2. Define the prompt using the chosen model and template
+        // Defined inside the loop/async function to use the selected model
         const skillQuestionPrompt = ai.definePrompt({
-          // Correctly use backticks for template literal
           name: `skillQuestionPrompt_${skill}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
           input: { schema: SingleQuestionInputSchema },
           output: { schema: SingleQuestionOutputSchema },
@@ -95,6 +91,7 @@ const administerSkillTestFlow = ai.defineFlow<
               .replace('{{{skill}}}', skill)
               .replace('{{{freelancerId}}}', input.freelancerId);
 
+          // validateAIOutput is async and exported from its own 'use server' file
           const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
 
           if (!validation.allValid) {
@@ -153,7 +150,8 @@ const administerSkillTestFlow = ai.defineFlow<
 );
 
 
-// --- Main Exported Function (Wrapper) ---
+// --- Main Exported Function (Wrapper - Async) ---
+// This is the only export from this file.
 export async function administerSkillTest(input: AdministerSkillTestInput): Promise<AdministerSkillTestOutput> {
   // Validation is implicitly handled by Zod schema in the Flow definition,
   // but can be done here too for immediate feedback if called directly.

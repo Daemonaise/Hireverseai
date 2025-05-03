@@ -37,9 +37,11 @@ if (ANTHROPIC_API_KEY_INIT) {
 }
 
 // --- AI Instance Configuration ---
+// Only export the 'ai' instance from this file.
 export const ai = genkit({
   plugins,
   // logLevel: 'debug', // Uncomment for detailed Genkit logs
 });
 
 // Removed chooseModelBasedOnPrompt function - moved to src/lib/ai-server-helpers.ts
+// Removed validateAIOutput function - moved to src/ai/validate-output.ts

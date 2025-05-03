@@ -3,31 +3,28 @@
  * @fileOverview Generates a single adaptive assessment question.
  *
  * Exports:
- * - generateAssessmentQuestion - A function that generates one question.
+ * - generateAssessmentQuestion - A function that generates one question (async function).
  */
 
 import { ai } from '@/lib/ai'; // Import the configured ai instance
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
+import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
 import { z } from 'zod';
 import {
   GenerateAssessmentQuestionInputSchema,
   type GenerateAssessmentQuestionInput,
   GenerateAssessmentQuestionOutputSchema,
   type GenerateAssessmentQuestionOutput,
-  type DifficultyLevel,
-} from '@/ai/schemas/generate-assessment-question-schema'; // Import DifficultyLevel type
-
-// Export types separately
-export type { GenerateAssessmentQuestionInput, GenerateAssessmentQuestionOutput, DifficultyLevel };
+  type DifficultyLevel, // Import DifficultyLevel type
+} from '@/ai/schemas/generate-assessment-question-schema'; // Import types/schemas from separate file
 
 
-// --- Define the Prompt Template ---
-// Schema for the AI's direct output (just the question text)
+// Define internal schema (not exported)
 const AIQuestionOutputSchema = z.object({
   questionText: z.string().min(10, "Question text must be at least 10 characters."),
 });
 
+// Define prompt template (local constant)
 const generateQuestionPromptTemplate = `You are an AI expert creating adaptive assessment questions for freelancers.
 Generate exactly ONE practical and relevant question for a freelancer (ID: {{{freelancerId}}}) based on their primary skill: {{{primarySkill}}}.
 Their other claimed skills are:
@@ -57,7 +54,7 @@ Output ONLY a JSON object strictly like this:
 No extra text outside the JSON.`;
 
 
-// --- Define the Flow ---
+// --- Define the Flow (local to this file, not exported) ---
 const generateAssessmentQuestionFlow = ai.defineFlow<
   typeof GenerateAssessmentQuestionInputSchema,
   typeof GenerateAssessmentQuestionOutputSchema
@@ -81,7 +78,6 @@ const generateAssessmentQuestionFlow = ai.defineFlow<
 
       // 2. Define the prompt using the chosen model and template
       const generateQuestionPrompt = ai.definePrompt({
-        // Correctly use backticks for template literal
         name: `generateQuestionPrompt_${input.primarySkill}_${input.difficulty}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
         input: { schema: GenerateAssessmentQuestionInputSchema.extend({ timestamp: z.number() }) },
         output: { schema: AIQuestionOutputSchema },
@@ -111,11 +107,11 @@ const generateAssessmentQuestionFlow = ai.defineFlow<
                          ? `Avoid generating questions similar to:\n${input.previousQuestions.map(q => `- ${q}`).join('\n')}`
                          : '');
 
+       // validateAIOutput is async and exported from its own 'use server' file
        const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
 
        if (!validation.allValid) {
            console.warn(`Validation failed for question generation (Skill: ${input.primarySkill}, Difficulty: ${input.difficulty}). Reasoning:`, validation.results);
-           // Optionally, retry or use fallback
            throw new Error(`Question generation for ${input.primarySkill} (${input.difficulty}) failed cross-validation.`);
        }
 
@@ -143,7 +139,8 @@ const generateAssessmentQuestionFlow = ai.defineFlow<
   }
 );
 
-// --- Main Exported Function (Wrapper) ---
+// --- Main Exported Function (Wrapper - Async) ---
+// This is the only export from this file.
 export async function generateAssessmentQuestion(input: GenerateAssessmentQuestionInput): Promise<GenerateAssessmentQuestionOutput> {
   // Input validation handled by the flow
   GenerateAssessmentQuestionInputSchema.parse(input);

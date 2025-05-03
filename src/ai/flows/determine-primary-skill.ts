@@ -1,22 +1,23 @@
 'use server';
+/**
+ * @fileOverview Determines primary and extracts all skills from a description.
+ * Exports:
+ * - determinePrimarySkill (async function)
+ */
 
 import { ai } from '@/lib/ai'; // Import the configured ai instance
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
+import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
 import { z } from 'zod';
 import {
   DeterminePrimarySkillInputSchema,
   type DeterminePrimarySkillInput,
   DeterminePrimarySkillOutputSchema,
   type DeterminePrimarySkillOutput,
-} from '@/ai/schemas/determine-primary-skill-schema';
+} from '@/ai/schemas/determine-primary-skill-schema'; // Import types/schemas from separate file
 
-// Export types
-export type { DeterminePrimarySkillInput, DeterminePrimarySkillOutput };
 
-// --- Cross-Validation Logic is now imported ---
-
-// --- Define the Prompt Template ---
+// Define prompt template (local constant)
 const determineSkillPromptTemplate = `You are analyzing a freelancer's skills description.
 Identify:
 1. The single most prominent (primary) skill.
@@ -32,7 +33,7 @@ Return ONLY a valid JSON object with the following structure:
 }`;
 
 
-// --- Define the Flow ---
+// --- Define the Flow (local to this file, not exported) ---
 const determinePrimarySkillFlow = ai.defineFlow<
     typeof DeterminePrimarySkillInputSchema,
     typeof DeterminePrimarySkillOutputSchema
@@ -52,7 +53,6 @@ const determinePrimarySkillFlow = ai.defineFlow<
 
             // 2. Define the prompt using the chosen model and template
             const determineSkillPrompt = ai.definePrompt({
-                // Correctly use backticks for template literal
                 name: `determineSkillPrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
                 input: { schema: DeterminePrimarySkillInputSchema },
                 output: { schema: DeterminePrimarySkillOutputSchema },
@@ -68,7 +68,7 @@ const determinePrimarySkillFlow = ai.defineFlow<
             }
 
             // 4. Validate the AI's output structure (already done by prompt definition)
-            // Additional checks if needed (e.g., ensuring skills aren't empty strings)
+            // Additional checks if needed
             if (!output.primarySkill) throw new Error("Primary skill cannot be empty.");
             if (!output.extractedSkills || output.extractedSkills.length === 0 || output.extractedSkills.some(s => !s)) {
                 throw new Error("Extracted skills cannot be empty or contain empty strings.");
@@ -78,11 +78,11 @@ const determinePrimarySkillFlow = ai.defineFlow<
             const originalPromptText = determineSkillPromptTemplate
                 .replace('{{{skillsDescription}}}', input.skillsDescription);
 
+            // validateAIOutput is async and exported from its own 'use server' file
             const validation = await validateAIOutput(originalPromptText, JSON.stringify(output), primaryModel);
 
             if (!validation.allValid) {
                 console.warn(`Validation failed for skill determination. Reasoning:`, validation.results);
-                // Optionally, retry or use fallback
                 throw new Error(`Skill determination failed cross-validation.`);
             }
 
@@ -98,7 +98,8 @@ const determinePrimarySkillFlow = ai.defineFlow<
 );
 
 
-// --- Main Exported Function (Wrapper) ---
+// --- Main Exported Function (Wrapper - Async) ---
+// This is the only export from this file.
 export async function determinePrimarySkill(
   input: DeterminePrimarySkillInput
 ): Promise<DeterminePrimarySkillOutput> {

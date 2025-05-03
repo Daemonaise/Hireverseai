@@ -15,7 +15,7 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
   const availableModels: string[] = [];
   const allModels = {
     google: 'googleai/gemini-1.5-flash', // Cost-effective baseline
-    openai: ['openai/gpt-4o-mini'], // Only use gpt-4o-mini for OpenAI
+    openai: ['openai/gpt-4o-mini', 'openai/gpt-4o'], // o3 mini high equivalent is likely gpt-4o-mini, keeping gpt-4o as option
     anthropic: ['anthropic/claude-3-haiku-20240307', 'anthropic/claude-3-5-sonnet-20240620'] // Haiku is cost-effective, Sonnet 3.5 is advanced
   };
 
@@ -31,13 +31,17 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
     return allModels.google; // Default fallback if possible
   }
 
-  // Specific routing for coding/development to OpenAI o4 mini (gpt-4o-mini)
+  // Specific routing for coding/development to OpenAI o3 mini (gpt-4o-mini)
   if ( (promptLower.includes('code') || promptLower.includes('```') || promptLower.includes('debug') || promptLower.includes('development') || promptLower.includes('software') || promptLower.includes('scripting')) && availableModels.includes('openai/gpt-4o-mini') ) {
      console.log("[AI Model Selection] Choosing openai/gpt-4o-mini for coding/dev task.");
      return 'openai/gpt-4o-mini';
   }
 
   // Prioritize specific models based on keywords if available
+  if ( (promptLower.includes('graphic design') || promptLower.includes('visual critique')) && availableModels.includes('openai/gpt-4o') ) { // Use full gpt-4o for visual tasks
+    console.log("[AI Model Selection] Choosing openai/gpt-4o for graphic design.");
+    return 'openai/gpt-4o';
+  }
   if ( (promptLength > 1500 || promptLower.includes('analysis') || promptLower.includes('report')) && availableModels.includes('anthropic/claude-3-5-sonnet-20240620') ) {
     console.log("[AI Model Selection] Choosing anthropic/claude-3-5-sonnet-20240620 for long/analysis task.");
     return 'anthropic/claude-3-5-sonnet-20240620';

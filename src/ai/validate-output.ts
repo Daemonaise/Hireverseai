@@ -1,18 +1,13 @@
 'use server';
 /**
  * @fileOverview Cross-validation logic for AI outputs.
+ * Exports:
+ * - validateAIOutput (async function)
  */
 
 import { ai } from '@/lib/ai'; // Import the base AI instance from the correct location
 import { z } from 'zod';
-
-// --- Zod Schema for Validation Output ---
-// Placed before the function that uses it
-const ValidationSchema = z.object({
-  isValid: z.boolean().describe("Whether the original output is valid and accurate based on the original request."),
-  reasoning: z.string().optional().describe("Explanation if invalid, or brief confirmation if valid."),
-});
-export type ValidationResult = z.infer<typeof ValidationSchema>;
+import { ValidationSchema, type ValidationResult } from '@/ai/schemas/validation-schema'; // Import schema and type
 
 /**
  * Performs cross-validation of an AI model's output using other available models.
@@ -55,6 +50,7 @@ export async function validateAIOutput(
 
   console.log(`[AI Validation] Attempting validation using models: ${validatorModels.join(', ')}`);
 
+  // Define the prompt template locally
   const validationPromptTemplate = `You are an AI evaluator. Assess if the following AI output accurately and completely fulfills the original request.
 Return ONLY a JSON object with keys "isValid" (boolean) and "reasoning" (string, explanation if invalid, or brief confirmation if valid).
 
@@ -79,8 +75,7 @@ Respond ONLY with the JSON object: {"isValid": boolean, "reasoning": string}`;
       // Define the prompt dynamically within the loop for validation
       // Use the imported `ai` instance to define the prompt
       const validationPrompt = ai.definePrompt({
-          // Correctly use backticks for template literal
-          name: `validationPrompt_${modelName.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          name: `validationPrompt_${modelName.replace(/[^a-zA-Z0-9]/g, '_')}`, // Correctly use backticks for template literal
           input: { schema: z.object({ originalPrompt: z.string(), originalOutput: z.string() }) },
           output: { schema: ValidationSchema }, // Request JSON output
           prompt: validationPromptTemplate, // Use the template variable directly
@@ -90,12 +85,10 @@ Respond ONLY with the JSON object: {"isValid": boolean, "reasoning": string}`;
 
       // Generate the validation result using the dynamically defined prompt
       console.log(`[AI Validation] Calling ${modelName} for validation...`);
-      // Destructure only 'output' as 'debugInfo' is not guaranteed
       const { output } = await validationPrompt({ originalPrompt, originalOutput });
       console.log(`[AI Validation] Raw output from ${modelName}:`, JSON.stringify(output, null, 2)); // Log raw output
 
       if (output) {
-         // Attempt to parse the output against the schema
          console.log(`[AI Validation] Parsing output from ${modelName}...`);
          const parsedOutput = ValidationSchema.parse(output);
          console.log(`[AI Validation] Parsed output from ${modelName}:`, parsedOutput);
@@ -107,15 +100,12 @@ Respond ONLY with the JSON object: {"isValid": boolean, "reasoning": string}`;
             console.log(`[AI Validation] ${modelName} reported VALID.`);
          }
       } else {
-        // Handle cases where the validator model returns null/undefined
         console.warn(`[AI Validation] Validator ${modelName} returned empty output.`);
         validationResults.push({ isValid: false, reasoning: `Validator ${modelName} failed to provide valid output.` });
         allValid = false;
       }
     } catch (error: any) {
-        // Handle Zod parsing errors or other generation errors
         console.error(`[AI Validation] Error validating with ${modelName}:`, error.message);
-        // Log the error object for more details if needed
         console.error(`[AI Validation] Full error object:`, error);
         validationResults.push({ isValid: false, reasoning: `Error during validation with ${modelName}: ${error.message}` });
         allValid = false;

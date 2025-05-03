@@ -1,12 +1,13 @@
 'use server';
-
 /**
  * @fileOverview Grades a single answer from an adaptive assessment.
+ * Exports:
+ * - gradeAssessmentAnswer (async function)
  */
 
 import { ai } from '@/lib/ai'; // Import the configured ai instance
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
+import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
 import { z } from 'zod';
 import {
   GradeAssessmentAnswerInputSchema,
@@ -15,16 +16,13 @@ import {
   type GradeAssessmentAnswerOutput,
   AnswerFlagsSchema, // Import enum schema
   type AnswerFlags,
-} from '@/ai/schemas/grade-assessment-answer-schema';
-
-// Export types cleanly
-export type { GradeAssessmentAnswerInput, GradeAssessmentAnswerOutput, AnswerFlags };
+} from '@/ai/schemas/grade-assessment-answer-schema'; // Import types/schemas from separate file
 
 
-// --- Define the Prompt Template ---
-// Schema for AI's direct output (excluding questionId)
+// --- Define internal schemas (not exported) ---
 const AIGradeOutputSchema = GradeAssessmentAnswerOutputSchema.omit({ questionId: true });
 
+// Define prompt template (local constant)
 const gradeAnswerPromptTemplate = `You are an expert AI evaluator grading a freelancer's skill test answer.
 
 Freelancer ID: {{{freelancerId}}}
@@ -58,7 +56,7 @@ STRICT OUTPUT: Return ONLY a JSON object matching this schema exactly:
 IMPORTANT: Do NOT include any explanatory text or extra formatting. Only output the JSON object. Ensure score is between 0 and 100.`;
 
 
-// --- Define the Flow ---
+// --- Define the Flow (local to this file, not exported) ---
 const gradeAssessmentAnswerFlow = ai.defineFlow<
   typeof GradeAssessmentAnswerInputSchema,
   typeof GradeAssessmentAnswerOutputSchema
@@ -79,7 +77,6 @@ const gradeAssessmentAnswerFlow = ai.defineFlow<
 
         // 2. Define the prompt using the chosen model and template
         const gradeAnswerPrompt = ai.definePrompt({
-            // Correctly use backticks for template literal
             name: `gradeAnswerPrompt_${input.questionId}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
             input: { schema: GradeAssessmentAnswerInputSchema },
             output: { schema: AIGradeOutputSchema },
@@ -91,11 +88,10 @@ const gradeAssessmentAnswerFlow = ai.defineFlow<
       const { output: aiOutput } = await gradeAnswerPrompt(input);
 
       if (!aiOutput) {
-        throw new Error(`AI (${primaryModel}) did not return valid JSON grading output.`);
+        throw new Error(`AI (${primaryModel}) failed to return valid JSON grading output.`);
       }
 
       // 4. Validate AI output structure (already done by prompt definition)
-      // Additional validation/clamping if needed
       if (aiOutput.score < 0 || aiOutput.score > 100) {
            console.warn(`AI returned score (${aiOutput.score}) outside 0-100 range. Clamping.`);
            aiOutput.score = Math.max(0, Math.min(100, aiOutput.score));
@@ -111,11 +107,11 @@ const gradeAssessmentAnswerFlow = ai.defineFlow<
             .replace('{{{questionText}}}', input.questionText)
             .replace('{{{answerText}}}', input.answerText);
 
+       // validateAIOutput is async and exported from its own 'use server' file
        const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
 
        if (!validation.allValid) {
            console.warn(`Validation failed for grading question ${input.questionId}. Reasoning:`, validation.results);
-           // Optionally, retry or use fallback
            throw new Error(`Grading for question ${input.questionId} failed cross-validation.`);
        }
 
@@ -143,7 +139,8 @@ const gradeAssessmentAnswerFlow = ai.defineFlow<
 );
 
 
-// --- Main Exported Function (Wrapper) ---
+// --- Main Exported Function (Wrapper - Async) ---
+// This is the only export from this file.
 export async function gradeAssessmentAnswer(input: GradeAssessmentAnswerInput): Promise<GradeAssessmentAnswerOutput> {
   // Input validation handled by the flow
   GradeAssessmentAnswerInputSchema.parse(input);

@@ -1,17 +1,14 @@
-
 'use server';
 /**
  * @fileOverview Generates freelance project ideas with cost estimation using AI.
  *
  * Exports:
- * - generateProjectIdea - Generates a project idea with cost breakdown.
- * - GenerateProjectIdeaInput - Input type (currently just optional industry hint).
- * - GenerateProjectIdeaOutput - Output type including cost details and status.
+ * - generateProjectIdea - Generates a project idea with cost breakdown (async function).
  */
 
 import { ai } from '@/lib/ai'; // Import the configured ai instance
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import model selector
-import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
+import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
 import { z } from 'zod';
 import {
   GenerateProjectIdeaInputSchema,
@@ -19,17 +16,15 @@ import {
   GenerateProjectIdeaOutputSchema, // Schema for the final flow output
   type GenerateProjectIdeaInput,
   type GenerateProjectIdeaOutput,
-} from '@/ai/schemas/generate-project-idea-schema';
+} from '@/ai/schemas/generate-project-idea-schema'; // Import types/schemas from separate file
 
-// Export types separately
-export type { GenerateProjectIdeaInput, GenerateProjectIdeaOutput };
 
-// --- Constants ---
+// --- Constants (local to this file) ---
 const PLATFORM_FEE         = 0.15; // 15%
 const HOURLY_RATE          = 65;   // Example hourly rate in USD
 const SUBSCRIPTION_MONTHS  = 6;    // Example subscription term
 
-// --- Define the Prompt Template ---
+// --- Define Prompt Template (local constant) ---
 const projectIdeaPromptTemplate = `CRITICAL: Your entire response MUST be ONLY a single, valid JSON object.
 Do NOT include ANY introductory text, concluding text, explanations, apologies, or markdown formatting like \`\`\`json unless specifically requested by the schema.
 Start the response immediately with '{' and end it immediately with '}'.
@@ -50,13 +45,12 @@ Strictly follow this JSON structure:
 REMEMBER: ONLY the JSON object. Absolutely no other text before or after the JSON. Verify the structure and types carefully, especially 'estimatedHours' which must be a number >= 1.`;
 
 
-// --- Define extended schema and inferred type ---
+// --- Define internal schema and inferred type (not exported) ---
 const PromptInputSchema = GenerateProjectIdeaInputSchema.extend({ randomNumber: z.string() });
 type PromptInputType = z.infer<typeof PromptInputSchema>;
 
 
-// --- Define the Flow ---
-// This internal flow definition should NOT be exported directly if the file is marked 'use server'
+// --- Define the Flow (local to this file, not exported) ---
 const generateProjectIdeaFlow = ai.defineFlow<
   typeof GenerateProjectIdeaInputSchema,
   typeof GenerateProjectIdeaOutputSchema
@@ -73,9 +67,7 @@ const generateProjectIdeaFlow = ai.defineFlow<
     let lastError: string | null = null;
     let rawResponse: string | null = null;
     let primaryModel: string = ''; // Store the model used for generation
-    // Declare promptInput outside the try block using the inferred type
-    let promptInput: PromptInputType | null = null;
-
+    let promptInput: PromptInputType | null = null; // Use inferred type
 
     while (attempts < MAX_ATTEMPTS && !aiResultData) {
       attempts++;
@@ -91,7 +83,6 @@ const generateProjectIdeaFlow = ai.defineFlow<
 
         // 2. Define the prompt using the chosen model and template
         const projectIdeaPrompt = ai.definePrompt({
-          // Correctly use backticks for template literal
           name: `generateProjectIdeaPrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
           model: primaryModel, // Explicitly specify the model here
           input: { schema: PromptInputSchema }, // Use the extended schema here
@@ -101,20 +92,16 @@ const generateProjectIdeaFlow = ai.defineFlow<
 
         // 3. Call the defined prompt with the input and the random number
         promptInput = { ...input, randomNumber };
-
         console.log(`>>> Calling projectIdeaPrompt with input:`, JSON.stringify(promptInput));
-
-        const { output: aiOutput } = await projectIdeaPrompt(promptInput); // <--- Error seems to occur here or inside
+        const { output: aiOutput } = await projectIdeaPrompt(promptInput);
 
         if (!aiOutput) {
           throw new Error(`AI (${primaryModel}) returned null or undefined output.`);
         }
-
         console.log(`Raw AI Output (Attempt ${attempts}, Model: ${primaryModel}):`, JSON.stringify(aiOutput, null, 2));
 
         // 4. Validate the structured output against the AI schema
          rawResponse = JSON.stringify(aiOutput); // Store raw parsed output for logging on final failure
-
          const validationResult = GenerateProjectIdeaAIOutputSchema.safeParse(aiOutput);
          if (!validationResult.success) {
              const errorDetails = validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
@@ -126,7 +113,6 @@ const generateProjectIdeaFlow = ai.defineFlow<
              await new Promise(resolve => setTimeout(resolve, 500)); // Wait before retry
              continue; // Go to next attempt
          }
-
          aiResultData = validationResult.data; // Use the successfully parsed and validated data
 
          // Additional check for minimum hours
@@ -141,6 +127,7 @@ const generateProjectIdeaFlow = ai.defineFlow<
               // Corrected string replacement using template literals
               .replace(`{{#if industryHint}}Focus on the industry: '{{{industryHint}}}'.{{/if}}`, input.industryHint ? `Focus on the industry: '${input.industryHint}'.` : '');
 
+         // validateAIOutput is async and exported from its own 'use server' file
          const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiResultData), primaryModel); // Use validated data
 
          if (!validation.allValid) {
@@ -158,12 +145,10 @@ const generateProjectIdeaFlow = ai.defineFlow<
       } catch (err: any) {
         console.error(`Error during AI call or processing (attempt ${attempts}) for promptInput:`, JSON.stringify(promptInput)); // Log the input on error
         console.error(`Error details:`, err); // Log the full error object
-
         lastError = `Error during AI call or processing (attempt ${attempts}): ${err.message}`;
         console.error(lastError); // Keep original error log too
-         rawResponse = err.message; // Store error message if AI call failed
+        rawResponse = err.message; // Store error message if AI call failed
         if (attempts === MAX_ATTEMPTS) {
-           // Provide a more specific error based on the last failure
            let finalErrorMessage = `Failed to generate idea after ${MAX_ATTEMPTS} attempts.`;
            if (lastError?.includes("Invalid JSON structure")) {
                 finalErrorMessage += ` Last error: Invalid AI response structure. Details: ${lastError}`;
@@ -189,7 +174,6 @@ const generateProjectIdeaFlow = ai.defineFlow<
     } // End of while loop
 
     if (!aiResultData) {
-      // Should be caught by the throw inside the loop, but as a fallback
       const finalErrorMsg = `Could not generate a valid project idea after ${MAX_ATTEMPTS} attempts. Last error: ${lastError}. Raw Response: ${rawResponse || 'N/A'}`;
       console.error(finalErrorMsg);
       return {
@@ -243,9 +227,8 @@ const generateProjectIdeaFlow = ai.defineFlow<
 );
 
 
-// --- Main Exported Function (Wrapper) ---
-// This is the function that can be called from the client/server
-// It needs to be async because it calls the flow
+// --- Main Exported Function (Wrapper - Async) ---
+// This is the only export from this file.
 export async function generateProjectIdea(
   input?: GenerateProjectIdeaInput // Accept optional input matching schema
 ): Promise<GenerateProjectIdeaOutput> {

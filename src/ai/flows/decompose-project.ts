@@ -1,11 +1,13 @@
 'use server';
 /**
  * @fileOverview Decomposes a project brief into a list of actionable microtasks.
+ * Exports:
+ * - decomposeProject (async function)
  */
 
 import { ai } from '@/lib/ai'; // Import the configured ai instance
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
+import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
 import {
   DecomposeProjectInputSchema,
   type DecomposeProjectInput,
@@ -13,17 +15,13 @@ import {
   type DecomposeProjectOutput,
   MicrotaskSchema, // Schema for individual microtask (used in output)
   type Microtask as SchemaMicrotask,
-} from '@/ai/schemas/decompose-project-schema';
+} from '@/ai/schemas/decompose-project-schema'; // Import types/schemas from separate file
 import { updateProjectMicrotasks, updateProjectStatus } from '@/services/firestore';
 import { z } from 'zod';
 import type { Microtask as ServiceMicrotask } from '@/types/project';
 import { Timestamp } from 'firebase/firestore';
 
-// Export types
-export type { DecomposeProjectInput, DecomposeProjectOutput, SchemaMicrotask as Microtask };
-
-// --- Define the Prompt Template ---
-// Schema for the AI's expected direct output (array of basic task info)
+// Define internal schemas (not exported)
 const DecomposeAIOutputSchema = z.array(z.object({
   id: z.string().min(1),
   description: z.string().min(10),
@@ -32,6 +30,7 @@ const DecomposeAIOutputSchema = z.array(z.object({
   dependencies: z.array(z.string()).optional(),
 })).min(1); // Ensure at least one task
 
+// Define prompt template (local constant)
 const decompositionPromptTemplate = `You are an expert AI Project Manager. Break this project into clear microtasks.
 
 === Project Brief ===
@@ -53,7 +52,7 @@ const decompositionPromptTemplate = `You are an expert AI Project Manager. Break
 Return ONLY a JSON array of microtasks. Ensure the response contains only the valid JSON array and nothing else.`;
 
 
-// --- Helper: Validate task dependencies ---
+// --- Helper: Validate task dependencies (local function) ---
 function validateTaskDependencies(tasks: SchemaMicrotask[]): SchemaMicrotask[] {
   const ids = new Set(tasks.map(t => t.id));
   return tasks.map(task => ({
@@ -66,11 +65,12 @@ function validateTaskDependencies(tasks: SchemaMicrotask[]): SchemaMicrotask[] {
 }
 
 
-// --- Main Exported Function (Wrapper) ---
+// --- Main Exported Function (Wrapper - Async) ---
+// This is the only export from this file.
 export async function decomposeProject(
   input: DecomposeProjectInput
 ): Promise<DecomposeProjectOutput> {
-  // Validate input before calling the flow
+  // Validate input before proceeding
   DecomposeProjectInputSchema.parse(input);
 
   await updateProjectStatus(input.projectId, 'decomposing');
@@ -87,9 +87,8 @@ export async function decomposeProject(
       .replace('{{#each requiredSkills}}- {{{this}}}
 {{/each}}', input.requiredSkills.map(s => `- ${s}`).join('\n'));
 
-    // Define the model for generation
+    // Define the model for generation inside the async function
     const decomposePrompt = ai.definePrompt({
-        // Correctly use backticks for template literal
         name: `decomposePrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
         model: primaryModel,
         input: { schema: z.object({ promptContent: z.string() }) }, // Pass the rendered content
@@ -108,6 +107,7 @@ export async function decomposeProject(
     const parsedOutput = DecomposeAIOutputSchema.parse(output); // Ensure it matches schema
 
     // Perform cross-validation
+    // validateAIOutput is async and exported from its own 'use server' file
     const validation = await validateAIOutput(promptContent, JSON.stringify(parsedOutput), primaryModel);
     if (!validation.allValid) {
       console.warn(`Validation failed for project decomposition (${input.projectId}). Reasoning:`, validation.results);
@@ -125,13 +125,10 @@ export async function decomposeProject(
     }));
 
     // --- Update Firestore ---
-    // Convert SchemaMicrotask to ServiceMicrotask (if different)
-    // Assuming they are compatible for now, otherwise mapping is needed
+    // Convert SchemaMicrotask to ServiceMicrotask
     const serviceMicrotasks: ServiceMicrotask[] = microtasks.map(mt => ({
         ...mt,
-        // Convert Timestamps if needed (here assuming createdAt is number)
         createdAt: Timestamp.fromMillis(mt.createdAt),
-        // Map other fields if ServiceMicrotask structure differs
     }));
 
     await updateProjectMicrotasks(input.projectId, serviceMicrotasks);

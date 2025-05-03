@@ -1,11 +1,13 @@
 'use server';
 /**
  * @fileOverview Scores a freelancer's submitted answers for a skill test.
+ * Exports:
+ * - scoreSkillTest (async function)
  */
 
 import { ai } from '@/lib/ai'; // Import the configured ai instance
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
+import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
 import { z } from 'zod';
 import { updateFreelancerTestScore } from '@/services/firestore';
 import {
@@ -18,13 +20,10 @@ import {
     type SkillScore,
     AggregateScoresOutputSchema, // Schema for AI aggregation output
     type AggregateScoresOutput,
-} from '@/ai/schemas/score-skill-test-schema';
-
-// Export types separately
-export type { ScoreSkillTestInput, ScoreSkillTestOutput, Answer, SkillScore };
+} from '@/ai/schemas/score-skill-test-schema'; // Import types/schemas from separate file
 
 
-// --- Define Prompt Templates ---
+// --- Define Prompt Templates (local constants) ---
 
 // 1. Prompt template to score a single skill based on its answers
 const SingleSkillScoreInputSchema = z.object({
@@ -86,8 +85,7 @@ Output ONLY a JSON object following this structure:
 Do not include any explanations or introductory text outside the JSON object.`;
 
 
-
-// --- Define the Flow ---
+// --- Define the Flow (local to this file, not exported) ---
 const scoreSkillTestFlow = ai.defineFlow<
   typeof ScoreSkillTestInputSchema,
   typeof ScoreSkillTestOutputSchema
@@ -127,7 +125,6 @@ Answer: ${a.answerText}
 
           // 1b. Define scoring prompt
           const scoreSingleSkillPrompt = ai.definePrompt({
-             // Correctly use backticks for template literal
              name: `scoreSingleSkillPrompt_${skill}_${scoreModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
              input: { schema: SingleSkillScoreInputSchema },
              output: { schema: SingleSkillScoreAIOutputSchema },
@@ -152,6 +149,7 @@ Answer: ${a.answerText}
               .replace('{{{freelancerId}}}', input.freelancerId)
               .replace('{{{answersText}}}', answersText);
 
+          // validateAIOutput is async and exported from its own 'use server' file
           const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), scoreModel);
 
           if (!validation.allValid) {
@@ -197,7 +195,6 @@ Answer: ${a.answerText}
 
             // 2b. Define feedback prompt
             const aggregateFeedbackPrompt = ai.definePrompt({
-                // Correctly use backticks for template literal
                 name: `aggregateFeedbackPrompt_${input.testId}_${feedbackModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
                 input: { schema: AggregateFeedbackInputSchema },
                 output: { schema: AggregateFeedbackAIOutputSchema },
@@ -221,6 +218,7 @@ Answer: ${a.answerText}
                   .replace('{{{overallScore}}}', overallScore.toString())
                   .replace('{{{scoresText}}}', scoresText);
 
+             // validateAIOutput is async and exported from its own 'use server' file
              const validation = await validateAIOutput(originalPromptText, JSON.stringify(feedbackOutput), feedbackModel);
 
              if (!validation.allValid) {
@@ -276,7 +274,8 @@ Answer: ${a.answerText}
 );
 
 
-// --- Main Exported Function (Wrapper) ---
+// --- Main Exported Function (Wrapper - Async) ---
+// This is the only export from this file.
 export async function scoreSkillTest(input: ScoreSkillTestInput): Promise<ScoreSkillTestOutput> {
     // Input validation handled by the flow
     ScoreSkillTestInputSchema.parse(input);

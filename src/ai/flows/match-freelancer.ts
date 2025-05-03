@@ -1,11 +1,13 @@
 'use server';
 /**
  * @fileOverview Match a freelancer to a project with skill extraction, estimation.
+ * Exports:
+ * - matchFreelancer (async function)
  */
 
 import { ai } from '@/lib/ai'; // Import the configured ai instance
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
+import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
 import { z } from 'zod';
 import {
   type MatchFreelancerInput,
@@ -14,21 +16,16 @@ import {
   MatchFreelancerOutputSchema,
   ExtractSkillsAIOutputSchema, // Schema for AI skill extraction output
   EstimateAndSelectAIOutputSchema, // Schema for AI estimation output
-} from '@/ai/schemas/match-freelancer-schema';
+} from '@/ai/schemas/match-freelancer-schema'; // Import types/schemas from separate file
 import { updateProjectMicrotasks, updateProjectStatus } from '@/services/firestore'; // Keep if needed for project updates
 
 
-// Export types separately
-export type { MatchFreelancerInput, MatchFreelancerOutput };
-
-
-// --- Constants ---
+// --- Constants (local to this file) ---
 const PLATFORM_MARKUP_PERCENTAGE = 0.15;
 const DEFAULT_HOURLY_RATE = 50;
 
 
-// --- Helper Function ---
-// Synchronous helper, keep internal or move to utils
+// --- Helper Function (local to this file) ---
 function calculateCosts(hours: number): { estimatedBaseCost: number, platformFee: number, totalCostToClient: number } {
   const base = hours * DEFAULT_HOURLY_RATE;
   const fee = base * PLATFORM_MARKUP_PERCENTAGE;
@@ -40,7 +37,7 @@ function calculateCosts(hours: number): { estimatedBaseCost: number, platformFee
   };
 }
 
-// --- Define Prompt Templates ---
+// --- Define Prompt Templates (local constants) ---
 
 // 1. Skill Extraction Prompt Template
 const skillExtractionPromptTemplate = `Extract the top 1-5 most important freelancer skills from this project brief.
@@ -78,7 +75,7 @@ Skills: {{#each requiredSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}
 `;
 
 
-// --- Define the Flow ---
+// --- Define the Flow (local to this file, not exported) ---
 const matchFreelancerFlow = ai.defineFlow<
   typeof MatchFreelancerInputSchema,
   typeof MatchFreelancerOutputSchema
@@ -106,7 +103,6 @@ const matchFreelancerFlow = ai.defineFlow<
 
           // 1b. Define skill extraction prompt
           const skillExtractionPrompt = ai.definePrompt({
-              // Correctly use backticks for template literal
               name: `skillExtractionPrompt_${skillExtractionModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
               input: { schema: z.object({ projectBrief: z.string().min(20) }) },
               output: { schema: ExtractSkillsAIOutputSchema },
@@ -123,6 +119,7 @@ const matchFreelancerFlow = ai.defineFlow<
 
           // 1d. Validate the output with other models
           const originalPromptText = skillExtractionPromptTemplate.replace('{{{projectBrief}}}', input.projectBrief);
+          // validateAIOutput is async and exported from its own 'use server' file
           const validation = await validateAIOutput(originalPromptText, JSON.stringify(skillOutput), skillExtractionModel);
 
           if (!validation.allValid) {
@@ -155,7 +152,6 @@ const matchFreelancerFlow = ai.defineFlow<
 
         // 2b. Define estimation prompt
         const estimationPrompt = ai.definePrompt({
-            // Correctly use backticks for template literal
             name: `estimationPrompt_${estimationModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
             input: { schema: EstimationInputSchema },
             output: { schema: EstimateAndSelectAIOutputSchema },
@@ -188,6 +184,7 @@ const matchFreelancerFlow = ai.defineFlow<
               .replace('{{{projectBrief}}}', input.projectBrief)
               .replace('{{#each requiredSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}', skills.join(', '));
 
+         // validateAIOutput is async and exported from its own 'use server' file
          const validation = await validateAIOutput(originalPromptText, JSON.stringify(estimationResult), estimationModel);
 
           if (!validation.allValid) {
@@ -242,7 +239,8 @@ const matchFreelancerFlow = ai.defineFlow<
 );
 
 
-// --- Main Exported Function (Wrapper) ---
+// --- Main Exported Function (Wrapper - Async) ---
+// This is the only export from this file.
 export async function matchFreelancer(input: MatchFreelancerInput): Promise<MatchFreelancerOutput> {
   // Input validation handled by the flow
   MatchFreelancerInputSchema.parse(input);
