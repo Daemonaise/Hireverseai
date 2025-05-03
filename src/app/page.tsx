@@ -1,6 +1,6 @@
 
 import Link from 'next/link';
-import { AiMatcher } from '@/components/ai-matcher';
+// import { AiMatcher } from '@/components/ai-matcher'; // Removed AiMatcher from hero
 import { FeatureCard } from '@/components/feature-card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -86,39 +86,42 @@ const freelancerSkillsets = [
 export default function Home() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Header */}
-      <header className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
+      {/* Header - Make sticky */}
+      <header className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6 sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
         <Link href="/" aria-label="Hireverse AI Home" className="flex items-center gap-2">
            <span className="text-xl font-bold text-foreground">Hireverse AI</span>
         </Link>
-        {/* Navigation - Moved to Client Component */}
+        {/* Navigation - Client Component */}
          <HeaderNavigationClient />
       </header>
 
       <main className="flex-1">
         {/* Hero Section - Updated */}
-        <section className="container mx-auto flex flex-col items-center px-4 py-20 text-center md:px-6">
+        <section className="container mx-auto flex flex-col items-center px-4 py-20 text-center md:px-6 md:py-28"> {/* Adjusted padding */}
           <div className="flex flex-col items-center space-y-6 w-full max-w-3xl">
             {/* Updated Headline */}
-            <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-              Parallel Work, Unparalleled Speed
+            <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
+              AI Hiring Solutions Built for Speed and Precision
             </h1>
             {/* Updated Sub-headline */}
-            <p className="max-w-[700px] text-lg text-muted-foreground">
+            <p className="max-w-[700px] text-lg text-muted-foreground md:text-xl">
                Harness the speed of AI and the power of human parallel processing. Submit your project brief and get matched with top freelancers who solve problems faster, smarter, and together.
             </p>
-            <div className="w-full mt-8">
-              <AiMatcher />
+            {/* Removed AiMatcher, added single CTA button */}
+            <div className="mt-8">
+                <Button size="lg" asChild>
+                   <Link href="/client/signup">Start Hiring Smarter</Link>
+                </Button>
             </div>
           </div>
         </section>
 
         {/* Separator */}
-        <Separator className="my-16" />
+        <Separator className="my-16 md:my-20" />
 
         {/* How It Works Section - Using WorkflowGrid */}
         <section className="container mx-auto px-4 pb-16 pt-8 md:px-6 lg:pb-24">
-           <h2 className="mb-12 text-center text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl">
+           <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl">
              How Hireverse AI Works
            </h2>
            {/* WorkflowGrid itself handles responsiveness */}
@@ -126,17 +129,17 @@ export default function Home() {
         </section>
 
         {/* Separator */}
-        <Separator className="my-16" />
+        <Separator className="my-16 md:my-20" />
 
          {/* Core Platform Features Section - Updated with Responsive Grid Layout */}
          <section className="container mx-auto px-4 pb-16 pt-8 md:px-6 lg:pb-24">
-           <h2 className="mb-12 text-center text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl">
+           <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl">
             Core Platform Features
            </h2>
            {/* Using Responsive Grid Layout for Feature Tiles */}
            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {coreFeatures.map((feature) => (
-                  <div key={feature.title} className="p-1"> {/* Added padding wrapper */}
+                  <div key={feature.title} className="p-1"> {/* Added padding wrapper for visual spacing */}
                       <FeatureCard
                         icon={feature.icon}
                         title={feature.title}
@@ -150,11 +153,11 @@ export default function Home() {
         </section>
 
         {/* Separator */}
-        <Separator className="my-16" />
+        <Separator className="my-16 md:my-20" />
 
         {/* Freelancer Skillsets Section - Updated with Responsive Grid Layout */}
         <section className="container mx-auto px-4 pb-16 pt-8 md:px-6 lg:pb-24">
-            <h2 className="mb-12 text-center text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl">
+            <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl">
                 Freelancer Skillsets
             </h2>
             {/* Using Responsive Grid Layout for Skill Tiles */}
@@ -173,12 +176,27 @@ export default function Home() {
         </section>
 
          {/* Separator */}
-         <Separator className="my-16" />
+         <Separator className="my-16 md:my-20" />
+
+         {/* Testimonials Section Placeholder */}
+         {/*
+         <section className="container mx-auto px-4 pb-16 pt-8 md:px-6 lg:pb-24">
+            <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl">
+                Trusted By Industry Leaders
+            </h2>
+            {/* Implement Carousel or Logo Grid Here * /}
+            <div className="text-center text-muted-foreground">[Testimonial Carousel or Company Logos Placeholder]</div>
+         </section>
+          */}
+
+         {/* Separator */}
+         {/* <Separator className="my-16 md:my-20" /> */}
+
 
          {/* Gamified Community Section */}
         <section className="container mx-auto px-4 pb-16 pt-8 md:px-6 lg:pb-24">
            <div className="text-center mb-12">
-              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl">
+              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
                 Join Our Thriving Community
               </h2>
               <p className="mt-3 max-w-2xl mx-auto text-muted-foreground md:text-lg">

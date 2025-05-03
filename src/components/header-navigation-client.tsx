@@ -38,6 +38,10 @@ export function HeaderNavigationClient() {
   return (
     <>
       <nav className="flex items-center gap-4">
+        {/* Added Pricing Link */}
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/#pricing">Pricing</Link> {/* Assuming pricing section on home page for now */}
+        </Button>
         <Button variant="outline" size="sm" asChild>
           <Link href="/community">Community</Link>
         </Button>

@@ -1,3 +1,4 @@
+
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
@@ -9,6 +10,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
+    // Ensure remotePatterns includes domains for any external images
     remotePatterns: [
       {
         protocol: 'https',
@@ -16,7 +18,10 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      // Add other domains if you use images from elsewhere
     ],
+    // Image optimization is enabled by default, no specific config needed here
+    // unless disabling or customizing further.
   },
 };
 

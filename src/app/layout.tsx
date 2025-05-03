@@ -1,21 +1,19 @@
+
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Inter } from 'next/font/google'; // Using Inter for clean readability
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster'; // Import Toaster
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+// Use Inter font
+const inter = Inter({
   subsets: ['latin'],
+  variable: '--font-sans', // Define CSS variable for sans-serif font
 });
 
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
 
 export const metadata: Metadata = {
   title: 'Hireverse AI', // Update title
-  description: 'Instantly Match Projects with Top Freelancers using AI', // Update description
+  description: 'AI Hiring Solutions Built for Speed and Precision', // Updated description
 };
 
 export default function RootLayout({
@@ -25,7 +23,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      {/* Apply Inter font variable to body */}
+      <body className={`${inter.variable} font-sans antialiased`}>
         {children}
         <Toaster /> {/* Add Toaster component */}
       </body>

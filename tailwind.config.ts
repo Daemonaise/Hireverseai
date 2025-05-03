@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss"
 import { fontFamily } from "tailwindcss/defaultTheme"
 
@@ -75,8 +76,9 @@ const config = {
         sm: "calc(var(--radius) - 4px)",
       },
        fontFamily: {
-        sans: ["var(--font-geist-sans)", ...fontFamily.sans],
-        mono: ["var(--font-geist-mono)", ...fontFamily.mono],
+        // Update sans font family to use Inter via CSS variable
+        sans: ["var(--font-sans)", ...fontFamily.sans],
+        mono: ["var(--font-geist-mono)", ...fontFamily.mono], // Keep Geist Mono if desired
       },
       keyframes: {
         "accordion-down": {
