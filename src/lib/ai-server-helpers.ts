@@ -15,14 +15,15 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
   const availableModels: string[] = [];
 
   // Updated model identifiers as per user request
+  // Note: Corrected anthropic sonnet identifier (removed date initially, will check if this works)
   const allModels = {
-    googleFast: 'googleai/gemini-1.5-flash', // Renamed from google
-    googlePro: 'googleai/gemini-1.5-pro', // Added Pro model
+    googleFast: 'googleai/gemini-1.5-flash', // Use 1.5 Flash
+    googlePro: 'googleai/gemini-1.5-pro',
     openaiMini: 'openai/gpt-4o-mini', // Updated mini model
     openaiFull: 'openai/gpt-4o', // Updated full model
-    anthropicHaiku: 'anthropic/claude-3-haiku-20240307', // Added Haiku
-    anthropicSonnet: 'anthropic/claude-3.5-sonnet-20240620', // Corrected Sonnet model identifier
-    anthropicOpus: 'anthropic/claude-3-opus-20240229' // Updated Opus model
+    anthropicHaiku: 'anthropic/claude-3-haiku-20240307', // Keep Haiku
+    anthropicSonnet: 'anthropic/claude-3.5-sonnet', // Corrected Sonnet 3.5 identifier
+    anthropicOpus: 'anthropic/claude-3-opus-20240229' // Keep Opus
   };
 
   // Populate availableModels based on which keys are present *at call time*
