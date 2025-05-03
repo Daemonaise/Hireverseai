@@ -16,12 +16,12 @@ import {
   QuestionSchema,
   type Question,
 } from '@/ai/schemas/administer-skill-test-schema';
-import { SingleSkillScoreAIOutputSchema } from '@/ai/schemas/score-skill-test-schema';
+// Removed unused schema import
+// import { SingleSkillScoreAIOutputSchema } from '@/ai/schemas/score-skill-test-schema';
 
 // Export types separately
 export type { AdministerSkillTestInput, AdministerSkillTestOutput, Question };
 
-// --- Cross-Validation Logic is now imported ---
 
 // --- Define the Prompt Template (without model) ---
 const SingleQuestionInputSchema = z.object({

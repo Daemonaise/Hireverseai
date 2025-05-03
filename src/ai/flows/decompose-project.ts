@@ -18,6 +18,7 @@ import { z } from 'zod';
 import type { Microtask as ServiceMicrotask } from '@/types/project';
 import { Timestamp } from 'firebase/firestore';
 
+// Export types
 export type { DecomposeProjectInput, DecomposeProjectOutput, SchemaMicrotask as Microtask };
 
 // --- Define the Prompt Template ---
@@ -63,14 +64,6 @@ function validateTaskDependencies(tasks: SchemaMicrotask[]): SchemaMicrotask[] {
   }));
 }
 
-// --- Define the Prompt ---
-// This definition seems unused in the main flow, consider removing or integrating it
-// const decompositionPrompt = ai.definePrompt({
-//     name: 'aiProjectDecompositionPrompt',
-//     input: { schema: DecomposeProjectInputSchema },
-//     output: { schema: z.array(z.string()) }, // This output schema seems incorrect based on template
-//     prompt: `Decompose the following project brief into a series of microtasks:\n\n{{projectBrief}}\n\nTasks:`,
-// });
 
 // --- Main Exported Function (Wrapper) ---
 export async function decomposeProject(
@@ -90,20 +83,20 @@ export async function decomposeProject(
     // Construct the prompt content dynamically
     const promptContent = decompositionPromptTemplate
       .replace('{{{projectBrief}}}', input.projectBrief)
-      .replace('{{#each requiredSkills}}- {{{this}}}\n{{/each}}', input.requiredSkills.map(s => `- ${s}`).join('\n'));
+      .replace('{{#each requiredSkills}}- {{{this}}}
+{{/each}}', input.requiredSkills.map(s => `- ${s}`).join('\n'));
 
     // Define the model for generation
-    const decomposeModel = ai.defineModel({
-        name: `decomposeModel_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
+    const decomposePrompt = ai.definePrompt({
+        name: `decomposePrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
         model: primaryModel,
+        input: { schema: z.object({ promptContent: z.string() }) }, // Pass the rendered content
         output: { schema: DecomposeAIOutputSchema }, // Use the correct output schema
+        prompt: promptContent, // Use the constructed template directly
     });
 
     // Generate microtasks
-    const { output } = await decomposeModel.generate({
-        prompt: promptContent,
-        output: { schema: DecomposeAIOutputSchema } // Reiterate schema
-    });
+    const { output } = await decomposePrompt({ promptContent }); // Pass content
 
     if (!output) {
       throw new Error(`AI (${primaryModel}) did not return a valid response.`);

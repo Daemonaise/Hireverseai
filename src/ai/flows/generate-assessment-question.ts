@@ -14,14 +14,12 @@ import {
   type GenerateAssessmentQuestionInput,
   GenerateAssessmentQuestionOutputSchema,
   type GenerateAssessmentQuestionOutput,
-  DifficultyLevelSchema,
   type DifficultyLevel,
-} from '@/ai/schemas/generate-assessment-question-schema';
+} from '@/ai/schemas/generate-assessment-question-schema'; // Import DifficultyLevel type
 
 // Export types separately
 export type { GenerateAssessmentQuestionInput, GenerateAssessmentQuestionOutput, DifficultyLevel };
 
-// --- Cross-Validation Logic is now imported ---
 
 // --- Define the Prompt Template ---
 // Schema for the AI's direct output (just the question text)

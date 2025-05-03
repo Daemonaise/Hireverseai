@@ -12,9 +12,8 @@ import {
     type ScoreSkillTestInput,
     ScoreSkillTestOutputSchema,
     type ScoreSkillTestOutput,
-    AnswerSchema,
     type Answer,
-    SkillScoreSchema,
+    SkillScoreSchema, // Import SkillScore schema
     type SkillScore,
     AggregateScoresOutputSchema, // Schema for AI aggregation output
     type AggregateScoresOutput,
@@ -23,7 +22,6 @@ import {
 // Export types separately
 export type { ScoreSkillTestInput, ScoreSkillTestOutput, Answer, SkillScore };
 
-// --- Cross-Validation Logic is now imported ---
 
 // --- Define Prompt Templates ---
 
@@ -34,7 +32,7 @@ const SingleSkillScoreInputSchema = z.object({
     answersText: z.string(), // Pre-formatted string of Q&A for the skill
 });
 // AI outputs score and reasoning for one skill
-export const SingleSkillScoreAIOutputSchema = SkillScoreSchema.omit({ skill: true }).extend({
+const SingleSkillScoreAIOutputSchema = SkillScoreSchema.omit({ skill: true }).extend({
   score: z.number().int().min(0).max(100) // Re-validate score range explicitly
 });
 

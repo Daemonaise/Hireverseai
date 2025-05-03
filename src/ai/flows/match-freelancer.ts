@@ -7,8 +7,8 @@ import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import the c
 import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
 import { z } from 'zod';
 import {
-  MatchFreelancerInput,
-  MatchFreelancerOutput,
+  type MatchFreelancerInput,
+  type MatchFreelancerOutput,
   MatchFreelancerInputSchema,
   MatchFreelancerOutputSchema,
   ExtractSkillsAIOutputSchema, // Schema for AI skill extraction output
@@ -25,7 +25,6 @@ export type { MatchFreelancerInput, MatchFreelancerOutput };
 const PLATFORM_MARKUP_PERCENTAGE = 0.15;
 const DEFAULT_HOURLY_RATE = 50;
 
-// --- Cross-Validation Logic is now imported ---
 
 // --- Helper Function ---
 // Synchronous helper, keep internal or move to utils
@@ -98,7 +97,7 @@ const matchFreelancerFlow = ai.defineFlow<
       if (!skills || skills.length === 0) {
         console.log("No skills provided, extracting from brief...");
         let skillExtractionModel: string;
-        let skillOutput: ExtractSkillsAIOutput | null = null;
+        let skillOutput: z.infer<typeof ExtractSkillsAIOutputSchema> | null = null;
         try {
           // 1a. Choose model for skill extraction
           skillExtractionModel = await chooseModelBasedOnPrompt(`Extract skills from: ${input.projectBrief}`);
@@ -145,7 +144,7 @@ const matchFreelancerFlow = ai.defineFlow<
 
       // --- Estimation and Freelancer Selection ---
       console.log(`Estimating project with skills: ${skills.join(', ')}`);
-      let estimationResult: EstimateAndSelectAIOutput;
+      let estimationResult: z.infer<typeof EstimateAndSelectAIOutputSchema>;
       let estimationModel: string;
       try {
         // 2a. Choose model for estimation

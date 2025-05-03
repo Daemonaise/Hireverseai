@@ -8,8 +8,9 @@
  * - GenerateProjectIdeaOutput - Output type including cost details and status.
  */
 
-import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
-import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
+import { ai } from '@/ai/ai-instance'; // Use instance from lib
+import { chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import helpers
+import { validateAIOutput } from '@/ai/validate-output'; // Import validation function
 import { z } from 'zod';
 import {
   GenerateProjectIdeaInputSchema,
@@ -47,7 +48,6 @@ Strictly follow this JSON structure:
 
 REMEMBER: ONLY the JSON object. Absolutely no other text before or after the JSON. Verify the structure and types carefully, especially 'estimatedHours' which must be a number >= 1.`;
 
-// --- Cross-Validation Logic is now imported ---
 
 // --- Define the Flow ---
 const generateProjectIdeaFlow = ai.defineFlow<
@@ -144,7 +144,26 @@ const generateProjectIdeaFlow = ai.defineFlow<
         console.error(lastError, err);
          rawResponse = err.message; // Store error message if AI call failed
         if (attempts === MAX_ATTEMPTS) {
-           throw new Error(`Failed to get valid JSON after ${MAX_ATTEMPTS} attempts. Last error: ${lastError}. Raw response logged above.`);
+           // Provide a more specific error based on the last failure
+           let finalErrorMessage = `Failed to generate idea after ${MAX_ATTEMPTS} attempts.`;
+           if (lastError?.includes("Invalid JSON structure")) {
+                finalErrorMessage += ` Last error: Invalid AI response structure. Details: ${lastError}`;
+           } else if (lastError?.includes("API key not valid")) {
+               finalErrorMessage += " Last error: Invalid API Key.";
+           } else if (lastError?.includes("cross-validation")) {
+                finalErrorMessage += " Last error: AI output failed cross-validation.";
+           } else {
+               finalErrorMessage += ` Last error: ${lastError}.`;
+           }
+            console.error(finalErrorMessage, "Raw response/error:", rawResponse);
+            // Return error status to the client instead of throwing
+             return {
+               status: 'error',
+               reasoning: finalErrorMessage,
+               idea: 'Error',
+               estimatedTimeline: 'N/A',
+               requiredSkills: [],
+             };
         }
         await new Promise(resolve => setTimeout(resolve, 500)); // Wait before retry
       }
@@ -152,10 +171,11 @@ const generateProjectIdeaFlow = ai.defineFlow<
 
     if (!aiResultData) {
       // Should be caught by the throw inside the loop, but as a fallback
-      console.error("Exited loop without valid AI data. Last error:", lastError);
+      const finalErrorMsg = `Could not generate a valid project idea after ${MAX_ATTEMPTS} attempts. Last error: ${lastError}. Raw Response: ${rawResponse || 'N/A'}`;
+      console.error(finalErrorMsg);
       return {
         status: 'error',
-        reasoning: `Could not generate a valid project idea after ${MAX_ATTEMPTS} attempts. Last error: ${lastError}. Raw Response: ${rawResponse || 'N/A'}`,
+        reasoning: finalErrorMsg,
         idea: 'Error',
         estimatedTimeline: 'N/A',
         requiredSkills: []

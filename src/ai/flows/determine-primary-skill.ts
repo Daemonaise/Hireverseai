@@ -10,6 +10,7 @@ import {
   type DeterminePrimarySkillOutput,
 } from '@/ai/schemas/determine-primary-skill-schema';
 
+// Export types
 export type { DeterminePrimarySkillInput, DeterminePrimarySkillOutput };
 
 // --- Cross-Validation Logic is now imported ---

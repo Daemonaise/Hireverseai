@@ -12,14 +12,13 @@ import {
   type GradeAssessmentAnswerInput,
   GradeAssessmentAnswerOutputSchema,
   type GradeAssessmentAnswerOutput,
-  AnswerFlagsSchema,
+  AnswerFlagsSchema, // Import enum schema
   type AnswerFlags,
 } from '@/ai/schemas/grade-assessment-answer-schema';
 
 // Export types cleanly
 export type { GradeAssessmentAnswerInput, GradeAssessmentAnswerOutput, AnswerFlags };
 
-// --- Cross-Validation Logic is now imported ---
 
 // --- Define the Prompt Template ---
 // Schema for AI's direct output (excluding questionId)

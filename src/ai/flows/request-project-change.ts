@@ -19,7 +19,6 @@ import {
 // Export types separately
 export type { RequestProjectChangeInput, RequestProjectChangeOutput };
 
-// --- Cross-Validation Logic is now imported ---
 
 // --- Define the Prompt Template ---
 const estimateChangePromptTemplate = `You are an AI Project Manager analyzing a change request for an ongoing project.
