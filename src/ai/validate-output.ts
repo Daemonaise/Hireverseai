@@ -30,7 +30,7 @@ export async function validateAIOutput(
     google: 'googleai/gemini-1.5-flash', // Use Flash for faster validation
     openai: 'openai/gpt-4o-mini', // Use Mini for faster/cheaper validation
     anthropic: 'anthropic/claude-3-haiku-20240307', // Use Haiku for faster/cheaper validation
-    anthropicSonnet: 'anthropic/claude-3-5-sonnet-20240620' // Add Sonnet 3.5 with date for validation
+    anthropicSonnet: 'anthropic/claude-3-5-sonnet-20240620' // Corrected Sonnet 3.5 identifier with date
   };
 
   // Re-read env vars inside this function to ensure up-to-date checks
