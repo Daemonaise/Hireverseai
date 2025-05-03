@@ -143,8 +143,10 @@ const generateProjectIdeaFlow = ai.defineFlow<
 
 
       } catch (err: any) {
+        // *** ADDED DETAILED ERROR LOGGING ***
         console.error(`Error during AI call or processing (attempt ${attempts}) for promptInput:`, JSON.stringify(promptInput)); // Log the input on error
         console.error(`Error details:`, err); // Log the full error object
+
         lastError = `Error during AI call or processing (attempt ${attempts}): ${err.message}`;
         console.error(lastError); // Keep original error log too
         rawResponse = err.message; // Store error message if AI call failed

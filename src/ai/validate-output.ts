@@ -25,12 +25,11 @@ export async function validateAIOutput(
   console.log(`[AI Validation] Original Output (first 100 chars):`, originalOutput.substring(0, 100) + "...");
 
   const validatorModels: string[] = [];
+  // Updated model identifiers for validation
   const allModels = {
-    google: 'googleai/gemini-1.5-flash',
-    // Use gpt-4o-mini as the cost-effective OpenAI validator
-    openai: ['openai/gpt-4o-mini'],
-    // Use Haiku as the cost-effective Anthropic validator
-    anthropic: ['anthropic/claude-3-haiku-20240307']
+    google: 'googleai/gemini-1.5-flash', // Use Flash for faster validation
+    openai: 'openai/gpt-4o-mini', // Use Mini for faster/cheaper validation
+    anthropic: 'anthropic/claude-3-haiku-20240307' // Use Haiku for faster/cheaper validation
   };
 
   // Re-read env vars inside this function to ensure up-to-date checks
@@ -38,10 +37,10 @@ export async function validateAIOutput(
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
-  // Determine validator models
+  // Determine validator models based on availability and ensuring not to validate with the primary model itself
   if (GOOGLE_API_KEY && primaryModelName !== allModels.google) validatorModels.push(allModels.google);
-  if (OPENAI_API_KEY && !primaryModelName.startsWith('openai/')) validatorModels.push(allModels.openai[0]);
-  if (ANTHROPIC_API_KEY && !primaryModelName.startsWith('anthropic/')) validatorModels.push(allModels.anthropic[0]);
+  if (OPENAI_API_KEY && primaryModelName !== allModels.openai) validatorModels.push(allModels.openai);
+  if (ANTHROPIC_API_KEY && primaryModelName !== allModels.anthropic) validatorModels.push(allModels.anthropic);
 
   if (validatorModels.length === 0) {
     console.warn(`[AI Validation] No other models available for cross-validation. Skipping.`);
