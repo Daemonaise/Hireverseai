@@ -20,14 +20,15 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
     googlePro: 'googleai/gemini-1.5-pro', // Added Pro model
     openaiMini: 'openai/gpt-4o-mini', // Updated mini model
     openaiFull: 'openai/gpt-4o', // Updated full model
-    anthropicSonnet: 'anthropic/claude-3-5-sonnet-20240620', // Updated Sonnet model
+    anthropicHaiku: 'anthropic/claude-3-haiku-20240307', // Added Haiku
+    anthropicSonnet: 'anthropic/claude-3.5-sonnet-20240620', // Corrected Sonnet model identifier
     anthropicOpus: 'anthropic/claude-3-opus-20240229' // Updated Opus model
   };
 
   // Populate availableModels based on which keys are present *at call time*
   if (GOOGLE_API_KEY)    availableModels.push(allModels.googleFast, allModels.googlePro);
   if (OPENAI_API_KEY)    availableModels.push(allModels.openaiMini, allModels.openaiFull);
-  if (ANTHROPIC_API_KEY) availableModels.push(allModels.anthropicSonnet, allModels.anthropicOpus);
+  if (ANTHROPIC_API_KEY) availableModels.push(allModels.anthropicHaiku, allModels.anthropicSonnet, allModels.anthropicOpus);
 
   if (availableModels.length === 0) {
     console.error('[AI Model Selection] No models available due to missing API keys.');
@@ -52,12 +53,12 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
     console.log("[AI Model Selection] Choosing anthropic/claude-3-opus-20240229 for long/analysis task.");
     return allModels.anthropicOpus;
   }
-  // Use Sonnet 3.5 for creative tasks
-  if ( (promptLower.includes('creative') || promptLower.includes('story') || promptLower.includes('marketing')) && availableModels.includes(allModels.anthropicSonnet) ) {
-      console.log("[AI Model Selection] Choosing anthropic/claude-3-5-sonnet-20240620 for creative task.");
+  // Use Sonnet 3.5 for creative tasks or long context
+  if ( (promptLower.includes('creative') || promptLower.includes('story') || promptLower.includes('marketing') || promptLength > 1500) && availableModels.includes(allModels.anthropicSonnet) ) {
+      console.log(`[AI Model Selection] Choosing ${allModels.anthropicSonnet} for creative/long task.`);
       return allModels.anthropicSonnet;
   }
-  // Use Gemini Pro for high-quality reasoning if not Opus
+  // Use Gemini Pro for high-quality reasoning if not Opus or Sonnet
   if ( (promptLower.includes('reasoning') || promptLower.includes('complex problem')) && availableModels.includes(allModels.googlePro) ) {
       console.log("[AI Model Selection] Choosing googleai/gemini-1.5-pro for reasoning task.");
       return allModels.googlePro;
@@ -68,7 +69,7 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
 
   // Default general model: Sonnet 3.5
   if (availableModels.includes(allModels.anthropicSonnet)) {
-    console.log("[AI Model Selection] Defaulting to anthropic/claude-3-5-sonnet-20240620.");
+    console.log(`[AI Model Selection] Defaulting to ${allModels.anthropicSonnet}.`);
     return allModels.anthropicSonnet;
   }
   // Next fallback: Gemini Flash
@@ -80,6 +81,11 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
   if (availableModels.includes(allModels.openaiMini)) {
     console.log("[AI Model Selection] Fallback to openai/gpt-4o-mini.");
     return allModels.openaiMini;
+  }
+  // Next fallback: Anthropic Haiku
+  if (availableModels.includes(allModels.anthropicHaiku)) {
+    console.log(`[AI Model Selection] Fallback to ${allModels.anthropicHaiku}.`);
+    return allModels.anthropicHaiku;
   }
 
 
