@@ -112,8 +112,10 @@ const generateProjectIdeaFlow = ai.defineFlow<
           throw new Error(`AI (${primaryModel}) returned null or undefined output.`);
         }
 
+        // *** ADDED RAW OUTPUT LOGGING ***
+        console.log(`Raw AI Output (Attempt ${attempts}, Model: ${primaryModel}):`, JSON.stringify(aiOutput, null, 2));
+
         // 4. Validate the structured output against the AI schema
-         console.log(`Raw AI Output (Attempt ${attempts}, Model: ${primaryModel}):`, JSON.stringify(aiOutput, null, 2));
          rawResponse = JSON.stringify(aiOutput); // Store raw parsed output for logging on final failure
 
          const validationResult = GenerateProjectIdeaAIOutputSchema.safeParse(aiOutput);
@@ -136,14 +138,14 @@ const generateProjectIdeaFlow = ai.defineFlow<
              aiResultData.estimatedHours = 1;
          }
 
-         // 5. Validate the output with other models
+         // 5. Validate the output with other models <<<< RE-ENABLED >>>>
          const originalPromptText = projectIdeaPromptTemplate
               .replace('{{{randomNumber}}}', randomNumber)
               // Corrected string replacement using template literals
               .replace(`{{#if industryHint}}Focus on the industry: '{{{industryHint}}}'.{{/if}}`, input.industryHint ? `Focus on the industry: '${input.industryHint}'.` : '');
 
          // validateAIOutput needs 'use server' which it has
-         const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
+         const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiResultData), primaryModel); // Use validated data
 
          if (!validation.allValid) {
               console.warn(`Validation failed for project idea generation (attempt ${attempts}). Reasoning:`, validation.results);
