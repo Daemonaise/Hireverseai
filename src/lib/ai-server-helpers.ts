@@ -21,7 +21,7 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
     openaiMini: 'openai/gpt-4o-mini',
     openaiFull: 'openai/gpt-4o',
     anthropicHaiku: 'anthropic/claude-3-haiku-20240307',
-    anthropicSonnet: 'anthropic/claude-3-5-sonnet-20240620', // Corrected Sonnet 3.5 identifier with date
+    anthropicSonnet: 'anthropic/claude-3-5-sonnet-20240620', // Use the correct identifier with date
     anthropicOpus: 'anthropic/claude-3-opus-20240229'
   };
 
