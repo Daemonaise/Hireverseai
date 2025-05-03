@@ -15,15 +15,15 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
   const availableModels: string[] = [];
 
   // Updated model identifiers as per user request
-  const allModels = {
-    googleFast: 'googleai/gemini-1.5-flash',
-    googlePro: 'googleai/gemini-1.5-pro',
-    openaiMini: 'openai/gpt-4o-mini', // Renamed for clarity
-    openaiFull: 'openai/gpt-4o',
-    anthropicHaiku: 'anthropic/claude-3-haiku-20240307',
-    anthropicSonnet: 'claude-3-7-sonnet-20250219', // UPDATED Model ID
-    anthropicOpus: 'anthropic/claude-3-opus-20240229'
-  };
+   const allModels = {
+      googleFast: 'googleai/gemini-1.5-flash',
+      googlePro: 'googleai/gemini-1.5-pro',
+      openaiMini: 'openai/gpt-4o-mini', // Renamed for clarity
+      openaiFull: 'openai/gpt-4o',
+      anthropicHaiku: 'anthropic/claude-3-haiku-20240307',
+      anthropicSonnet: 'anthropic/claude-3-sonnet-20240229', // Ensure this matches the exact supported ID
+      anthropicOpus: 'anthropic/claude-3-opus-20240229'
+   };
 
   // Populate availableModels based on which keys are present *at call time*
   if (GOOGLE_API_KEY)    availableModels.push(allModels.googleFast, allModels.googlePro);
@@ -54,6 +54,7 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
     return allModels.anthropicOpus;
   }
   // Use Sonnet for creative tasks or long context
+  // Removed prefix from model name
   if ( (promptLower.includes('creative') || promptLower.includes('story') || promptLower.includes('marketing') || promptLength > 1500) && availableModels.includes(allModels.anthropicSonnet) ) {
       console.log(`[AI Model Selection] Choosing ${allModels.anthropicSonnet} for creative/long task.`);
       return allModels.anthropicSonnet;
@@ -68,6 +69,7 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
   // Fallback logic - Prioritize cost-effective models
 
   // Default general model: Sonnet
+  // Removed prefix from model name
   if (availableModels.includes(allModels.anthropicSonnet)) {
     console.log(`[AI Model Selection] Defaulting to ${allModels.anthropicSonnet}.`);
     return allModels.anthropicSonnet;
