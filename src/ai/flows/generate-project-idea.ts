@@ -8,7 +8,7 @@
  * - GenerateProjectIdeaOutput - Output type including cost details and status.
  */
 
-import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
+import { ai, chooseModelBasedOnPrompt } from '@/lib/ai'; // Import the configured ai instance and helpers
 import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
 import { z } from 'zod';
 import {
@@ -49,6 +49,7 @@ REMEMBER: ONLY the JSON object. Absolutely no other text before or after the JSO
 
 
 // --- Define the Flow ---
+// This internal flow definition should NOT be exported directly if the file is marked 'use server'
 const generateProjectIdeaFlow = ai.defineFlow<
   typeof GenerateProjectIdeaInputSchema,
   typeof GenerateProjectIdeaOutputSchema
@@ -79,6 +80,7 @@ const generateProjectIdeaFlow = ai.defineFlow<
         console.log(`Using model ${primaryModel} for project idea generation (attempt ${attempts}).`);
 
         // 2. Define the prompt using the chosen model and template
+        // Note: definePrompt itself doesn't need 'use server', it's the execution that might
         const projectIdeaPrompt = ai.definePrompt({
           name: `generateProjectIdeaPrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name
           model: primaryModel, // Explicitly specify the model here
@@ -89,6 +91,7 @@ const generateProjectIdeaFlow = ai.defineFlow<
 
         // 3. Call the defined prompt with the input and the random number
         const promptInput = { ...input, randomNumber };
+        // The actual AI call happens here
         const { output: aiOutput } = await projectIdeaPrompt(promptInput);
 
         if (!aiOutput) {
@@ -120,13 +123,15 @@ const generateProjectIdeaFlow = ai.defineFlow<
          }
 
          // 5. Validate the output with other models
-          const originalPromptText = projectIdeaPromptTemplate
-               .replace('{{{randomNumber}}}', randomNumber)
-               .replace('{{#if industryHint}}Focus on the industry: \'{{{industryHint}}}\'.{{/if}}', input.industryHint ? `Focus on the industry: '${input.industryHint}'.` : '');
+         const originalPromptText = projectIdeaPromptTemplate
+              .replace('{{{randomNumber}}}', randomNumber)
+              // Corrected string replacement using template literals
+              .replace(`{{#if industryHint}}Focus on the industry: '{{{industryHint}}}'.{{/if}}`, input.industryHint ? `Focus on the industry: '${input.industryHint}'.` : '');
 
-          const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
+         // validateAIOutput needs 'use server' which it has
+         const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
 
-          if (!validation.allValid) {
+         if (!validation.allValid) {
               console.warn(`Validation failed for project idea generation (attempt ${attempts}). Reasoning:`, validation.results);
               lastError = `Project idea generation failed cross-validation (attempt ${attempts}).`;
               if (attempts === MAX_ATTEMPTS) {
@@ -224,6 +229,8 @@ const generateProjectIdeaFlow = ai.defineFlow<
 
 
 // --- Main Exported Function (Wrapper) ---
+// This is the function that can be called from the client/server
+// It needs to be async because it calls the flow
 export async function generateProjectIdea(
   input?: GenerateProjectIdeaInput // Accept optional input matching schema
 ): Promise<GenerateProjectIdeaOutput> {

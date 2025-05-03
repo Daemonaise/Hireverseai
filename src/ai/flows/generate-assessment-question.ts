@@ -6,7 +6,7 @@
  * - generateAssessmentQuestion - A function that generates one question.
  */
 
-import { ai, chooseModelBasedOnPrompt } from '@/ai/ai-instance'; // Import the configured ai instance and helpers
+import { ai, chooseModelBasedOnPrompt } from '@/lib/ai'; // Import the configured ai instance and helpers
 import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
 import { z } from 'zod';
 import {
