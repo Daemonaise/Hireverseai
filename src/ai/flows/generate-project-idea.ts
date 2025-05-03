@@ -82,7 +82,6 @@ const generateProjectIdeaFlow = ai.defineFlow<
         console.log(`Using model ${primaryModel} for project idea generation (attempt ${attempts}).`);
 
         // 2. Define the prompt using the chosen model and template
-        // Note: definePrompt itself doesn't need 'use server', it's the execution that might
         const projectIdeaPrompt = ai.definePrompt({
           name: `generateProjectIdeaPrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name
           model: primaryModel, // Explicitly specify the model here
@@ -92,9 +91,12 @@ const generateProjectIdeaFlow = ai.defineFlow<
         });
 
         // 3. Call the defined prompt with the input and the random number
-        // The actual AI call happens here
-        const promptInput = { ...input, randomNumber }; // Define promptInput here
-        const { output: aiOutput } = await projectIdeaPrompt(promptInput);
+        const promptInput = { ...input, randomNumber }; // Construct input for the prompt call
+
+        // *** ADDED LOGGING HERE ***
+        console.log('>>> Calling projectIdeaPrompt with input:', JSON.stringify(promptInput));
+
+        const { output: aiOutput } = await projectIdeaPrompt(promptInput); // <--- Error seems to occur here or inside
 
         if (!aiOutput) {
           throw new Error(`AI (${primaryModel}) returned null or undefined output.`);
@@ -146,8 +148,12 @@ const generateProjectIdeaFlow = ai.defineFlow<
 
 
       } catch (err: any) {
+        // *** ADDED DETAILED ERROR LOGGING ***
+        console.error(`Error during AI call or processing (attempt ${attempts}) for promptInput:`, JSON.stringify(promptInput)); // Log the input on error
+        console.error(`Error details:`, err); // Log the full error object
+
         lastError = `Error during AI call or processing (attempt ${attempts}): ${err.message}`;
-        console.error(lastError, err);
+        console.error(lastError); // Keep original error log too
          rawResponse = err.message; // Store error message if AI call failed
         if (attempts === MAX_ATTEMPTS) {
            // Provide a more specific error based on the last failure
