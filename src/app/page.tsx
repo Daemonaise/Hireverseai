@@ -1,6 +1,6 @@
 
+
 import Link from 'next/link';
-// import { AiMatcher } from '@/components/ai-matcher'; // Removed AiMatcher from hero
 import { FeatureCard } from '@/components/feature-card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'; // Added Lock, Server
 import { WorkflowGrid } from '@/components/workflow-grid'; // Import the new WorkflowGrid component
 import { HeaderNavigationClient } from '@/components/header-navigation-client'; // Import the new client component
+import { AiMatcher } from '@/components/ai-matcher';
 
 // Data for Core Platform Features (Updated to 6 items) - Reordered
 const coreFeatures = [
@@ -107,12 +108,16 @@ export default function Home() {
             <p className="max-w-[700px] text-lg text-muted-foreground md:text-xl">
                Harness the speed of AI and the power of human parallel processing. Submit your project brief and get matched with top freelancers who solve problems faster, smarter, and together.
             </p>
-            {/* Removed AiMatcher, added single CTA button */}
-            <div className="mt-8">
+            {/* AI Matcher Component */}
+            <div className="mt-8 w-full max-w-xl">
+                <AiMatcher />
+            </div>
+            {/* Updated CTA button (Optional, could be removed if AiMatcher handles it) */}
+            {/* <div className="mt-8">
                 <Button size="lg" asChild>
                    <Link href="/client/signup">Start Hiring Smarter</Link>
                 </Button>
-            </div>
+            </div> */}
           </div>
         </section>
 
@@ -177,21 +182,6 @@ export default function Home() {
 
          {/* Separator */}
          <Separator className="my-16 md:my-20" />
-
-         {/* Testimonials Section Placeholder */}
-         {/*
-         <section className="container mx-auto px-4 pb-16 pt-8 md:px-6 lg:pb-24">
-            <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl">
-                Trusted By Industry Leaders
-            </h2>
-            {/* Implement Carousel or Logo Grid Here * /}
-            <div className="text-center text-muted-foreground">[Testimonial Carousel or Company Logos Placeholder]</div>
-         </section>
-          */}
-
-         {/* Separator */}
-         {/* <Separator className="my-16 md:my-20" /> */}
-
 
          {/* Gamified Community Section */}
         <section className="container mx-auto px-4 pb-16 pt-8 md:px-6 lg:pb-24">

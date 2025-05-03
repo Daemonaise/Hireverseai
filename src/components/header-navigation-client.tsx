@@ -38,14 +38,15 @@ export function HeaderNavigationClient() {
   return (
     <>
       <nav className="flex items-center gap-4">
-        {/* Added Pricing Link */}
+        {/* Button 1 */}
         <Button variant="outline" size="sm" asChild>
-          <Link href="/#pricing">Pricing</Link> {/* Assuming pricing section on home page for now */}
+          <Link href="/#pricing">Pricing</Link>
         </Button>
+        {/* Button 2 */}
         <Button variant="outline" size="sm" asChild>
           <Link href="/community">Community</Link>
         </Button>
-        {/* Client Portal Button with Auth Check */}
+        {/* Button 3 - No asChild */}
         <Button
           variant="outline"
           size="sm"
@@ -53,16 +54,18 @@ export function HeaderNavigationClient() {
         >
           Client Portal
         </Button>
+        {/* Button 4 */}
         <Button variant="outline" size="sm" asChild>
           <Link href="/freelancer/login">
             Freelancer Login
           </Link>
         </Button>
+        {/* Button 5 - Ensure Link is the only direct child */}
         <Button variant="default" size="sm" asChild>
-          <Link href="/freelancer/signup">
-            <UserPlus className="mr-1 h-4 w-4" />
-            Freelancer Signup
-          </Link>
+           <Link href="/freelancer/signup" className="flex items-center">
+                 <UserPlus className="h-4 w-4" />
+                 Freelancer Signup
+           </Link>
         </Button>
       </nav>
 
