@@ -9,8 +9,8 @@
  * - GenerateProjectIdeaOutput - Output type including cost details and status.
  */
 
-import { ai } from '@/lib/ai'; // Import the configured ai instance
-import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
+import { ai } from '@/lib/ai'; // Import the configured ai instance and helpers
+import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import model selector
 import { validateAIOutput } from '@/ai/validate-output'; // Import from new location
 import { z } from 'zod';
 import {
@@ -50,6 +50,11 @@ Strictly follow this JSON structure:
 REMEMBER: ONLY the JSON object. Absolutely no other text before or after the JSON. Verify the structure and types carefully, especially 'estimatedHours' which must be a number >= 1.`;
 
 
+// --- Define extended schema and inferred type ---
+const PromptInputSchema = GenerateProjectIdeaInputSchema.extend({ randomNumber: z.string() });
+type PromptInputType = z.infer<typeof PromptInputSchema>;
+
+
 // --- Define the Flow ---
 // This internal flow definition should NOT be exported directly if the file is marked 'use server'
 const generateProjectIdeaFlow = ai.defineFlow<
@@ -68,6 +73,9 @@ const generateProjectIdeaFlow = ai.defineFlow<
     let lastError: string | null = null;
     let rawResponse: string | null = null;
     let primaryModel: string = ''; // Store the model used for generation
+    // Declare promptInput outside the try block using the inferred type
+    let promptInput: PromptInputType | null = null;
+
 
     while (attempts < MAX_ATTEMPTS && !aiResultData) {
       attempts++;
@@ -78,6 +86,7 @@ const generateProjectIdeaFlow = ai.defineFlow<
       try {
         // 1. Choose the primary model for generation
         const promptContext = `Generate project idea. Hint: ${input.industryHint || 'Any'}. Random: ${randomNumber}`;
+        // chooseModelBasedOnPrompt needs 'use server' which it has
         primaryModel = await chooseModelBasedOnPrompt(promptContext);
         console.log(`Using model ${primaryModel} for project idea generation (attempt ${attempts}).`);
 
@@ -85,13 +94,14 @@ const generateProjectIdeaFlow = ai.defineFlow<
         const projectIdeaPrompt = ai.definePrompt({
           name: `generateProjectIdeaPrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`, // Dynamic name
           model: primaryModel, // Explicitly specify the model here
-          input: { schema: GenerateProjectIdeaInputSchema.extend({ randomNumber: z.string() }) },
+          input: { schema: PromptInputSchema }, // Use the extended schema here
           output: { schema: GenerateProjectIdeaAIOutputSchema }, // Expect AI to output in this format
           prompt: projectIdeaPromptTemplate,
         });
 
         // 3. Call the defined prompt with the input and the random number
-        const promptInput = { ...input, randomNumber }; // Construct input for the prompt call
+        // Assign to the outer promptInput variable
+        promptInput = { ...input, randomNumber };
 
         // *** ADDED LOGGING HERE ***
         console.log('>>> Calling projectIdeaPrompt with input:', JSON.stringify(promptInput));
@@ -149,6 +159,7 @@ const generateProjectIdeaFlow = ai.defineFlow<
 
       } catch (err: any) {
         // *** ADDED DETAILED ERROR LOGGING ***
+        // Now promptInput is accessible here
         console.error(`Error during AI call or processing (attempt ${attempts}) for promptInput:`, JSON.stringify(promptInput)); // Log the input on error
         console.error(`Error details:`, err); // Log the full error object
 
@@ -174,7 +185,7 @@ const generateProjectIdeaFlow = ai.defineFlow<
                reasoning: finalErrorMessage,
                idea: 'Error',
                estimatedTimeline: 'N/A',
-               requiredSkills: [],
+               requiredSkills: []
              };
         }
         await new Promise(resolve => setTimeout(resolve, 500)); // Wait before retry

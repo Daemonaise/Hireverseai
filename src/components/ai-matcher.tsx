@@ -88,9 +88,9 @@ export function AiMatcher() {
          // Use the error reasoning provided by the flow, or a specific message
          const errorMessage = result.reasoning || `Failed to generate example: Invalid response from AI.`;
          setIdeaError(errorMessage); // Set the error state to display in the dialog
-         console.error("Error generating example:", result.reasoning);
+         // Use console.warn instead of console.error to avoid triggering strict Next.js error reporting
+         console.warn("[AI Matcher] Idea generation failed:", result); // Log the full result object
          // No need for toast here, error is shown in dialog
-         // toast({ title: "Error Generating Idea", description: errorMessage, variant: "destructive" });
        } else {
          setGeneratedIdea(result);
        }
@@ -101,7 +101,6 @@ export function AiMatcher() {
        const errorMessage = `${err.message || "An unexpected error occurred while generating the example."} ${errorDetails}`;
        setIdeaError(errorMessage); // Set the error state to display in the dialog
        // No need for toast here, error is shown in dialog
-       // toast({ title: "Error Generating Idea", description: errorMessage, variant: "destructive" });
     } finally {
        setIdeaLoading(false);
     }
@@ -249,9 +248,9 @@ export function AiMatcher() {
                   <FormLabel
                     htmlFor="projectBrief"
                     className={cn(
-                      "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none", // Centered initial position
-                      "peer-focus:top-2 peer-focus:left-3 peer-focus:translate-x-0 peer-focus:-translate-y-0 peer-focus:text-xs peer-focus:text-primary", // Focused state
-                      (field.value || form.formState.isSubmitted) && "top-2 left-3 translate-x-0 -translate-y-0 text-xs text-primary" // Has value state
+                      "absolute left-1/2 top-2 -translate-x-1/2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none", // Centered initial position above
+                      "peer-focus:top-2 peer-focus:left-3 peer-focus:translate-x-0 peer-focus:-translate-y-0 peer-focus:text-xs peer-focus:text-primary", // Focused state moves label to top-left
+                      (field.value || form.formState.isSubmitted) && "top-2 left-3 translate-x-0 -translate-y-0 text-xs text-primary" // Has value state keeps label top-left
                     )}
                   >
                     Describe your project goal, key deliverables, and any specific requirements...
