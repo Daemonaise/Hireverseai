@@ -217,220 +217,216 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
   }, [matchResult]);
 
   return (
-    <Card className="w-full shadow-md border-t-4 border-primary">
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <CardContent className="pt-6 space-y-4 text-center">
-            <FormField
-              control={form.control}
-              name="projectBrief"
-              render={({ field }) => (
-                <FormItem className="relative">
-                  <FormLabel
-                    htmlFor="projectBrief"
-                    className={cn(
-                      "absolute left-1/2 top-2 -translate-x-1/2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none",
-                      "peer-focus:top-2 peer-focus:left-3 peer-focus:translate-x-0 peer-focus:-translate-y-0 peer-focus:text-xs peer-focus:text-primary",
-                      (field.value || form.formState.isSubmitted) && "top-2 left-3 translate-x-0 -translate-y-0 text-xs text-primary"
-                    )}
-                  >
-                    Describe your project goal, key deliverables, and any specific requirements...
-                  </FormLabel>
-                  <FormControl>
-                    <Textarea
-                      id="projectBrief"
-                      {...field}
-                      placeholder=" "
-                      className="min-h-[120px] max-h-[250px] pt-5 resize-y mx-auto border-2 border-input focus:border-primary peer"
-                    />
-                  </FormControl>
-                  <FormMessage className="text-center" />
-                </FormItem>
-              )}
-            />
-
-            <div className="text-center pt-2">
-              <Button
-                 variant="outline"
-                 size="sm"
-                 type="button"
-                 onClick={handleGenerateIdea}
-                 disabled={ideaLoading || ideaGenerationCounter >= 3}
-                 className="mx-auto"
-               >
-                <Wand2 className="mr-2 h-4 w-4" /> Need an example?
-              </Button>
-            </div>
-
-            <div className={cn(
-                "transition-all duration-200 ease-out overflow-hidden",
-                showFreelancerIdInput ? "max-h-40 opacity-100 mt-4" : "max-h-0 opacity-0"
-            )}>
+    <div className="rounded-lg bg-gradient-to-br from-blue-500 via-purple-600 to-orange-500 p-1 shadow-xl">
+      <Card className="w-full"> {/* Removed border-t-4 border-primary */}
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <CardContent className="pt-6 space-y-4 text-center">
               <FormField
                 control={form.control}
-                name="freelancerId"
+                name="projectBrief"
                 render={({ field }) => (
                   <FormItem className="relative">
                     <FormLabel
-                      htmlFor="freelancerId"
+                      htmlFor="projectBrief"
                       className={cn(
-                        "absolute left-3 top-2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none",
-                        "peer-placeholder-shown:top-2 peer-placeholder-shown:text-base",
-                        "peer-focus:top-[-0.7rem] peer-focus:text-xs peer-focus:text-primary",
-                         field.value && "top-[-0.7rem] text-xs text-primary"
+                        "absolute left-1/2 top-2 -translate-x-1/2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none",
+                        "peer-focus:top-2 peer-focus:left-3 peer-focus:translate-x-0 peer-focus:-translate-y-0 peer-focus:text-xs peer-focus:text-primary",
+                        (field.value || form.formState.isSubmitted) && "top-2 left-3 translate-x-0 -translate-y-0 text-xs text-primary"
                       )}
                     >
-                      Freelancer ID (Optional)
+                      Describe your project goal, key deliverables, and any specific requirements...
                     </FormLabel>
                     <FormControl>
-                      <div className="relative">
-                         <Input
-                           id="freelancerId"
-                           ref={freelancerIdInputRef}
-                           {...field}
-                           placeholder=" "
-                           className="pt-4 peer"
-                         />
-                         {field.value && (
-                           <Button
-                             type="button"
-                             variant="ghost"
-                             size="icon"
-                             className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
-                             onClick={() => form.setValue('freelancerId', '')}
-                           >
-                             <X className="h-4 w-4" />
-                           </Button>
-                         )}
-                      </div>
+                      <Textarea
+                        id="projectBrief"
+                        {...field}
+                        placeholder=" "
+                        className="min-h-[120px] max-h-[250px] pt-5 resize-y mx-auto border-2 border-input focus:border-primary peer"
+                      />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="text-center" />
                   </FormItem>
                 )}
               />
+
+              <div className="text-center pt-2">
+                <Button
+                   size="sm"
+                   type="button"
+                   onClick={handleGenerateIdea}
+                   disabled={ideaLoading || ideaGenerationCounter >= 3}
+                   className="mx-auto text-primary-foreground bg-gradient-to-r from-orange-500 via-pink-500 to-blue-500 hover:from-orange-600 hover:via-pink-600 hover:to-blue-600 transition-all duration-300 ease-in-out shadow-md hover:shadow-lg px-4 py-2 rounded-md"
+                 >
+                  <Wand2 className="mr-2 h-4 w-4" /> Need an example?
+                </Button>
+              </div>
+
+              <div className={cn(
+                  "transition-all duration-200 ease-out overflow-hidden",
+                  showFreelancerIdInput ? "max-h-40 opacity-100 mt-4" : "max-h-0 opacity-0"
+              )}>
+                <FormField
+                  control={form.control}
+                  name="freelancerId"
+                  render={({ field }) => (
+                    <FormItem className="relative">
+                      <FormLabel
+                        htmlFor="freelancerId"
+                        className={cn(
+                          "absolute left-3 top-2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none",
+                          "peer-placeholder-shown:top-2 peer-placeholder-shown:text-base",
+                          "peer-focus:top-[-0.7rem] peer-focus:text-xs peer-focus:text-primary",
+                           field.value && "top-[-0.7rem] text-xs text-primary"
+                        )}
+                      >
+                        Freelancer ID (Optional)
+                      </FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                           <Input
+                             id="freelancerId"
+                             ref={freelancerIdInputRef}
+                             {...field}
+                             placeholder=" "
+                             className="pt-4 peer"
+                           />
+                           {field.value && (
+                             <Button
+                               type="button"
+                               variant="ghost"
+                               size="icon"
+                               className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                               onClick={() => form.setValue('freelancerId', '')}
+                             >
+                               <X className="h-4 w-4" />
+                             </Button>
+                           )}
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {!showFreelancerIdInput && (
+                  <div className="text-center mt-3">
+                      <button
+                          type="button"
+                          onClick={() => setShowFreelancerIdInput(true)}
+                          className="text-sm text-muted-foreground hover:text-primary hover:underline focus:outline-none focus:text-primary focus:underline"
+                      >
+                          Have a specific freelancer ID? Click here
+                      </button>
+                  </div>
+              )}
+
+              {matchResult && !isMatching && !error && (
+                <Alert
+                  variant={matchResult.status === 'matched' ? 'default' : 'default'}
+                  className="mt-4 border-l-4 border-primary bg-primary/5"
+                >
+                    <AlertTitle className="font-semibold">
+                      {matchResult.status === 'matched' ? 'Match Found!' : 'Estimate Ready'}
+                    </AlertTitle>
+                  <AlertDescription>
+                      {matchResult.reasoning}
+                      {renderResultDetails}
+                   </AlertDescription>
+                </Alert>
+              )}
+
+              {isMatching && !error && !matchResult && (
+                   <div className="mt-4 text-center text-muted-foreground">
+                       <p>Finding the best matches...</p>
+                   </div>
+               )}
+
+               {error && !isMatching && (
+                  <Alert variant="destructive" className="mt-4">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Error</AlertTitle>
+                      <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+              )}
+
+            </CardContent>
+          </form>
+        </Form>
+
+        <Dialog open={isIdeaChatOpen} onOpenChange={setIsIdeaChatOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                  <Bot className="h-5 w-5 text-primary" /> AI Project Example Generator
+              </DialogTitle>
+              <DialogDescription>AI suggestions for example project briefs.</DialogDescription>
+            </DialogHeader>
+            <div className="py-4 min-h-[100px] flex items-center justify-center">
+              {ideaLoading && (
+                  <div className="text-center">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">Generating example...</p>
+                  </div>
+              )}
+              {ideaError && (
+                  <Alert variant="destructive">
+                       <AlertCircle className="h-4 w-4" />
+                       <AlertTitle>Error Generating Example</AlertTitle>
+                      <AlertDescription>{ideaError}</AlertDescription>
+                  </Alert>
+              )}
+              {generatedIdea && !ideaLoading && !ideaError && (
+                <Card className="w-full bg-muted/50 p-4">
+                  <h4 className="font-semibold text-lg mb-1">{generatedIdea.idea}</h4>
+                   {generatedIdea.details && <p className="text-sm text-muted-foreground mb-3">{generatedIdea.details}</p>}
+                   <div className="text-xs space-y-1">
+                        <p><Calendar className="inline h-3 w-3 mr-1"/> Timeline: {generatedIdea.estimatedTimeline}</p>
+                        <p><Hourglass className="inline h-3 w-3 mr-1"/> Hours: ~{generatedIdea.estimatedHours ?? 'N/A'}</p>
+                         {generatedIdea.requiredSkills && generatedIdea.requiredSkills.length > 0 && (
+                             <div className="flex flex-wrap gap-1 items-center">
+                                 <Tag className="inline h-3 w-3 mr-1"/> Skills:
+                                 {generatedIdea.requiredSkills.map(skill => <Badge key={skill} variant="secondary">{skill}</Badge>)}
+                             </div>
+                         )}
+                         {generatedIdea.totalCostToClient != null && (
+                           <p><DollarSign className="inline h-3 w-3 mr-1"/> Est. Cost: ~${generatedIdea.totalCostToClient.toFixed(2)}</p>
+                         )}
+                   </div>
+
+                </Card>
+              )}
             </div>
-
-            {!showFreelancerIdInput && (
-                <div className="text-center mt-3">
-                    <button
-                        type="button"
-                        onClick={() => setShowFreelancerIdInput(true)}
-                        className="text-sm text-muted-foreground hover:text-primary hover:underline focus:outline-none focus:text-primary focus:underline"
-                    >
-                        Have a specific freelancer ID? Click here
-                    </button>
-                </div>
-            )}
-
-            {/* The "Match Freelancers" button has been removed from here. 
-                The submission will be triggered by the "Start a Project" button on the main page. */}
-
-            {matchResult && !isMatching && !error && (
-              <Alert
-                variant={matchResult.status === 'matched' ? 'default' : 'default'}
-                className="mt-4 border-l-4 border-primary bg-primary/5"
-              >
-                  <AlertTitle className="font-semibold">
-                    {matchResult.status === 'matched' ? 'Match Found!' : 'Estimate Ready'}
-                  </AlertTitle>
-                <AlertDescription>
-                    {matchResult.reasoning}
-                    {renderResultDetails}
-                 </AlertDescription>
-              </Alert>
-            )}
-
-            {isMatching && !error && !matchResult && (
-                 <div className="mt-4 text-center text-muted-foreground">
-                     <p>Finding the best matches...</p>
-                 </div>
-             )}
-
-             {error && !isMatching && (
-                <Alert variant="destructive" className="mt-4">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>{error}</AlertDescription>
-                </Alert>
-            )}
-
-          </CardContent>
-        </form>
-      </Form>
-
-      <Dialog open={isIdeaChatOpen} onOpenChange={setIsIdeaChatOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-                <Bot className="h-5 w-5 text-primary" /> AI Project Example Generator
-            </DialogTitle>
-            <DialogDescription>AI suggestions for example project briefs.</DialogDescription>
-          </DialogHeader>
-          <div className="py-4 min-h-[100px] flex items-center justify-center">
-            {ideaLoading && (
-                <div className="text-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">Generating example...</p>
-                </div>
-            )}
-            {ideaError && (
-                <Alert variant="destructive">
-                     <AlertCircle className="h-4 w-4" />
-                     <AlertTitle>Error Generating Example</AlertTitle>
-                    <AlertDescription>{ideaError}</AlertDescription>
-                </Alert>
-            )}
-            {generatedIdea && !ideaLoading && !ideaError && (
-              <Card className="w-full bg-muted/50 p-4">
-                <h4 className="font-semibold text-lg mb-1">{generatedIdea.idea}</h4>
-                 {generatedIdea.details && <p className="text-sm text-muted-foreground mb-3">{generatedIdea.details}</p>}
-                 <div className="text-xs space-y-1">
-                      <p><Calendar className="inline h-3 w-3 mr-1"/> Timeline: {generatedIdea.estimatedTimeline}</p>
-                      <p><Hourglass className="inline h-3 w-3 mr-1"/> Hours: ~{generatedIdea.estimatedHours ?? 'N/A'}</p>
-                       {generatedIdea.requiredSkills && generatedIdea.requiredSkills.length > 0 && (
-                           <div className="flex flex-wrap gap-1 items-center">
-                               <Tag className="inline h-3 w-3 mr-1"/> Skills:
-                               {generatedIdea.requiredSkills.map(skill => <Badge key={skill} variant="secondary">{skill}</Badge>)}
-                           </div>
-                       )}
-                       {generatedIdea.totalCostToClient != null && (
-                         <p><DollarSign className="inline h-3 w-3 mr-1"/> Est. Cost: ~${generatedIdea.totalCostToClient.toFixed(2)}</p>
-                       )}
-                 </div>
-
-              </Card>
-            )}
-          </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            {generatedIdea && !ideaLoading && !ideaError && (
-              <Button
-                 onClick={() => {
-                   form.setValue('projectBrief', `${generatedIdea.idea}: ${generatedIdea.details ?? ''}`);
-                   setIsIdeaChatOpen(false);
-                   toast({ title: "Example Applied", description: "The example brief has been added to the form." });
-                 }}
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              {generatedIdea && !ideaLoading && !ideaError && (
+                <Button
+                   onClick={() => {
+                     form.setValue('projectBrief', `${generatedIdea.idea}: ${generatedIdea.details ?? ''}`);
+                     setIsIdeaChatOpen(false);
+                     toast({ title: "Example Applied", description: "The example brief has been added to the form." });
+                   }}
+                   className="w-full sm:w-auto"
+                 >
+                   Use This Example
+                 </Button>
+              )}
+               <Button
+                 variant="outline"
+                 onClick={handleGenerateIdea}
+                 disabled={ideaLoading || ideaGenerationCounter >= 3}
                  className="w-full sm:w-auto"
                >
-                 Use This Example
+                 <Wand2 className="mr-2 h-4 w-4" />
+                 Regenerate {ideaGenerationCounter > 0 ? `(${ideaGenerationCounter}/3)` : ''}
                </Button>
-            )}
-             <Button
-               variant="outline"
-               onClick={handleGenerateIdea}
-               disabled={ideaLoading || ideaGenerationCounter >= 3}
-               className="w-full sm:w-auto"
-             >
-               <Wand2 className="mr-2 h-4 w-4" />
-               Regenerate {ideaGenerationCounter > 0 ? `(${ideaGenerationCounter}/3)` : ''}
-             </Button>
-            <Button variant="secondary" onClick={() => setIsIdeaChatOpen(false)} className="w-full sm:w-auto">Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Card>
+              <Button variant="secondary" onClick={() => setIsIdeaChatOpen(false)} className="w-full sm:w-auto">Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </Card>
+    </div>
   );
 });
 
 AiMatcher.displayName = "AiMatcher";
-
-    
