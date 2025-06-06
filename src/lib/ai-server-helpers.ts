@@ -15,15 +15,15 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
   const promptLower = promptContent.toLowerCase();
   const availableModels: string[] = [];
 
-  // Updated model identifiers with provider prefix - Using stable Anthropic IDs
+  // Updated model identifiers with provider prefix
    const allModels = {
-      googleFast: 'googleai/gemini-pro',
+      googleFast: 'googleai/gemini-pro', // Changed from gemini-1.5-flash to gemini-pro
       googlePro: 'googleai/gemini-1.5-pro',
       openaiMini: 'openai/gpt-4o-mini',
       openaiFull: 'openai/gpt-4o',
-      anthropicHaiku: 'anthropic/claude-3-haiku',
-      anthropicSonnet: 'anthropic/claude-3.5-sonnet', // Changed to Claude 3.5 Sonnet
-      anthropicOpus: 'anthropic/claude-3-opus'
+      anthropicHaiku: 'anthropic/claude-3-haiku-20240307', // Specific Haiku version
+      anthropicSonnet: 'anthropic/claude-3.5-sonnet-20240620', // Specific Sonnet 3.5 version
+      anthropicOpus: 'anthropic/claude-3-opus-20240229' // Specific Opus version
    };
 
   // Populate availableModels based on which keys are present *at call time*
@@ -92,3 +92,4 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
   console.warn("[AI Model Selection] No specific model match or preferred fallback found, returning first available:", availableModels[0]);
   return availableModels[0];
 }
+
