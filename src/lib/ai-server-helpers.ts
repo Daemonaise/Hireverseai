@@ -17,8 +17,8 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
 
   // Updated model identifiers with provider prefix - Using stable Anthropic IDs
    const allModels = {
-      googleFast: 'googleai/gemini-1.5-flash-latest', // Corrected prefix and added -latest
-      googlePro: 'googleai/gemini-1.5-pro-latest',   // Corrected prefix and added -latest
+      googleFast: 'googleai/gemini-pro',      // Changed from gemini-1.5-flash to test general model access
+      googlePro: 'googleai/gemini-1.5-pro',   // Remains gemini-1.5-pro
       openaiMini: 'openai/gpt-4o-mini',
       openaiFull: 'openai/gpt-4o',
       anthropicHaiku: 'anthropic/claude-3-haiku',      // Stable ID
@@ -33,7 +33,7 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
 
   if (availableModels.length === 0) {
     console.error('[AI Model Selection] No models available due to missing API keys.');
-    return allModels.googleFast; // Default fallback
+    return allModels.googleFast; // Default fallback (now gemini-pro)
   }
 
   // Specific routing for coding/development to OpenAI o3 mini (gpt-4o-mini)
@@ -57,7 +57,7 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
       console.log(`[AI Model Selection] Choosing ${allModels.anthropicSonnet} for creative/long task.`);
       return allModels.anthropicSonnet;
   }
-  // Use Gemini Pro for high-quality reasoning if not Opus or Sonnet
+  // Use Gemini Pro (1.5 version) for high-quality reasoning if not Opus or Sonnet
   if ( (promptLower.includes('reasoning') || promptLower.includes('complex problem')) && availableModels.includes(allModels.googlePro) ) {
       console.log(`[AI Model Selection] Choosing ${allModels.googlePro} for reasoning task.`);
       return allModels.googlePro;
@@ -71,7 +71,7 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
     console.log(`[AI Model Selection] Defaulting to ${allModels.anthropicSonnet}.`);
     return allModels.anthropicSonnet;
   }
-  // Next fallback: Gemini Flash
+  // Next fallback: Our "fast" Google model (now gemini-pro for testing)
   if (availableModels.includes(allModels.googleFast)) {
     console.log(`[AI Model Selection] Fallback to ${allModels.googleFast}.`);
     return allModels.googleFast;
