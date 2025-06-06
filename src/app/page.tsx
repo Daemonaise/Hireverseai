@@ -1,9 +1,10 @@
 
 import Link from 'next/link';
-import Image from 'next/image';
+import Image from 'next/image'; // Keep for other images if any
 import { FeatureCard } from '@/components/feature-card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { AiMatcher } from '@/components/ai-matcher'; // Import AiMatcher
 import {
   BrainCircuit,    // AI Project Breakdown, AI Match
   Users,           // Smart Freelancer Matching, Instant Team Formation, Parallel Human Processing
@@ -14,7 +15,7 @@ import {
   Lock,            // Secure and Transparent Payments
   FileText,        // Submit Your Brief
   Split,           // Microtask Efficiency
-  GanttChart,      // Dynamic Project Management
+  GanttChart,      // Dynamic Project Management (Used for "Project Updates" in workflow)
   CheckCircle,     // Quality-Assured Delivery, Integrated Quality Assurance
   Rocket,          // Seamless Project Completion, Call to Action
   Zap,             // Optimized Task Assignment
@@ -22,89 +23,89 @@ import {
   HardDrive,       // Secure Asset Management
   ShieldCheck,     // Security Badges
   ChevronRight,    // For CTA button
-  Briefcase,       // For a feature (could be 'Additional Expertise')
-  SquareCode,      // For 'Development & Tech'
-  DraftingCompass, // For 'Engineering & Drafting'
-  Palette,         // For 'Graphic Design'
-  Video,           // For 'Media Production'
-  PenLine,         // For 'Copywriting & Editing'
-  Trophy,          // For 'Gamified Leaderboard'
+  // Briefcase,       // No longer directly used, but keep if needed for other features
+  // SquareCode,      // Icons for skillset categories removed
+  // DraftingCompass,
+  // Palette,
+  // Video,
+  // PenLine,
+  // Trophy,
 } from 'lucide-react';
 import { HeaderNavigationClient } from '@/components/header-navigation-client';
 
 
-// Data for "Key Features" Section
+// Data for "Key Features" Section (Updated based on user input)
 const keyFeaturesData = [
   {
     icon: BrainCircuit,
-    title: "AI Decomposition Engine",
-    description: "Transform vague requests into concrete deliverables using Genkit-powered prompt logic. Projects are broken into tasks, technical specs, and estimated cost windows.",
+    title: "AI Project Breakdown",
+    description: "Convert general requests into structured tasks, precise technical specs, and accurate budget estimates using Genkit-driven prompt logic.",
   },
   {
     icon: Users,
-    title: "Freelancer Matching",
-    description: "AI evaluates freelancer resumes, portfolios, and past work against decomposed project data. Only optimal candidates are surfaced to clients.",
+    title: "Smart Freelancer Matching",
+    description: "Our AI thoroughly evaluates freelancer expertise, portfolios, and past projects to surface only the best-matched talent for your needs.",
   },
   {
     icon: LayoutDashboard,
-    title: "Realtime Dashboard",
-    description: "Clients and freelancers operate within a unified workspace. All communication, files, tasks, and notes live in one system—no external project tools needed.",
+    title: "Real-Time Collaboration Dashboard",
+    description: "Communicate, share files, manage tasks, and track progress in a unified workspace—no external tools required.",
   },
   {
     icon: Activity,
-    title: "Continuous Vetting",
-    description: "The AI continuously monitors task completion, communication quality, and delivery pace to suggest team optimizations and flag risks.",
+    title: "Continuous Performance Monitoring",
+    description: "AI proactively monitors task completion, communication quality, and pace, offering real-time optimization suggestions and risk alerts.",
   },
   {
     icon: GitCompareArrows,
-    title: "Cross-Validation",
-    description: "Multiple models (Gemini, GPT-4o, Claude) review outputs before submission. Discrepancies are flagged with suggested edits.",
+    title: "Multi-Model Cross-Validation",
+    description: "Outputs undergo reviews by leading models (Gemini, GPT-4o, Claude), ensuring discrepancies are identified and resolved before final submission.",
   },
   {
     icon: Lock,
-    title: "Security and Simplicity",
-    description: "All payments are handled via Stripe. No hourly ambiguity—project fees and timelines are estimated up front using model-calculated baselines.",
+    title: "Secure and Transparent Payments",
+    description: "Payments are securely processed via Stripe with clear, upfront project pricing and timeline estimates—no hidden fees or hourly uncertainty.",
   },
 ];
 
-// Data for "Hireverse AI Workflow" Section
+// Data for "Hireverse AI Workflow" Section (Updated based on user input)
 const hireverseWorkflowData = [
   {
     icon: FileText,
-    title: "Submit Brief",
-    description: "Easily submit your project details, goals, and preferences to get started.",
+    title: "Submit Your Brief",
+    description: "Provide your project goals and requirements easily and clearly.",
   },
   {
-    icon: BrainCircuit,
-    title: "AI Match",
-    description: "Our AI instantly analyzes your brief and matches you with top-vetted freelancers across skillsets.",
+    icon: BrainCircuit, // Re-using BrainCircuit for AI Match
+    title: "Instant Talent Matching",
+    description: "AI immediately matches you with precisely vetted freelancers suited to your project’s unique needs.",
   },
   {
     icon: Split,
-    title: "Microtasks",
-    description: "Your project is intelligently broken into microtasks so multiple experts can work simultaneously.",
+    title: "Microtask Efficiency",
+    description: "Your project is intelligently divided into parallel microtasks, speeding up delivery through simultaneous expert collaboration.",
   },
   {
-    icon: GanttChart,
-    title: "Project Updates",
-    description: "Track real-time progress, communicate with your team, and request updates or change orders as needed.",
+    icon: GanttChart, // Using GanttChart as it was present in previous version for updates
+    title: "Dynamic Project Management",
+    description: "Track real-time progress, communicate effortlessly, and request updates or changes anytime.",
   },
   {
     icon: CheckCircle,
-    title: "QA",
-    description: "Every deliverable goes through automated quality checks and optional peer review for precision.",
+    title: "Quality-Assured Delivery",
+    description: "Every task undergoes automated quality checks and optional peer reviews for unmatched precision.",
   },
   {
     icon: Rocket,
-    title: "Delivery",
-    description: "Receive your completed project, assembled seamlessly from all microtasks, ready to use or launch.",
+    title: "Seamless Project Completion",
+    description: "Receive your fully assembled, ready-to-launch project seamlessly integrated from completed microtasks.",
   },
 ];
 
-// Data for "Core Platform Features" Section
+// Data for "Core Platform Features" Section (Updated based on user input)
 const corePlatformFeaturesData = [
   {
-    icon: Users,
+    icon: Users, // Re-using Users icon
     title: "Parallel Human Processing",
     description: "Boost project speed dramatically by breaking large projects into efficiently managed microtasks executed simultaneously.",
     isNew: true,
@@ -120,7 +121,7 @@ const corePlatformFeaturesData = [
     description: "Tasks are swiftly routed to the most qualified and available freelancers using advanced AI matching.",
   },
   {
-    icon: CheckCircle,
+    icon: CheckCircle, // Re-using CheckCircle icon
     title: "Integrated Quality Assurance",
     description: "Built-in automated checks and optional peer reviews ensure every deliverable meets high-quality standards.",
   },
@@ -167,14 +168,10 @@ export default function Home() {
               </Button>
             </div>
             <div className="md:w-1/2 mt-10 md:mt-0 flex justify-center md:justify-end">
-              <Image
-                src="https://placehold.co/600x400.png"
-                alt="AI and human collaboration illustration"
-                width={600}
-                height={400}
-                className="rounded-lg shadow-xl"
-                data-ai-hint="AI human collaboration"
-              />
+              {/* Replaced Image with AiMatcher component */}
+              <div className="w-full max-w-xl"> {/* Added a wrapper for sizing control */}
+                <AiMatcher />
+              </div>
             </div>
           </div>
         </section>
@@ -200,14 +197,14 @@ export default function Home() {
         <div className="py-8 md:py-10"> <Separator /> </div>
 
          {/* Key Features Section */}
-         <section className="container mx-auto px-4 py-12 md:px-6 md:py-16 bg-gray-50 rounded-lg">
+         <section className="container mx-auto px-4 py-12 md:px-6 md:py-16 bg-muted/30 rounded-lg">
            <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
             Key Features
            </h2>
            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
               {keyFeaturesData.map((feature) => (
-                  <div key={feature.title} className="flex items-start gap-4 p-1 hover:scale-105 transition-transform duration-300">
-                      <div className="flex-shrink-0 mt-1">
+                  <div key={feature.title} className="flex items-start gap-4 p-1 hover:scale-[1.02] transition-transform duration-300">
+                      <div className="flex-shrink-0 mt-1 bg-primary/10 p-2 rounded-md">
                         <feature.icon className="h-8 w-8 text-primary stroke-2" />
                       </div>
                       <div>
@@ -237,12 +234,12 @@ export default function Home() {
                     <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xl font-bold border-2 border-primary/30 shadow-md mb-2 md:mb-0 md:mr-0">
                       {index + 1}
                     </div>
-                    <div className="md:mt-3 p-3 bg-white rounded-full shadow-lg border border-gray-200">
+                    <div className="md:mt-3 p-3 bg-white rounded-full shadow-lg border border-muted">
                       <step.icon className="h-8 w-8 text-primary stroke-2" />
                     </div>
                   </div>
                    {/* Text Content Card */}
-                  <div className={`p-6 rounded-lg shadow-xl w-full md:w-2/3 bg-white hover:shadow-2xl transition-shadow duration-300 border border-gray-100 ${index % 2 !== 0 ? 'md:text-right' : 'md:text-left'}`}>
+                  <div className={`p-6 rounded-lg shadow-xl w-full md:w-2/3 bg-white hover:shadow-2xl transition-shadow duration-300 border border-muted/50 ${index % 2 !== 0 ? 'md:text-right' : 'md:text-left'}`}>
                     <h3 className="text-xl font-semibold text-gray-900 mb-2">{step.title}</h3>
                     <p className="text-muted-foreground">{step.description}</p>
                   </div>
@@ -255,7 +252,7 @@ export default function Home() {
         <div className="py-8 md:py-10"> <Separator /> </div>
 
         {/* Core Platform Features Section */}
-        <section className="container mx-auto px-4 py-12 md:px-6 md:py-16 bg-gray-50 rounded-lg">
+        <section className="container mx-auto px-4 py-12 md:px-6 md:py-16 bg-muted/30 rounded-lg">
           <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
             Core Platform Features
           </h2>
@@ -267,7 +264,7 @@ export default function Home() {
                   title={feature.title}
                   description={feature.description}
                   isNew={feature.isNew}
-                  className="bg-white border-2 border-primary hover:scale-105 hover:shadow-xl transition-transform duration-300"
+                  className="bg-white border-2 border-primary hover:scale-[1.03] hover:shadow-xl transition-transform duration-300"
                 />
               </div>
             ))}
@@ -277,7 +274,7 @@ export default function Home() {
         <div className="py-8 md:py-10"> <Separator /> </div>
 
         {/* Integration & Security Section */}
-        <section className="py-16 bg-gray-50">
+        <section className="py-16 bg-muted/30">
             <div className="container mx-auto px-4 md:px-6">
                 <h2 className="text-2xl font-semibold text-center text-gray-900 mb-10">Trusted Integrations &amp; Security</h2>
                 <div className="flex flex-wrap justify-center items-center gap-x-12 gap-y-8">
@@ -321,7 +318,7 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t bg-gray-50 py-8 mt-12">
+      <footer className="border-t bg-muted/30 py-8 mt-12">
         <div className="container mx-auto flex flex-col items-center justify-between px-4 text-center text-sm text-muted-foreground md:flex-row md:px-6">
           <p>&copy; {new Date().getFullYear()} Hireverse AI. All rights reserved.</p>
           <div className="mt-4 md:mt-0">
