@@ -218,6 +218,11 @@ export default function Home() {
       <footer className="border-t bg-muted/40 py-6 mt-12">
         <div className="container mx-auto flex flex-col items-center justify-between px-4 text-center text-sm text-muted-foreground md:flex-row md:px-6">
           <p>&copy; {new Date().getFullYear()} Hireverse AI. All rights reserved.</p>
+          <div className="mt-4 md:mt-0">
+            <Link href="https://resume.hireverse.ai/" target="_blank" rel="noopener noreferrer" className="hover:text-primary hover:underline">
+              Looking for help with your resume?
+            </Link>
+          </div>
         </div>
       </footer>
     </div>

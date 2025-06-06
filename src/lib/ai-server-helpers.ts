@@ -14,15 +14,15 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
   const promptLower = promptContent.toLowerCase();
   const availableModels: string[] = [];
 
-  // Updated model identifiers as per user request
+  // Updated model identifiers with provider prefix - Using stable Anthropic IDs
    const allModels = {
-      googleFast: 'googleai/gemini-1.5-flash',
-      googlePro: 'googleai/gemini-1.5-pro',
-      openaiMini: 'openai/gpt-4o-mini', // Renamed for clarity
+      googleFast: 'google/gemini-1.5-flash',
+      googlePro: 'google/gemini-1.5-pro',
+      openaiMini: 'openai/gpt-4o-mini',
       openaiFull: 'openai/gpt-4o',
-      anthropicHaiku: 'anthropic/claude-3-haiku-20240307',
-      anthropicSonnet: 'anthropic/claude-3-sonnet-20240229', // Ensure this matches the exact supported ID
-      anthropicOpus: 'anthropic/claude-3-opus-20240229'
+      anthropicHaiku: 'anthropic/claude-3-haiku',      // Stable ID
+      anthropicSonnet: 'anthropic/claude-3-sonnet',     // Stable ID
+      anthropicOpus: 'anthropic/claude-3-opus'        // Stable ID
    };
 
   // Populate availableModels based on which keys are present *at call time*
@@ -32,20 +32,18 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
 
   if (availableModels.length === 0) {
     console.error('[AI Model Selection] No models available due to missing API keys.');
-    // Fallback or error based on requirements. Returning a default to avoid crashing.
-    // Consider throwing an error if AI is critical: throw new Error('No AI models available.');
-    return allModels.googleFast; // Default fallback if possible
+    return allModels.googleFast; // Default fallback
   }
 
   // Specific routing for coding/development to OpenAI o3 mini (gpt-4o-mini)
   if ( (promptLower.includes('code') || promptLower.includes('```') || promptLower.includes('debug') || promptLower.includes('development') || promptLower.includes('software') || promptLower.includes('scripting')) && availableModels.includes(allModels.openaiMini) ) {
-     console.log("[AI Model Selection] Choosing openai/gpt-4o-mini for coding/dev task.");
+     console.log("[AI Model Selection] Choosing gpt-4o-mini for coding/dev task.");
      return allModels.openaiMini;
   }
 
   // Prioritize specific models based on keywords if available
   if ( (promptLower.includes('graphic design') || promptLower.includes('visual critique')) && availableModels.includes(allModels.openaiFull) ) { // Use full gpt-4o for visual tasks
-    console.log("[AI Model Selection] Choosing openai/gpt-4o for graphic design.");
+    console.log("[AI Model Selection] Choosing gpt-4o for graphic design.");
     return allModels.openaiFull;
   }
    // Use Opus for deep analysis
@@ -54,7 +52,6 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
     return allModels.anthropicOpus;
   }
   // Use Sonnet for creative tasks or long context
-  // Removed prefix from model name
   if ( (promptLower.includes('creative') || promptLower.includes('story') || promptLower.includes('marketing') || promptLength > 1500) && availableModels.includes(allModels.anthropicSonnet) ) {
       console.log(`[AI Model Selection] Choosing ${allModels.anthropicSonnet} for creative/long task.`);
       return allModels.anthropicSonnet;
@@ -69,7 +66,6 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
   // Fallback logic - Prioritize cost-effective models
 
   // Default general model: Sonnet
-  // Removed prefix from model name
   if (availableModels.includes(allModels.anthropicSonnet)) {
     console.log(`[AI Model Selection] Defaulting to ${allModels.anthropicSonnet}.`);
     return allModels.anthropicSonnet;

@@ -37,11 +37,7 @@ export function HeaderNavigationClient() {
 
   return (
     <>
-      <nav className="flex items-center gap-4">
-        {/* Button 1 */}
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/#pricing">Pricing</Link>
-        </Button>
+ <nav className="flex items-center gap-4">
         {/* Button 2 */}
         <Button variant="outline" size="sm" asChild>
           <Link href="/community">Community</Link>
