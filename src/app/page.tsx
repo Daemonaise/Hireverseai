@@ -3,22 +3,29 @@ import Link from 'next/link';
 import { FeatureCard } from '@/components/feature-card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { WorkflowGrid } from '@/components/workflow-grid'; // For "How hireverse AI Works"
 import {
-  BrainCircuit, // For AI Decomposition Engine
-  UserCheck,    // For Freelancer Matching
-  LayoutDashboard, // For Realtime Dashboard
-  ShieldCheck,  // For Continuous Vetting & Security
+  BrainCircuit,    // For AI Decomposition Engine
+  UserCheck,       // For Freelancer Matching
+  LayoutDashboard,   // For Realtime Dashboard
+  ShieldCheck,     // For Continuous Vetting & Security, Built-In Quality Assurance
   GitCompareArrows, // For Cross-Validation
-  Lock,         // For Security and Simplicity
-  FileText,     // Existing, but relevant for How It Works
-  Users,        // Existing icon
-  UserPlus,     // Existing icon
-  Rocket,       // Existing icon
-  ChevronRight, // For CTA button
+  Lock,            // For Security and Simplicity
+  Users,           // For Instant Team Assembly
+  UserPlus,        // For Signup buttons
+  Rocket,          // For CTA button, Delivery
+  ChevronRight,    // For CTA button
+  Split,           // For Human Parallel Processing, Microtasks
+  Zap,             // For Automated Task Routing
+  Workflow,        // For Seamless Integrations (lucide-react icon name)
+  HardDrive,       // For Secure Asset Management
+  FileText,        // For Submit Brief
+  CheckCircle,     // For QA
+  GanttChart,      // For Project Updates
 } from 'lucide-react';
 import { HeaderNavigationClient } from '@/components/header-navigation-client';
 
-// Data for Key Features
+// Data for "Key Features" Section
 const keyFeaturesData = [
   {
     icon: <BrainCircuit className="h-8 w-8 text-primary" />,
@@ -52,21 +59,57 @@ const keyFeaturesData = [
   },
 ];
 
+// Data for "Core Platform Features" Section
+const corePlatformFeaturesData = [
+  {
+    icon: <Split className="h-8 w-8 text-primary" />,
+    title: "Human Parallel Processing",
+    description: "Splits larger projects into microtasks so freelancers work in parallel, dramatically speeding up delivery.",
+    isNew: true, // Mark as new
+  },
+  {
+    icon: <Users className="h-8 w-8 text-primary" />,
+    title: "Instant Team Assembly",
+    description: "AI automatically builds the optimal freelance team based on project needs.",
+  },
+  {
+    icon: <Zap className="h-8 w-8 text-primary" />,
+    title: "Automated Task Routing",
+    description: "AI instantly matches tasks to the best-fit, available freelancers.",
+  },
+  {
+    icon: <ShieldCheck className="h-8 w-8 text-primary" />,
+    title: "Built-In Quality Assurance",
+    description: "Automated checks and optional peer reviews ensure outputs meet your standards.",
+  },
+  {
+    icon: <Workflow className="h-8 w-8 text-primary" />, // Using Workflow icon for integrations
+    title: "Seamless Integrations",
+    description: "Connect with Monday.com, Microsoft Teams, and more to manage projects within your workflow.",
+  },
+  {
+    icon: <HardDrive className="h-8 w-8 text-primary" />,
+    title: "Secure Asset Management",
+    description: "Centralized, protected file sharing and version control for all project assets.",
+  },
+];
+
+// WorkflowGrid data is defined within its own component (src/components/workflow-grid.tsx)
+// The items match the "How hireverse AI Works" steps.
 
 export default function Home() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Header - Make sticky */}
+      {/* Header */}
       <header className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6 sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
         <Link href="/" aria-label="Hireverse AI Home" className="flex items-center gap-2">
            <span className="text-xl font-bold text-foreground">Hireverse AI</span>
         </Link>
-        {/* Navigation - Client Component */}
-         <HeaderNavigationClient />
+        <HeaderNavigationClient />
       </header>
 
       <main className="flex-1">
-        {/* Hero Section - Updated */}
+        {/* Hero Section */}
         <section className="container mx-auto flex flex-col items-center px-4 py-20 text-center md:px-6 md:py-28">
           <div className="flex flex-col items-center space-y-6 w-full max-w-3xl">
             <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
@@ -75,18 +118,16 @@ export default function Home() {
             <p className="max-w-[700px] text-lg text-muted-foreground md:text-xl">
               Combine cutting-edge AI decision-making with the nuanced oversight of a human expert. hireverse.ai is the operating system for project execution, pairing clients with precision-matched freelancers through AI-led project decomposition and vetting workflows.
             </p>
-            {/* AiMatcher removed from here, CTAs will be at the bottom */}
           </div>
         </section>
 
-        {/* Separator */}
-        <Separator className="my-16 md:my-20" />
+        <Separator className="my-12 md:my-16" />
 
-        {/* How It Works Section - Updated */}
-        <section id="how-it-works" className="container mx-auto px-4 pb-16 pt-8 md:px-6 lg:pb-24">
-           <div className="text-center mb-12">
+        {/* How It Works (Text Section) */}
+        <section id="how-it-works-text" className="container mx-auto px-4 pb-12 pt-8 md:px-6 lg:pb-16">
+           <div className="text-center mb-10">
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              How Hireverse AI Works
+              How It Works
             </h2>
            </div>
            <div className="max-w-3xl mx-auto text-lg text-muted-foreground text-center leading-relaxed">
@@ -96,12 +137,11 @@ export default function Home() {
            </div>
         </section>
 
-        {/* Separator */}
-        <Separator className="my-16 md:my-20" />
+        <Separator className="my-12 md:my-16" />
 
-         {/* Key Features Section - Updated */}
-         <section className="container mx-auto px-4 pb-16 pt-8 md:px-6 lg:pb-24">
-           <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl">
+         {/* Key Features Section */}
+         <section className="container mx-auto px-4 pb-12 pt-8 md:px-6 lg:pb-16">
+           <h2 className="mb-10 text-center text-3xl font-bold tracking-tight sm:text-4xl">
             Key Features
            </h2>
            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -117,11 +157,45 @@ export default function Home() {
            </div>
         </section>
 
-        {/* Separator */}
-        <Separator className="my-16 md:my-20" />
+        <Separator className="my-12 md:my-16" />
 
-        {/* Call to Action Section - New */}
-        <section className="container mx-auto px-4 py-16 text-center md:px-6 md:py-20">
+        {/* How hireverse AI Works (WorkflowGrid Section) */}
+        <section id="how-hireverse-ai-works-grid" className="container mx-auto px-4 pb-12 pt-8 md:px-6 lg:pb-16">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+              How Hireverse AI Works
+            </h2>
+          </div>
+          <div className="max-w-4xl mx-auto">
+            <WorkflowGrid />
+          </div>
+        </section>
+
+        <Separator className="my-12 md:my-16" />
+
+        {/* Core Platform Features Section */}
+        <section className="container mx-auto px-4 pb-12 pt-8 md:px-6 lg:pb-16">
+          <h2 className="mb-10 text-center text-3xl font-bold tracking-tight sm:text-4xl">
+            Core Platform Features
+          </h2>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {corePlatformFeaturesData.map((feature) => (
+              <div key={feature.title} className="p-1">
+                <FeatureCard
+                  icon={feature.icon}
+                  title={feature.title}
+                  description={feature.description}
+                  isNew={feature.isNew}
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <Separator className="my-12 md:my-16" />
+
+        {/* Call to Action Section */}
+        <section className="container mx-auto px-4 py-12 text-center md:px-6 md:py-16">
           <div className="max-w-2xl mx-auto">
             <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
               Start your first AI-led project today.
@@ -136,7 +210,7 @@ export default function Home() {
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild>
-                <Link href="#how-it-works">
+                <Link href="#how-hireverse-ai-works-grid"> {/* Updated link to the grid section */}
                   See How It Works <ChevronRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
