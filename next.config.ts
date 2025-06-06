@@ -18,6 +18,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'placehold.co', // Added placehold.co
+        port: '',
+        pathname: '/**',
+      },
       // Add other domains if you use images from elsewhere
     ],
     // Image optimization is enabled by default, no specific config needed here

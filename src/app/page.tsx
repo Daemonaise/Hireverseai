@@ -1,107 +1,147 @@
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { FeatureCard } from '@/components/feature-card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { WorkflowGrid } from '@/components/workflow-grid'; // For "How hireverse AI Works"
 import {
-  BrainCircuit,    // For AI Decomposition Engine
-  UserCheck,       // For Freelancer Matching
-  LayoutDashboard,   // For Realtime Dashboard
-  ShieldCheck,     // For Continuous Vetting & Security, Built-In Quality Assurance
-  GitCompareArrows, // For Cross-Validation
-  Lock,            // For Security and Simplicity
-  Users,           // For Instant Team Assembly
-  UserPlus,        // For Signup buttons
-  Rocket,          // For CTA button, Delivery
+  BrainCircuit,    // AI Project Breakdown, AI Match
+  Users,           // Smart Freelancer Matching, Instant Team Formation, Parallel Human Processing
+  UserPlus,        // For Instant Team Assembly, Freelancer Signup
+  LayoutDashboard,   // Real-Time Collaboration Dashboard
+  Activity,        // Continuous Performance Monitoring
+  GitCompareArrows, // Multi-Model Cross-Validation
+  Lock,            // Secure and Transparent Payments
+  FileText,        // Submit Your Brief
+  Split,           // Microtask Efficiency
+  GanttChart,      // Dynamic Project Management
+  CheckCircle,     // Quality-Assured Delivery, Integrated Quality Assurance
+  Rocket,          // Seamless Project Completion, Call to Action
+  Zap,             // Optimized Task Assignment
+  Workflow,        // Effortless Integrations
+  HardDrive,       // Secure Asset Management
+  ShieldCheck,     // Security Badges
   ChevronRight,    // For CTA button
-  Split,           // For Human Parallel Processing, Microtasks
-  Zap,             // For Automated Task Routing
-  Workflow,        // For Seamless Integrations (lucide-react icon name)
-  HardDrive,       // For Secure Asset Management
-  FileText,        // For Submit Brief
-  CheckCircle,     // For QA
-  GanttChart,      // For Project Updates
+  Briefcase,       // For a feature (could be 'Additional Expertise')
+  SquareCode,      // For 'Development & Tech'
+  DraftingCompass, // For 'Engineering & Drafting'
+  Palette,         // For 'Graphic Design'
+  Video,           // For 'Media Production'
+  PenLine,         // For 'Copywriting & Editing'
+  Trophy,          // For 'Gamified Leaderboard'
 } from 'lucide-react';
 import { HeaderNavigationClient } from '@/components/header-navigation-client';
+
 
 // Data for "Key Features" Section
 const keyFeaturesData = [
   {
-    icon: <BrainCircuit className="h-8 w-8 text-primary" />,
+    icon: BrainCircuit,
     title: "AI Decomposition Engine",
     description: "Transform vague requests into concrete deliverables using Genkit-powered prompt logic. Projects are broken into tasks, technical specs, and estimated cost windows.",
   },
   {
-    icon: <UserCheck className="h-8 w-8 text-primary" />,
+    icon: Users,
     title: "Freelancer Matching",
     description: "AI evaluates freelancer resumes, portfolios, and past work against decomposed project data. Only optimal candidates are surfaced to clients.",
   },
   {
-    icon: <LayoutDashboard className="h-8 w-8 text-primary" />,
+    icon: LayoutDashboard,
     title: "Realtime Dashboard",
     description: "Clients and freelancers operate within a unified workspace. All communication, files, tasks, and notes live in one system—no external project tools needed.",
   },
   {
-    icon: <ShieldCheck className="h-8 w-8 text-primary" />,
+    icon: Activity,
     title: "Continuous Vetting",
     description: "The AI continuously monitors task completion, communication quality, and delivery pace to suggest team optimizations and flag risks.",
   },
   {
-    icon: <GitCompareArrows className="h-8 w-8 text-primary" />,
+    icon: GitCompareArrows,
     title: "Cross-Validation",
     description: "Multiple models (Gemini, GPT-4o, Claude) review outputs before submission. Discrepancies are flagged with suggested edits.",
   },
   {
-    icon: <Lock className="h-8 w-8 text-primary" />,
+    icon: Lock,
     title: "Security and Simplicity",
     description: "All payments are handled via Stripe. No hourly ambiguity—project fees and timelines are estimated up front using model-calculated baselines.",
+  },
+];
+
+// Data for "Hireverse AI Workflow" Section
+const hireverseWorkflowData = [
+  {
+    icon: FileText,
+    title: "Submit Brief",
+    description: "Easily submit your project details, goals, and preferences to get started.",
+  },
+  {
+    icon: BrainCircuit,
+    title: "AI Match",
+    description: "Our AI instantly analyzes your brief and matches you with top-vetted freelancers across skillsets.",
+  },
+  {
+    icon: Split,
+    title: "Microtasks",
+    description: "Your project is intelligently broken into microtasks so multiple experts can work simultaneously.",
+  },
+  {
+    icon: GanttChart,
+    title: "Project Updates",
+    description: "Track real-time progress, communicate with your team, and request updates or change orders as needed.",
+  },
+  {
+    icon: CheckCircle,
+    title: "QA",
+    description: "Every deliverable goes through automated quality checks and optional peer review for precision.",
+  },
+  {
+    icon: Rocket,
+    title: "Delivery",
+    description: "Receive your completed project, assembled seamlessly from all microtasks, ready to use or launch.",
   },
 ];
 
 // Data for "Core Platform Features" Section
 const corePlatformFeaturesData = [
   {
-    icon: <Split className="h-8 w-8 text-primary" />,
-    title: "Human Parallel Processing",
-    description: "Splits larger projects into microtasks so freelancers work in parallel, dramatically speeding up delivery.",
-    isNew: true, // Mark as new
+    icon: Users,
+    title: "Parallel Human Processing",
+    description: "Boost project speed dramatically by breaking large projects into efficiently managed microtasks executed simultaneously.",
+    isNew: true,
   },
   {
-    icon: <Users className="h-8 w-8 text-primary" />,
-    title: "Instant Team Assembly",
-    description: "AI automatically builds the optimal freelance team based on project needs.",
+    icon: UserPlus,
+    title: "Instant Team Formation",
+    description: "Automatically assemble ideal freelancer teams tailored specifically to each project’s requirements.",
   },
   {
-    icon: <Zap className="h-8 w-8 text-primary" />,
-    title: "Automated Task Routing",
-    description: "AI instantly matches tasks to the best-fit, available freelancers.",
+    icon: Zap,
+    title: "Optimized Task Assignment",
+    description: "Tasks are swiftly routed to the most qualified and available freelancers using advanced AI matching.",
   },
   {
-    icon: <ShieldCheck className="h-8 w-8 text-primary" />,
-    title: "Built-In Quality Assurance",
-    description: "Automated checks and optional peer reviews ensure outputs meet your standards.",
+    icon: CheckCircle,
+    title: "Integrated Quality Assurance",
+    description: "Built-in automated checks and optional peer reviews ensure every deliverable meets high-quality standards.",
   },
   {
-    icon: <Workflow className="h-8 w-8 text-primary" />, // Using Workflow icon for integrations
-    title: "Seamless Integrations",
-    description: "Connect with Monday.com, Microsoft Teams, and more to manage projects within your workflow.",
+    icon: Workflow,
+    title: "Effortless Integrations",
+    description: "Easily connect and manage your projects within tools like Monday.com, Microsoft Teams, and more.",
   },
   {
-    icon: <HardDrive className="h-8 w-8 text-primary" />,
+    icon: HardDrive,
     title: "Secure Asset Management",
-    description: "Centralized, protected file sharing and version control for all project assets.",
+    description: "Centralized file sharing, version control, and robust security ensure safe and organized management of all project assets.",
   },
 ];
 
-// WorkflowGrid data is defined within its own component (src/components/workflow-grid.tsx)
-// The items match the "How hireverse AI Works" steps.
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
       {/* Header */}
-      <header className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6 sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
+      <header className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6 sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
         <Link href="/" aria-label="Hireverse AI Home" className="flex items-center gap-2">
            <span className="text-xl font-bold text-foreground">Hireverse AI</span>
         </Link>
@@ -110,107 +150,167 @@ export default function Home() {
 
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="container mx-auto flex flex-col items-center px-4 py-20 text-center md:px-6 md:py-28">
-          <div className="flex flex-col items-center space-y-6 w-full max-w-3xl">
-            <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
-              Harness AI Precision with Expert Fine-Tuning
-            </h1>
-            <p className="max-w-[700px] text-lg text-muted-foreground md:text-xl">
-              Combine cutting-edge AI decision-making with the nuanced oversight of a human expert. hireverse.ai is the operating system for project execution, pairing clients with precision-matched freelancers through AI-led project decomposition and vetting workflows.
-            </p>
+        <section className="bg-white py-20 md:py-28 relative">
+          <div className="absolute inset-0 bg-gradient-to-br from-white via-gray-50 to-gray-100/50 opacity-50"></div>
+          <div className="container mx-auto px-4 md:px-6 flex flex-col md:flex-row items-center text-center md:text-left relative z-10">
+            <div className="md:w-1/2 space-y-6">
+              <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
+                Harness AI Precision with Expert Oversight
+              </h1>
+              <p className="max-w-2xl text-lg text-muted-foreground md:text-xl">
+                Combine cutting-edge AI decision-making with human expertise. hireverse.ai is the go-to platform for streamlined project execution, connecting clients to perfectly matched freelancers through AI-driven task breakdowns and rigorous talent vetting.
+              </p>
+              <Button size="lg" asChild className="bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 transition-transform duration-300">
+                <Link href="/client/signup">
+                  Start a Project <Rocket className="ml-2 h-5 w-5" />
+                </Link>
+              </Button>
+            </div>
+            <div className="md:w-1/2 mt-10 md:mt-0 flex justify-center md:justify-end">
+              <Image
+                src="https://placehold.co/600x400.png"
+                alt="AI and human collaboration illustration"
+                width={600}
+                height={400}
+                className="rounded-lg shadow-xl"
+                data-ai-hint="AI human collaboration"
+              />
+            </div>
           </div>
         </section>
 
-        <Separator className="my-12 md:my-16" />
+        <div className="py-8 md:py-10"> {/* Adjusted spacing */}
+          <Separator />
+        </div>
 
-        {/* How It Works (Text Section) */}
-        <section id="how-it-works-text" className="container mx-auto px-4 pb-12 pt-8 md:px-6 lg:pb-16">
+        {/* How It Works (Paragraph Section) */}
+        <section id="how-it-works" className="container mx-auto px-4 py-12 md:px-6 md:py-16">
            <div className="text-center mb-10">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
               How It Works
             </h2>
            </div>
            <div className="max-w-3xl mx-auto text-lg text-muted-foreground text-center leading-relaxed">
             <p>
-              Create a project request in plain English. AI breaks it into milestones, specs, and role types. Top-matching freelancers are recommended based on skill, availability, and model-determined fit. Project collaboration occurs in a single dashboard, with the AI continuously adjusting scope, team suggestions, and deliverables.
+              Describe your project in simple, plain English. Our AI instantly translates your request into clear milestones, specifications, and role requirements. It then matches you with top-tier freelancers based on skills, availability, and fit. Collaborate seamlessly in one intuitive dashboard, with AI dynamically refining project scope, team composition, and deliverables as needed.
             </p>
            </div>
         </section>
 
-        <Separator className="my-12 md:my-16" />
+        <div className="py-8 md:py-10"> <Separator /> </div>
 
          {/* Key Features Section */}
-         <section className="container mx-auto px-4 pb-12 pt-8 md:px-6 lg:pb-16">
-           <h2 className="mb-10 text-center text-3xl font-bold tracking-tight sm:text-4xl">
+         <section className="container mx-auto px-4 py-12 md:px-6 md:py-16 bg-gray-50 rounded-lg">
+           <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
             Key Features
            </h2>
-           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
               {keyFeaturesData.map((feature) => (
-                  <div key={feature.title} className="p-1">
-                      <FeatureCard
-                        icon={feature.icon}
-                        title={feature.title}
-                        description={feature.description}
-                      />
+                  <div key={feature.title} className="flex items-start gap-4 p-1 hover:scale-105 transition-transform duration-300">
+                      <div className="flex-shrink-0 mt-1">
+                        <feature.icon className="h-8 w-8 text-primary stroke-2" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-semibold text-gray-900 mb-1">{feature.title}</h3>
+                        <p className="text-muted-foreground">{feature.description}</p>
+                      </div>
                   </div>
               ))}
            </div>
         </section>
 
-        <Separator className="my-12 md:my-16" />
+        <div className="py-8 md:py-10"> <Separator /> </div>
 
-        {/* How hireverse AI Works (WorkflowGrid Section) */}
-        <section id="how-hireverse-ai-works-grid" className="container mx-auto px-4 pb-12 pt-8 md:px-6 lg:pb-16">
-          <div className="text-center mb-10">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              How Hireverse AI Works
-            </h2>
-          </div>
-          <div className="max-w-4xl mx-auto">
-            <WorkflowGrid />
+        {/* Hireverse AI Workflow Section */}
+        <section id="hireverse-ai-workflow" className="container mx-auto px-4 py-12 md:px-6 md:py-16">
+          <h2 className="mb-16 text-center text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
+            Hireverse AI Workflow
+          </h2>
+          <div className="relative max-w-4xl mx-auto">
+            {/* Vertical line for timeline effect */}
+            <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-primary/20 transform -translate-x-1/2 hidden md:block rounded-full"></div>
+            <div className="space-y-12 md:space-y-16">
+              {hireverseWorkflowData.map((step, index) => (
+                <div key={step.title} className={`flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-10 ${index % 2 !== 0 ? 'md:flex-row-reverse' : ''}`}>
+                  {/* Icon and Number Bubble - Centered for mobile, side for desktop */}
+                  <div className="flex-shrink-0 flex md:flex-col items-center relative z-10">
+                    <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xl font-bold border-2 border-primary/30 shadow-md mb-2 md:mb-0 md:mr-0">
+                      {index + 1}
+                    </div>
+                    <div className="md:mt-3 p-3 bg-white rounded-full shadow-lg border border-gray-200">
+                      <step.icon className="h-8 w-8 text-primary stroke-2" />
+                    </div>
+                  </div>
+                   {/* Text Content Card */}
+                  <div className={`p-6 rounded-lg shadow-xl w-full md:w-2/3 bg-white hover:shadow-2xl transition-shadow duration-300 border border-gray-100 ${index % 2 !== 0 ? 'md:text-right' : 'md:text-left'}`}>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">{step.title}</h3>
+                    <p className="text-muted-foreground">{step.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
-        <Separator className="my-12 md:my-16" />
+        <div className="py-8 md:py-10"> <Separator /> </div>
 
         {/* Core Platform Features Section */}
-        <section className="container mx-auto px-4 pb-12 pt-8 md:px-6 lg:pb-16">
-          <h2 className="mb-10 text-center text-3xl font-bold tracking-tight sm:text-4xl">
+        <section className="container mx-auto px-4 py-12 md:px-6 md:py-16 bg-gray-50 rounded-lg">
+          <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
             Core Platform Features
           </h2>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {corePlatformFeaturesData.map((feature) => (
-              <div key={feature.title} className="p-1">
+              <div key={feature.title} className="p-1"> {/* Added p-1 for hover effect breathing room */}
                 <FeatureCard
-                  icon={feature.icon}
+                  icon={<feature.icon className="h-8 w-8 text-primary stroke-2" />}
                   title={feature.title}
                   description={feature.description}
                   isNew={feature.isNew}
+                  className="bg-white border-2 border-primary hover:scale-105 hover:shadow-xl transition-transform duration-300"
                 />
               </div>
             ))}
           </div>
         </section>
 
-        <Separator className="my-12 md:my-16" />
+        <div className="py-8 md:py-10"> <Separator /> </div>
+
+        {/* Integration & Security Section */}
+        <section className="py-16 bg-gray-50">
+            <div className="container mx-auto px-4 md:px-6">
+                <h2 className="text-2xl font-semibold text-center text-gray-900 mb-10">Trusted Integrations &amp; Security</h2>
+                <div className="flex flex-wrap justify-center items-center gap-x-12 gap-y-8">
+                    <Image src="https://placehold.co/150x60.png" alt="Monday.com Logo" width={150} height={60} className="opacity-70 hover:opacity-100 transition-opacity" data-ai-hint="Monday.com logo" />
+                    <Image src="https://placehold.co/150x60.png" alt="Microsoft Teams Logo" width={150} height={60} className="opacity-70 hover:opacity-100 transition-opacity" data-ai-hint="Microsoft Teams logo" />
+                    <Image src="https://placehold.co/120x60.png" alt="Stripe Logo" width={120} height={60} className="opacity-70 hover:opacity-100 transition-opacity" data-ai-hint="Stripe logo" />
+                    <div className="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity">
+                        <ShieldCheck className="h-10 w-10 text-accent" /> {/* Changed to accent green */}
+                        <span className="font-medium text-muted-foreground">SSL Secured</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div className="py-8 md:py-10"> <Separator /> </div>
 
         {/* Call to Action Section */}
-        <section className="container mx-auto px-4 py-12 text-center md:px-6 md:py-16">
+        <section className="container mx-auto px-4 py-16 text-center md:px-6">
           <div className="max-w-2xl mx-auto">
-            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
               Start your first AI-led project today.
             </h2>
             <p className="mt-4 text-lg text-muted-foreground md:text-xl">
               Eliminate scope creep, late work, and bad hires.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
-              <Button size="lg" asChild>
+              <Button size="lg" asChild className="bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 transition-transform duration-300">
                 <Link href="/client/signup">
                   Start a Project <Rocket className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
-              <Button size="lg" variant="outline" asChild>
-                <Link href="#how-hireverse-ai-works-grid"> {/* Updated link to the grid section */}
+              <Button size="lg" variant="outline" asChild className="text-primary border-primary hover:bg-primary/10 hover:text-primary hover:scale-105 transition-transform duration-300">
+                <Link href="#how-it-works">
                   See How It Works <ChevronRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
@@ -221,7 +321,7 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t bg-muted/40 py-6 mt-12">
+      <footer className="border-t bg-gray-50 py-8 mt-12">
         <div className="container mx-auto flex flex-col items-center justify-between px-4 text-center text-sm text-muted-foreground md:flex-row md:px-6">
           <p>&copy; {new Date().getFullYear()} Hireverse AI. All rights reserved.</p>
           <div className="mt-4 md:mt-0">
