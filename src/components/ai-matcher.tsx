@@ -1,6 +1,7 @@
+
 'use client';
 
-import React, { useState, useTransition, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useTransition, useRef, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -30,13 +31,17 @@ type FormSchema = z.infer<typeof formSchema>;
 
 // Placeholder: Replace with actual authentication check from context or session
 const checkAuthentication = (): { isAuthenticated: boolean; userId: string | null } => {
-  // For demo: Assume authenticated if a certain condition is met, else null.
-  // In a real app, check for a valid session token, user context, etc.
-  // return { isAuthenticated: false, userId: null }; // Example: Not logged in
-   return { isAuthenticated: true, userId: 'test-client-001' }; // Example: Logged in
+   return { isAuthenticated: true, userId: 'test-client-001' };
 };
 
-export function AiMatcher() {
+export interface AiMatcherRef {
+  triggerSubmit: () => void;
+}
+
+// Props for AiMatcher (if any, currently none beyond ref)
+interface AiMatcherProps {}
+
+export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) => {
   const [isPending, startTransition] = useTransition();
   const [matchResult, setMatchResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +59,7 @@ export function AiMatcher() {
   const form = useForm<FormSchema>({
     resolver: zodResolver(formSchema),
     defaultValues: { projectBrief: '', freelancerId: '' },
-    mode: 'onChange', // Validate on change for better UX
+    mode: 'onChange',
   });
 
   useEffect(() => {
@@ -71,73 +76,57 @@ export function AiMatcher() {
          description: "You have reached the maximum number of example generations for this session.",
          variant: "destructive",
        });
-       setIdeaGenerationCounter(0); // Reset counter after warning
+       setIdeaGenerationCounter(0);
        return;
     }
     setIsIdeaChatOpen(true);
     setIdeaLoading(true);
-    setIdeaError(null); // Clear previous errors
-    setGeneratedIdea(null); // Clear previous idea
+    setIdeaError(null);
+    setGeneratedIdea(null);
 
     try {
-       console.log("Generating project idea example...");
-       // Pass a hint to get varied examples if desired
-       const result = await generateProjectIdea(); // Removed hint for simplicity
-       console.log("AI Idea Generation Result:", result);
+       const result = await generateProjectIdea();
        if (result.status === 'error') {
-         // Use the error reasoning provided by the flow, or a specific message
          const errorMessage = result.reasoning || `Failed to generate example: Invalid response from AI.`;
-         setIdeaError(errorMessage); // Set the error state to display in the dialog
-         // Use console.warn instead of console.error to avoid triggering strict Next.js error reporting
-         console.warn("[AI Matcher] Idea generation failed:", result); // Log the full result object
-         // No need for toast here, error is shown in dialog
+         setIdeaError(errorMessage);
+         console.warn("[AI Matcher] Idea generation failed:", result);
        } else {
          setGeneratedIdea(result);
        }
     } catch (err: any) {
        console.error('Error in handleGenerateIdea:', err);
-       // Set the error state with the caught error message
        const errorDetails = err.errors ? JSON.stringify(err.errors) : '';
        const errorMessage = `${err.message || "An unexpected error occurred while generating the example."} ${errorDetails}`;
-       setIdeaError(errorMessage); // Set the error state to display in the dialog
-       // No need for toast here, error is shown in dialog
+       setIdeaError(errorMessage);
     } finally {
        setIdeaLoading(false);
     }
   }, [ideaGenerationCounter, toast]);
 
 
-  const onSubmit = useCallback((values: FormSchema) => {
+  const onSubmit = useCallback(async (values: FormSchema) => {
     setError(null);
     setMatchResult(null);
-    setIsMatching(true); // Set matching state to true
+    setIsMatching(true);
     const { isAuthenticated, userId } = checkAuthentication();
 
     if (!isAuthenticated) {
       toast({ title: "Authentication Required", description: "Please login or sign up to match freelancers.", variant: "destructive" });
       setIsMatching(false);
-      // TODO: Optionally open login/signup modal here
       return;
     }
 
-    // Show immediate feedback
      toast({
        title: "Matching Freelancers...",
        description: "Please wait while we find the best talent for your project.",
-       duration: 3000, // Show for 3 seconds while transition runs
+       duration: 3000,
      });
-
 
     startTransition(async () => {
       try {
-        console.log("Matching freelancers for brief:", values.projectBrief.substring(0, 50) + "...");
-        // Pass client ID if authenticated, otherwise undefined
         const flowInput = { projectBrief: values.projectBrief, freelancerId: userId ?? undefined };
         const result = await matchFreelancer(flowInput);
-        setMatchResult(result); // Set result after AI call completes
-
-        // Clear the initial "Matching..." toast if it's still showing
-        // toast.dismiss(); // Need a way to dismiss specific toasts if using a library that supports it
+        setMatchResult(result);
 
         if (result.status === 'error') {
             setError(result.reasoning);
@@ -154,15 +143,11 @@ export function AiMatcher() {
                 duration: 5000,
             });
         } else if (result.status === 'matched' && result.totalCostToClient !== undefined && result.totalCostToClient > 0) {
-            // Redirect to checkout only if matched AND cost is valid
-            console.log("Match successful, redirecting to checkout...");
-            toast({ title: "Match Found!", description: "Redirecting to payment...", variant: "default" }); // Changed variant to default
-            // Ensure projectId is available for redirection, use a fallback or handle error if missing
-             const checkoutProjectId = result.projectId || 'unknown_project'; // Use actual ID if available
+             const checkoutProjectId = result.projectId || 'unknown_project';
             router.push(`/checkout?projectId=${checkoutProjectId}&cost=${result.totalCostToClient}`);
-            return; // Exit after successful redirection start
+            toast({ title: "Match Found!", description: "Redirecting to payment...", variant: "default" });
+            return;
         } else {
-             // Handle other statuses or missing cost info
              console.warn("Matching status:", result.status, "Cost:", result.totalCostToClient);
              setError(result.reasoning || "Could not finalize match details.");
               toast({
@@ -171,22 +156,22 @@ export function AiMatcher() {
                 variant: "default",
              });
         }
-
-
       } catch (err: any) {
         console.error('Error during matchFreelancer flow:', err);
         const errorMessage = err.message || "Failed to process project brief due to an unexpected error.";
         setError(errorMessage);
         toast({ title: "Error", description: errorMessage, variant: "destructive" });
       } finally {
-        setIsMatching(false); // Ensure loading state is turned off after transition completes
-        // Optionally show placeholder if no result after loading
-        // if (!matchResult && !error) {
-        //    toast({ title: "Still Working...", description: "Matches are coming soon!", duration: 4000 });
-        // }
+        setIsMatching(false);
       }
     });
-  }, [toast, router]); // Removed matchResult dependency
+  }, [toast, router]);
+
+  useImperativeHandle(ref, () => ({
+    triggerSubmit: () => {
+      form.handleSubmit(onSubmit)();
+    }
+  }));
 
   const renderResultDetails = useMemo(() => {
     if (!matchResult || matchResult.status === 'error') return null;
@@ -194,21 +179,18 @@ export function AiMatcher() {
 
     return (
       <div className="mt-3 space-y-3 text-sm">
-        {/* Display Timeline if available */}
         {matchResult.estimatedTimeline && (
           <div className="flex items-center gap-2">
             <Clock className={iconStyle} />
             <span>Est. Timeline: <span className="font-medium">{matchResult.estimatedTimeline}</span></span>
           </div>
         )}
-        {/* Display Hours if available and positive */}
         {matchResult.estimatedHours != null && matchResult.estimatedHours > 0 && (
           <div className="flex items-center gap-2">
             <Hourglass className={iconStyle} />
             <span>Est. Hours: <span className="font-medium">{matchResult.estimatedHours}</span></span>
           </div>
         )}
-        {/* Display Cost Breakdown if available */}
         {matchResult.totalCostToClient != null && matchResult.totalCostToClient > 0 && (
              <div className="flex flex-col gap-1 border-t pt-2 mt-2">
                   <div className="flex items-center justify-between">
@@ -222,7 +204,6 @@ export function AiMatcher() {
                    </div>
              </div>
         )}
-        {/* Display Skills if available */}
         {matchResult.extractedSkills?.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-2 border-t mt-2">
             <span className="text-muted-foreground mr-1">Skills:</span>
@@ -239,18 +220,18 @@ export function AiMatcher() {
     <Card className="w-full shadow-md border-t-4 border-primary">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <CardContent className="pt-6 space-y-4 text-center"> {/* Ensure CardContent is centered */}
+          <CardContent className="pt-6 space-y-4 text-center">
             <FormField
               control={form.control}
               name="projectBrief"
               render={({ field }) => (
-                <FormItem className="relative"> {/* Make FormItem relative */}
+                <FormItem className="relative">
                   <FormLabel
                     htmlFor="projectBrief"
                     className={cn(
-                      "absolute left-1/2 top-2 -translate-x-1/2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none", // Centered initial position above
-                      "peer-focus:top-2 peer-focus:left-3 peer-focus:translate-x-0 peer-focus:-translate-y-0 peer-focus:text-xs peer-focus:text-primary", // Focused state moves label to top-left
-                      (field.value || form.formState.isSubmitted) && "top-2 left-3 translate-x-0 -translate-y-0 text-xs text-primary" // Has value state keeps label top-left
+                      "absolute left-1/2 top-2 -translate-x-1/2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none",
+                      "peer-focus:top-2 peer-focus:left-3 peer-focus:translate-x-0 peer-focus:-translate-y-0 peer-focus:text-xs peer-focus:text-primary",
+                      (field.value || form.formState.isSubmitted) && "top-2 left-3 translate-x-0 -translate-y-0 text-xs text-primary"
                     )}
                   >
                     Describe your project goal, key deliverables, and any specific requirements...
@@ -259,8 +240,8 @@ export function AiMatcher() {
                     <Textarea
                       id="projectBrief"
                       {...field}
-                      placeholder=" " // Use space placeholder for floating label effect
-                      className="min-h-[120px] max-h-[250px] pt-5 resize-y mx-auto border-2 border-input focus:border-primary peer" // Ensure 'peer' class is present, mx-auto for centering textarea if parent allows
+                      placeholder=" "
+                      className="min-h-[120px] max-h-[250px] pt-5 resize-y mx-auto border-2 border-input focus:border-primary peer"
                     />
                   </FormControl>
                   <FormMessage className="text-center" />
@@ -268,22 +249,19 @@ export function AiMatcher() {
               )}
             />
 
-             {/* "Need an example?" Button Centered */}
             <div className="text-center pt-2">
               <Button
                  variant="outline"
                  size="sm"
-                 type="button" // Important: prevent form submission
+                 type="button"
                  onClick={handleGenerateIdea}
                  disabled={ideaLoading || ideaGenerationCounter >= 3}
-                 className="mx-auto" // Center the button
+                 className="mx-auto"
                >
                 <Wand2 className="mr-2 h-4 w-4" /> Need an example?
               </Button>
             </div>
 
-
-            {/* Freelancer ID Input (conditionally rendered) */}
             <div className={cn(
                 "transition-all duration-200 ease-out overflow-hidden",
                 showFreelancerIdInput ? "max-h-40 opacity-100 mt-4" : "max-h-0 opacity-0"
@@ -297,7 +275,7 @@ export function AiMatcher() {
                       htmlFor="freelancerId"
                       className={cn(
                         "absolute left-3 top-2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none",
-                        "peer-placeholder-shown:top-2 peer-placeholder-shown:text-base", // Adjusted initial state
+                        "peer-placeholder-shown:top-2 peer-placeholder-shown:text-base",
                         "peer-focus:top-[-0.7rem] peer-focus:text-xs peer-focus:text-primary",
                          field.value && "top-[-0.7rem] text-xs text-primary"
                       )}
@@ -311,7 +289,7 @@ export function AiMatcher() {
                            ref={freelancerIdInputRef}
                            {...field}
                            placeholder=" "
-                           className="pt-4 peer" // Ensure peer class is present
+                           className="pt-4 peer"
                          />
                          {field.value && (
                            <Button
@@ -332,9 +310,8 @@ export function AiMatcher() {
               />
             </div>
 
-            {/* Toggle Freelancer ID Input Link */}
             {!showFreelancerIdInput && (
-                <div className="text-center mt-3"> {/* Added margin-top */}
+                <div className="text-center mt-3">
                     <button
                         type="button"
                         onClick={() => setShowFreelancerIdInput(true)}
@@ -345,24 +322,10 @@ export function AiMatcher() {
                 </div>
             )}
 
-            {/* Match Freelancers Button Centered */}
-            <div className="text-center pt-4"> {/* Adjusted padding */}
-              <Button
-                type="submit"
-                disabled={!form.formState.isValid || isPending || isMatching}
-                className="w-full max-w-[300px] mx-auto" // Max width and centering
-                size="lg"
-              >
-                {isPending || isMatching ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Matching...</>
-                ) : (
-                  "Match Freelancers"
-                )}
-              </Button>
-            </div>
+            {/* The "Match Freelancers" button has been removed from here. 
+                The submission will be triggered by the "Start a Project" button on the main page. */}
 
-             {/* Result Display */}
-            {matchResult && !isMatching && !error && ( // Show only when not matching and no error
+            {matchResult && !isMatching && !error && (
               <Alert
                 variant={matchResult.status === 'matched' ? 'default' : 'default'}
                 className="mt-4 border-l-4 border-primary bg-primary/5"
@@ -377,18 +340,13 @@ export function AiMatcher() {
               </Alert>
             )}
 
-            {/* Placeholder while loading/matching and no error */}
             {isMatching && !error && !matchResult && (
                  <div className="mt-4 text-center text-muted-foreground">
                      <p>Finding the best matches...</p>
-                     {/* Optional: Add a placeholder message if it takes longer */}
-                     {/* <p className="text-xs mt-1">(This may take a few moments)</p> */}
                  </div>
              )}
 
-
-             {/* Error Display */}
-             {error && !isMatching && ( // Show error only when not matching
+             {error && !isMatching && (
                 <Alert variant="destructive" className="mt-4">
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>Error</AlertTitle>
@@ -400,7 +358,6 @@ export function AiMatcher() {
         </form>
       </Form>
 
-      {/* AI Idea Generator Dialog */}
       <Dialog open={isIdeaChatOpen} onOpenChange={setIsIdeaChatOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -420,7 +377,6 @@ export function AiMatcher() {
                 <Alert variant="destructive">
                      <AlertCircle className="h-4 w-4" />
                      <AlertTitle>Error Generating Example</AlertTitle>
-                    {/* Directly display the error message from the state */}
                     <AlertDescription>{ideaError}</AlertDescription>
                 </Alert>
             )}
@@ -449,7 +405,6 @@ export function AiMatcher() {
             {generatedIdea && !ideaLoading && !ideaError && (
               <Button
                  onClick={() => {
-                   // Set project brief
                    form.setValue('projectBrief', `${generatedIdea.idea}: ${generatedIdea.details ?? ''}`);
                    setIsIdeaChatOpen(false);
                    toast({ title: "Example Applied", description: "The example brief has been added to the form." });
@@ -474,4 +429,8 @@ export function AiMatcher() {
       </Dialog>
     </Card>
   );
-}
+});
+
+AiMatcher.displayName = "AiMatcher";
+
+    

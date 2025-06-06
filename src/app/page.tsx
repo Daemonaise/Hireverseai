@@ -1,40 +1,38 @@
 
+'use client'; // This page uses client-side hooks (useRef, useState)
+
 import Link from 'next/link';
-import Image from 'next/image'; // Keep for other images if any
+import Image from 'next/image';
+import React, { useRef } from 'react'; // Added useRef
+import { AiMatcher, type AiMatcherRef } from '@/components/ai-matcher'; // Import AiMatcher and its Ref type
 import { FeatureCard } from '@/components/feature-card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { AiMatcher } from '@/components/ai-matcher'; // Import AiMatcher
 import {
-  BrainCircuit,    // AI Project Breakdown, AI Match
-  Users,           // Smart Freelancer Matching, Instant Team Formation, Parallel Human Processing
-  UserPlus,        // For Instant Team Assembly, Freelancer Signup
-  LayoutDashboard,   // Real-Time Collaboration Dashboard
-  Activity,        // Continuous Performance Monitoring
-  GitCompareArrows, // Multi-Model Cross-Validation
-  Lock,            // Secure and Transparent Payments
-  FileText,        // Submit Your Brief
-  Split,           // Microtask Efficiency
-  GanttChart,      // Dynamic Project Management (Used for "Project Updates" in workflow)
-  CheckCircle,     // Quality-Assured Delivery, Integrated Quality Assurance
-  Rocket,          // Seamless Project Completion, Call to Action
-  Zap,             // Optimized Task Assignment
-  Workflow,        // Effortless Integrations
-  HardDrive,       // Secure Asset Management
-  ShieldCheck,     // Security Badges
-  ChevronRight,    // For CTA button
-  // Briefcase,       // No longer directly used, but keep if needed for other features
-  // SquareCode,      // Icons for skillset categories removed
-  // DraftingCompass,
-  // Palette,
-  // Video,
-  // PenLine,
-  // Trophy,
+  BrainCircuit,
+  Users,
+  LayoutDashboard,
+  Activity,
+  GitCompareArrows,
+  Lock,
+  FileText,
+  Split,
+  CheckCircle,
+  Rocket,
+  Zap,
+  Workflow,
+  HardDrive,
+  ShieldCheck,
+  ChevronRight,
+  UserPlus,
+  Briefcase, // Added for "How It Works"
+  Sparkles,  // Added for "How It Works"
+  UsersRound, // Added for "How It Works"
+  GanttChart, // Re-added for workflow step if needed
 } from 'lucide-react';
 import { HeaderNavigationClient } from '@/components/header-navigation-client';
 
-
-// Data for "Key Features" Section (Updated based on user input)
+// Data for "Key Features" Section
 const keyFeaturesData = [
   {
     icon: BrainCircuit,
@@ -68,7 +66,7 @@ const keyFeaturesData = [
   },
 ];
 
-// Data for "Hireverse AI Workflow" Section (Updated based on user input)
+// Data for "Hireverse AI Workflow" Section (Vertical Timeline)
 const hireverseWorkflowData = [
   {
     icon: FileText,
@@ -76,7 +74,7 @@ const hireverseWorkflowData = [
     description: "Provide your project goals and requirements easily and clearly.",
   },
   {
-    icon: BrainCircuit, // Re-using BrainCircuit for AI Match
+    icon: BrainCircuit,
     title: "Instant Talent Matching",
     description: "AI immediately matches you with precisely vetted freelancers suited to your project’s unique needs.",
   },
@@ -86,7 +84,7 @@ const hireverseWorkflowData = [
     description: "Your project is intelligently divided into parallel microtasks, speeding up delivery through simultaneous expert collaboration.",
   },
   {
-    icon: GanttChart, // Using GanttChart as it was present in previous version for updates
+    icon: GanttChart, // Using GanttChart for Dynamic Project Management
     title: "Dynamic Project Management",
     description: "Track real-time progress, communicate effortlessly, and request updates or changes anytime.",
   },
@@ -102,10 +100,10 @@ const hireverseWorkflowData = [
   },
 ];
 
-// Data for "Core Platform Features" Section (Updated based on user input)
+// Data for "Core Platform Features" Section
 const corePlatformFeaturesData = [
   {
-    icon: Users, // Re-using Users icon
+    icon: Users,
     title: "Parallel Human Processing",
     description: "Boost project speed dramatically by breaking large projects into efficiently managed microtasks executed simultaneously.",
     isNew: true,
@@ -121,7 +119,7 @@ const corePlatformFeaturesData = [
     description: "Tasks are swiftly routed to the most qualified and available freelancers using advanced AI matching.",
   },
   {
-    icon: CheckCircle, // Re-using CheckCircle icon
+    icon: CheckCircle,
     title: "Integrated Quality Assurance",
     description: "Built-in automated checks and optional peer reviews ensure every deliverable meets high-quality standards.",
   },
@@ -137,8 +135,37 @@ const corePlatformFeaturesData = [
   },
 ];
 
+// Data for "How It Works" three-step horizontal process
+const howItWorksStepsData = [
+  {
+    icon: Briefcase,
+    title: "1. Define Your Project",
+    description: "Describe your project needs in plain English. Our AI handles the rest."
+  },
+  {
+    icon: Sparkles,
+    title: "2. AI-Powered Matching",
+    description: "Intelligent algorithms match you with top-tier, vetted freelancers instantly."
+  },
+  {
+    icon: UsersRound,
+    title: "3. Collaborate & Succeed",
+    description: "Work seamlessly in a unified dashboard with AI-assisted project management."
+  }
+];
+
 
 export default function Home() {
+  const aiMatcherRef = useRef<AiMatcherRef>(null);
+
+  const handleStartProjectClick = () => {
+    // First, check if the AiMatcher component is mounted and its brief has content
+    // For simplicity, we'll directly trigger submit. Validation will happen in AiMatcher.
+    // A more advanced version might check form validity here before calling triggerSubmit.
+    aiMatcherRef.current?.triggerSubmit();
+  };
+
+
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       {/* Header */}
@@ -161,43 +188,42 @@ export default function Home() {
               <p className="max-w-2xl text-lg text-muted-foreground md:text-xl">
                 Combine cutting-edge AI decision-making with human expertise. hireverse.ai is the go-to platform for streamlined project execution, connecting clients to perfectly matched freelancers through AI-driven task breakdowns and rigorous talent vetting.
               </p>
-              <Button size="lg" asChild className="bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 transition-transform duration-300">
-                <Link href="/client/signup">
-                  Start a Project <Rocket className="ml-2 h-5 w-5" />
-                </Link>
+              <Button 
+                size="lg" 
+                onClick={handleStartProjectClick} // Updated onClick handler
+                className="bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 transition-transform duration-300"
+              >
+                Start a Project <Rocket className="ml-2 h-5 w-5" />
               </Button>
             </div>
             <div className="md:w-1/2 mt-10 md:mt-0 flex justify-center md:justify-end">
-              {/* Replaced Image with AiMatcher component */}
-              <div className="w-full max-w-xl"> {/* Added a wrapper for sizing control */}
-                <AiMatcher />
+              <div className="w-full max-w-xl">
+                <AiMatcher ref={aiMatcherRef} /> {/* Pass the ref to AiMatcher */}
               </div>
             </div>
           </div>
         </section>
 
-        <div className="py-8 md:py-10"> {/* Adjusted spacing */}
-          <Separator />
-        </div>
+        <div className="py-8 md:py-10"> <Separator /> </div>
 
         {/* How It Works (Paragraph Section) */}
-        <section id="how-it-works" className="container mx-auto px-4 py-12 md:px-6 md:py-16">
+        <section id="how-it-works-paragraph" className="container mx-auto px-4 py-12 md:px-6 md:py-16">
            <div className="text-center mb-10">
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
-              How It Works
+              How It Works (Overview)
             </h2>
            </div>
            <div className="max-w-3xl mx-auto text-lg text-muted-foreground text-center leading-relaxed">
             <p>
-              Describe your project in simple, plain English. Our AI instantly translates your request into clear milestones, specifications, and role requirements. It then matches you with top-tier freelancers based on skills, availability, and fit. Collaborate seamlessly in one intuitive dashboard, with AI dynamically refining project scope, team composition, and deliverables as needed.
+              Create a project request in plain English. AI breaks it into milestones, specs, and role types. Top-matching freelancers are recommended based on skill, availability, and model-determined fit. Project collaboration occurs in a single dashboard, with the AI continuously adjusting scope, team suggestions, and deliverables.
             </p>
            </div>
         </section>
-
+        
         <div className="py-8 md:py-10"> <Separator /> </div>
 
-         {/* Key Features Section */}
-         <section className="container mx-auto px-4 py-12 md:px-6 md:py-16 bg-muted/30 rounded-lg">
+        {/* Key Features Section */}
+         <section className="container mx-auto px-4 py-12 md:px-6 md:py-16 bg-gray-50 rounded-lg">
            <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
             Key Features
            </h2>
@@ -218,28 +244,25 @@ export default function Home() {
 
         <div className="py-8 md:py-10"> <Separator /> </div>
 
-        {/* Hireverse AI Workflow Section */}
+        {/* Hireverse AI Workflow Section (Vertical Timeline) */}
         <section id="hireverse-ai-workflow" className="container mx-auto px-4 py-12 md:px-6 md:py-16">
           <h2 className="mb-16 text-center text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
             Hireverse AI Workflow
           </h2>
           <div className="relative max-w-4xl mx-auto">
-            {/* Vertical line for timeline effect */}
             <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-primary/20 transform -translate-x-1/2 hidden md:block rounded-full"></div>
             <div className="space-y-12 md:space-y-16">
               {hireverseWorkflowData.map((step, index) => (
                 <div key={step.title} className={`flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-10 ${index % 2 !== 0 ? 'md:flex-row-reverse' : ''}`}>
-                  {/* Icon and Number Bubble - Centered for mobile, side for desktop */}
                   <div className="flex-shrink-0 flex md:flex-col items-center relative z-10">
                     <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xl font-bold border-2 border-primary/30 shadow-md mb-2 md:mb-0 md:mr-0">
                       {index + 1}
                     </div>
-                    <div className="md:mt-3 p-3 bg-white rounded-full shadow-lg border border-muted">
+                    <div className="md:mt-3 p-3 bg-white rounded-full shadow-lg border border-gray-200">
                       <step.icon className="h-8 w-8 text-primary stroke-2" />
                     </div>
                   </div>
-                   {/* Text Content Card */}
-                  <div className={`p-6 rounded-lg shadow-xl w-full md:w-2/3 bg-white hover:shadow-2xl transition-shadow duration-300 border border-muted/50 ${index % 2 !== 0 ? 'md:text-right' : 'md:text-left'}`}>
+                  <div className={`p-6 rounded-lg shadow-xl w-full md:w-2/3 bg-white hover:shadow-2xl transition-shadow duration-300 border border-gray-100 ${index % 2 !== 0 ? 'md:text-right' : 'md:text-left'}`}>
                     <h3 className="text-xl font-semibold text-gray-900 mb-2">{step.title}</h3>
                     <p className="text-muted-foreground">{step.description}</p>
                   </div>
@@ -252,19 +275,19 @@ export default function Home() {
         <div className="py-8 md:py-10"> <Separator /> </div>
 
         {/* Core Platform Features Section */}
-        <section className="container mx-auto px-4 py-12 md:px-6 md:py-16 bg-muted/30 rounded-lg">
+        <section className="container mx-auto px-4 py-12 md:px-6 md:py-16 bg-gray-50 rounded-lg">
           <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
             Core Platform Features
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {corePlatformFeaturesData.map((feature) => (
-              <div key={feature.title} className="p-1"> {/* Added p-1 for hover effect breathing room */}
+              <div key={feature.title} className="p-1">
                 <FeatureCard
                   icon={<feature.icon className="h-8 w-8 text-primary stroke-2" />}
                   title={feature.title}
                   description={feature.description}
                   isNew={feature.isNew}
-                  className="bg-white border-2 border-primary hover:scale-[1.03] hover:shadow-xl transition-transform duration-300"
+                  className="bg-white border-2 border-primary hover:scale-[1.02] hover:shadow-xl transition-transform duration-300"
                 />
               </div>
             ))}
@@ -272,9 +295,9 @@ export default function Home() {
         </section>
 
         <div className="py-8 md:py-10"> <Separator /> </div>
-
+        
         {/* Integration & Security Section */}
-        <section className="py-16 bg-muted/30">
+        <section className="py-16 bg-gray-50">
             <div className="container mx-auto px-4 md:px-6">
                 <h2 className="text-2xl font-semibold text-center text-gray-900 mb-10">Trusted Integrations &amp; Security</h2>
                 <div className="flex flex-wrap justify-center items-center gap-x-12 gap-y-8">
@@ -282,7 +305,7 @@ export default function Home() {
                     <Image src="https://placehold.co/150x60.png" alt="Microsoft Teams Logo" width={150} height={60} className="opacity-70 hover:opacity-100 transition-opacity" data-ai-hint="Microsoft Teams logo" />
                     <Image src="https://placehold.co/120x60.png" alt="Stripe Logo" width={120} height={60} className="opacity-70 hover:opacity-100 transition-opacity" data-ai-hint="Stripe logo" />
                     <div className="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity">
-                        <ShieldCheck className="h-10 w-10 text-accent" /> {/* Changed to accent green */}
+                        <ShieldCheck className="h-10 w-10 text-accent" />
                         <span className="font-medium text-muted-foreground">SSL Secured</span>
                     </div>
                 </div>
@@ -301,13 +324,15 @@ export default function Home() {
               Eliminate scope creep, late work, and bad hires.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
-              <Button size="lg" asChild className="bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 transition-transform duration-300">
-                <Link href="/client/signup">
-                  Start a Project <Rocket className="ml-2 h-5 w-5" />
-                </Link>
+              <Button 
+                size="lg" 
+                onClick={handleStartProjectClick} // Same handler for this button too
+                className="bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 transition-transform duration-300"
+              >
+                Start a Project <Rocket className="ml-2 h-5 w-5" />
               </Button>
               <Button size="lg" variant="outline" asChild className="text-primary border-primary hover:bg-primary/10 hover:text-primary hover:scale-105 transition-transform duration-300">
-                <Link href="#how-it-works">
+                <Link href="#hireverse-ai-workflow"> {/* Updated to link to the workflow section for clarity */}
                   See How It Works <ChevronRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
@@ -318,7 +343,7 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t bg-muted/30 py-8 mt-12">
+      <footer className="border-t bg-gray-50 py-8 mt-12">
         <div className="container mx-auto flex flex-col items-center justify-between px-4 text-center text-sm text-muted-foreground md:flex-row md:px-6">
           <p>&copy; {new Date().getFullYear()} Hireverse AI. All rights reserved.</p>
           <div className="mt-4 md:mt-0">
@@ -331,3 +356,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
