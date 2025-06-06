@@ -17,13 +17,13 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
 
   // Updated model identifiers with provider prefix - Using stable Anthropic IDs
    const allModels = {
-      googleFast: 'googleai/gemini-pro',      // Changed from gemini-1.5-flash to test general model access
-      googlePro: 'googleai/gemini-1.5-pro',   // Remains gemini-1.5-pro
+      googleFast: 'googleai/gemini-pro',
+      googlePro: 'googleai/gemini-1.5-pro',
       openaiMini: 'openai/gpt-4o-mini',
       openaiFull: 'openai/gpt-4o',
-      anthropicHaiku: 'anthropic/claude-3-haiku',      // Stable ID
-      anthropicSonnet: 'anthropic/claude-3-sonnet',     // Stable ID
-      anthropicOpus: 'anthropic/claude-3-opus'        // Stable ID
+      anthropicHaiku: 'anthropic/claude-3-haiku',
+      anthropicSonnet: 'anthropic/claude-3.5-sonnet', // Changed to Claude 3.5 Sonnet
+      anthropicOpus: 'anthropic/claude-3-opus'
    };
 
   // Populate availableModels based on which keys are present *at call time*
@@ -33,7 +33,7 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
 
   if (availableModels.length === 0) {
     console.error('[AI Model Selection] No models available due to missing API keys.');
-    return allModels.googleFast; // Default fallback (now gemini-pro)
+    return allModels.googleFast; // Default fallback (gemini-pro)
   }
 
   // Specific routing for coding/development to OpenAI o3 mini (gpt-4o-mini)
@@ -52,7 +52,7 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
     console.log(`[AI Model Selection] Choosing ${allModels.anthropicOpus} for long/analysis task.`);
     return allModels.anthropicOpus;
   }
-  // Use Sonnet for creative tasks or long context
+  // Use Sonnet (now Claude 3.5 Sonnet) for creative tasks or long context
   if ( (promptLower.includes('creative') || promptLower.includes('story') || promptLower.includes('marketing') || promptLength > 1500) && availableModels.includes(allModels.anthropicSonnet) ) {
       console.log(`[AI Model Selection] Choosing ${allModels.anthropicSonnet} for creative/long task.`);
       return allModels.anthropicSonnet;
@@ -66,12 +66,12 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
 
   // Fallback logic - Prioritize cost-effective models
 
-  // Default general model: Sonnet
+  // Default general model: Sonnet (now Claude 3.5 Sonnet)
   if (availableModels.includes(allModels.anthropicSonnet)) {
     console.log(`[AI Model Selection] Defaulting to ${allModels.anthropicSonnet}.`);
     return allModels.anthropicSonnet;
   }
-  // Next fallback: Our "fast" Google model (now gemini-pro for testing)
+  // Next fallback: Our "fast" Google model (gemini-pro)
   if (availableModels.includes(allModels.googleFast)) {
     console.log(`[AI Model Selection] Fallback to ${allModels.googleFast}.`);
     return allModels.googleFast;
