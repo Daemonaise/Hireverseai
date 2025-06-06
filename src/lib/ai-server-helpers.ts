@@ -1,3 +1,4 @@
+
 'use server'; // This function accesses environment variables at runtime
 
 /**
@@ -16,8 +17,8 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<s
 
   // Updated model identifiers with provider prefix - Using stable Anthropic IDs
    const allModels = {
-      googleFast: 'google/gemini-1.5-flash',
-      googlePro: 'google/gemini-1.5-pro',
+      googleFast: 'googleai/gemini-1.5-flash-latest', // Corrected prefix and added -latest
+      googlePro: 'googleai/gemini-1.5-pro-latest',   // Corrected prefix and added -latest
       openaiMini: 'openai/gpt-4o-mini',
       openaiFull: 'openai/gpt-4o',
       anthropicHaiku: 'anthropic/claude-3-haiku',      // Stable ID
