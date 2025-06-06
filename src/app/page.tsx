@@ -24,11 +24,11 @@ import {
   HardDrive,
   ShieldCheck,
   ChevronRight,
-  UserPlus,
-  Briefcase, // Added for "How It Works"
-  Sparkles,  // Added for "How It Works"
-  UsersRound, // Added for "How It Works"
-  GanttChart, // Re-added for workflow step if needed
+  UserPlus, // Ensure UserPlus is imported
+  Briefcase,
+  Sparkles,
+  UsersRound,
+  GanttChart, // For workflow
 } from 'lucide-react';
 import { HeaderNavigationClient } from '@/components/header-navigation-client';
 
@@ -74,7 +74,7 @@ const hireverseWorkflowData = [
     description: "Provide your project goals and requirements easily and clearly.",
   },
   {
-    icon: BrainCircuit,
+    icon: BrainCircuit, // Changed from Search to BrainCircuit for "AI Match"
     title: "Instant Talent Matching",
     description: "AI immediately matches you with precisely vetted freelancers suited to your project’s unique needs.",
   },
@@ -84,7 +84,7 @@ const hireverseWorkflowData = [
     description: "Your project is intelligently divided into parallel microtasks, speeding up delivery through simultaneous expert collaboration.",
   },
   {
-    icon: GanttChart, // Using GanttChart for Dynamic Project Management
+    icon: GanttChart, // Changed from ListChecks to GanttChart for "Dynamic Project Management"
     title: "Dynamic Project Management",
     description: "Track real-time progress, communicate effortlessly, and request updates or changes anytime.",
   },
@@ -103,7 +103,7 @@ const hireverseWorkflowData = [
 // Data for "Core Platform Features" Section
 const corePlatformFeaturesData = [
   {
-    icon: Users,
+    icon: Users, // Changed from Zap for "Parallel Human Processing"
     title: "Parallel Human Processing",
     description: "Boost project speed dramatically by breaking large projects into efficiently managed microtasks executed simultaneously.",
     isNew: true,
@@ -114,12 +114,12 @@ const corePlatformFeaturesData = [
     description: "Automatically assemble ideal freelancer teams tailored specifically to each project’s requirements.",
   },
   {
-    icon: Zap,
+    icon: Zap, // Changed from GitCompareArrows for "Optimized Task Assignment"
     title: "Optimized Task Assignment",
     description: "Tasks are swiftly routed to the most qualified and available freelancers using advanced AI matching.",
   },
   {
-    icon: CheckCircle,
+    icon: CheckCircle, // Changed from ShieldCheck for "Integrated Quality Assurance"
     title: "Integrated Quality Assurance",
     description: "Built-in automated checks and optional peer reviews ensure every deliverable meets high-quality standards.",
   },
@@ -135,33 +135,31 @@ const corePlatformFeaturesData = [
   },
 ];
 
-// Data for "How It Works" three-step horizontal process
-const howItWorksStepsData = [
-  {
-    icon: Briefcase,
-    title: "1. Define Your Project",
-    description: "Describe your project needs in plain English. Our AI handles the rest."
-  },
-  {
-    icon: Sparkles,
-    title: "2. AI-Powered Matching",
-    description: "Intelligent algorithms match you with top-tier, vetted freelancers instantly."
-  },
-  {
-    icon: UsersRound,
-    title: "3. Collaborate & Succeed",
-    description: "Work seamlessly in a unified dashboard with AI-assisted project management."
-  }
-];
+// Data for "How It Works" three-step horizontal process - this section was removed based on latest request,
+// using paragraph format instead. Keeping data here in case it's needed for another component.
+// const howItWorksStepsData = [
+//   {
+//     icon: Briefcase,
+//     title: "1. Define Your Project",
+//     description: "Describe your project needs in plain English. Our AI handles the rest."
+//   },
+//   {
+//     icon: Sparkles,
+//     title: "2. AI-Powered Matching",
+//     description: "Intelligent algorithms match you with top-tier, vetted freelancers instantly."
+//   },
+//   {
+//     icon: UsersRound,
+//     title: "3. Collaborate & Succeed",
+//     description: "Work seamlessly in a unified dashboard with AI-assisted project management."
+//   }
+// ];
 
 
 export default function Home() {
   const aiMatcherRef = useRef<AiMatcherRef>(null);
 
   const handleStartProjectClick = () => {
-    // First, check if the AiMatcher component is mounted and its brief has content
-    // For simplicity, we'll directly trigger submit. Validation will happen in AiMatcher.
-    // A more advanced version might check form validity here before calling triggerSubmit.
     aiMatcherRef.current?.triggerSubmit();
   };
 
@@ -188,17 +186,17 @@ export default function Home() {
               <p className="max-w-2xl text-lg text-muted-foreground md:text-xl">
                 Combine cutting-edge AI decision-making with human expertise. hireverse.ai is the go-to platform for streamlined project execution, connecting clients to perfectly matched freelancers through AI-driven task breakdowns and rigorous talent vetting.
               </p>
-              <Button 
-                size="lg" 
-                onClick={handleStartProjectClick} // Updated onClick handler
+              <Button
+                size="lg"
+                onClick={handleStartProjectClick}
                 className="bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 transition-transform duration-300"
               >
                 Start a Project <Rocket className="ml-2 h-5 w-5" />
               </Button>
             </div>
             <div className="md:w-1/2 mt-10 md:mt-0 flex justify-center md:justify-end">
-              <div className="w-full max-w-xl">
-                <AiMatcher ref={aiMatcherRef} /> {/* Pass the ref to AiMatcher */}
+               <div className="w-full max-w-xl">
+                <AiMatcher ref={aiMatcherRef} />
               </div>
             </div>
           </div>
@@ -207,19 +205,19 @@ export default function Home() {
         <div className="py-8 md:py-10"> <Separator /> </div>
 
         {/* How It Works (Paragraph Section) */}
-        <section id="how-it-works-paragraph" className="container mx-auto px-4 py-12 md:px-6 md:py-16">
+        <section id="how-it-works" className="container mx-auto px-4 py-12 md:px-6 md:py-16">
            <div className="text-center mb-10">
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
-              How It Works (Overview)
+              How It Works
             </h2>
            </div>
            <div className="max-w-3xl mx-auto text-lg text-muted-foreground text-center leading-relaxed">
             <p>
-              Create a project request in plain English. AI breaks it into milestones, specs, and role types. Top-matching freelancers are recommended based on skill, availability, and model-determined fit. Project collaboration occurs in a single dashboard, with the AI continuously adjusting scope, team suggestions, and deliverables.
+              Describe your project in simple, plain English. Our AI instantly translates your request into clear milestones, specifications, and role requirements. It then matches you with top-tier freelancers based on skills, availability, and fit. Collaborate seamlessly in one intuitive dashboard, with AI dynamically refining project scope, team composition, and deliverables as needed.
             </p>
            </div>
         </section>
-        
+
         <div className="py-8 md:py-10"> <Separator /> </div>
 
         {/* Key Features Section */}
@@ -230,7 +228,7 @@ export default function Home() {
            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
               {keyFeaturesData.map((feature) => (
                   <div key={feature.title} className="flex items-start gap-4 p-1 hover:scale-[1.02] transition-transform duration-300">
-                      <div className="flex-shrink-0 mt-1 bg-primary/10 p-2 rounded-md">
+                      <div className="flex-shrink-0 mt-1">
                         <feature.icon className="h-8 w-8 text-primary stroke-2" />
                       </div>
                       <div>
@@ -250,7 +248,7 @@ export default function Home() {
             Hireverse AI Workflow
           </h2>
           <div className="relative max-w-4xl mx-auto">
-            <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-primary/20 transform -translate-x-1/2 hidden md:block rounded-full"></div>
+            {/* The blue line div that was here has been removed */}
             <div className="space-y-12 md:space-y-16">
               {hireverseWorkflowData.map((step, index) => (
                 <div key={step.title} className={`flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-10 ${index % 2 !== 0 ? 'md:flex-row-reverse' : ''}`}>
@@ -295,7 +293,7 @@ export default function Home() {
         </section>
 
         <div className="py-8 md:py-10"> <Separator /> </div>
-        
+
         {/* Integration & Security Section */}
         <section className="py-16 bg-gray-50">
             <div className="container mx-auto px-4 md:px-6">
@@ -324,15 +322,15 @@ export default function Home() {
               Eliminate scope creep, late work, and bad hires.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
-              <Button 
-                size="lg" 
-                onClick={handleStartProjectClick} // Same handler for this button too
+              <Button
+                size="lg"
+                onClick={handleStartProjectClick}
                 className="bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 transition-transform duration-300"
               >
                 Start a Project <Rocket className="ml-2 h-5 w-5" />
               </Button>
               <Button size="lg" variant="outline" asChild className="text-primary border-primary hover:bg-primary/10 hover:text-primary hover:scale-105 transition-transform duration-300">
-                <Link href="#hireverse-ai-workflow"> {/* Updated to link to the workflow section for clarity */}
+                <Link href="#hireverse-ai-workflow">
                   See How It Works <ChevronRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
@@ -356,5 +354,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
