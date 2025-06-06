@@ -1,88 +1,57 @@
 
-
 import Link from 'next/link';
 import { FeatureCard } from '@/components/feature-card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge'; // Import Badge for "NEW" label
 import {
-  CheckCircle, Code, Edit3, Palette, Split, Video, Workflow, Layers, Users, Trophy, UserPlus, Zap, ListChecks, Wand2, Timer, ShieldCheck, BarChart, Rocket, ChevronRight, FileText, BrainCircuit, GanttChart, DraftingCompass, GitBranchPlus, // Added necessary icons
-  Cpu, Wrench, SquareCode, Lock, Server, HardDrive, // Added HardDrive for Secure Asset Management
-  Briefcase, Clock, Database, // Added Clock, Database
-} from 'lucide-react'; // Added Lock, Server
-import { WorkflowGrid } from '@/components/workflow-grid'; // Import the new WorkflowGrid component
-import { HeaderNavigationClient } from '@/components/header-navigation-client'; // Import the new client component
-import { AiMatcher } from '@/components/ai-matcher';
+  BrainCircuit, // For AI Decomposition Engine
+  UserCheck,    // For Freelancer Matching
+  LayoutDashboard, // For Realtime Dashboard
+  ShieldCheck,  // For Continuous Vetting & Security
+  GitCompareArrows, // For Cross-Validation
+  Lock,         // For Security and Simplicity
+  FileText,     // Existing, but relevant for How It Works
+  Users,        // Existing icon
+  UserPlus,     // Existing icon
+  Rocket,       // Existing icon
+  ChevronRight, // For CTA button
+} from 'lucide-react';
+import { HeaderNavigationClient } from '@/components/header-navigation-client';
 
-// Data for Core Platform Features (Updated to 6 items) - Reordered
-const coreFeatures = [
-   {
-    icon: <Split className="h-8 w-8 text-primary" />,
-    title: "Human Parallel Processing",
-    description: "Splits larger projects into microtasks so freelancers work in parallel, dramatically speeding up delivery.",
-    isNew: true,
+// Data for Key Features
+const keyFeaturesData = [
+  {
+    icon: <BrainCircuit className="h-8 w-8 text-primary" />,
+    title: "AI Decomposition Engine",
+    description: "Transform vague requests into concrete deliverables using Genkit-powered prompt logic. Projects are broken into tasks, technical specs, and estimated cost windows.",
   },
   {
-    icon: <Users className="h-8 w-8 text-primary" />,
-    title: "Instant Team Assembly",
-    description: "AI automatically builds the optimal freelance team based on project needs.",
-  },
-   {
-    icon: <Zap className="h-8 w-8 text-primary" />,
-    title: "Automated Task Routing",
-    description: "AI instantly matches tasks to the best-fit, available freelancers.",
+    icon: <UserCheck className="h-8 w-8 text-primary" />,
+    title: "Freelancer Matching",
+    description: "AI evaluates freelancer resumes, portfolios, and past work against decomposed project data. Only optimal candidates are surfaced to clients.",
   },
   {
-    icon: <CheckCircle className="h-8 w-8 text-primary" />,
-    title: "Built-In Quality Assurance",
-    description: "Automated checks and optional peer reviews ensure outputs meet your standards.",
+    icon: <LayoutDashboard className="h-8 w-8 text-primary" />,
+    title: "Realtime Dashboard",
+    description: "Clients and freelancers operate within a unified workspace. All communication, files, tasks, and notes live in one system—no external project tools needed.",
   },
   {
-    icon: <Workflow className="h-8 w-8 text-primary" />,
-    title: "Seamless Integrations",
-    description: "Connect with Monday.com, Microsoft Teams, and more to manage projects within your workflow.",
-    integrationLogos: false, // Logos removed
+    icon: <ShieldCheck className="h-8 w-8 text-primary" />,
+    title: "Continuous Vetting",
+    description: "The AI continuously monitors task completion, communication quality, and delivery pace to suggest team optimizations and flag risks.",
   },
-   {
-    icon: <HardDrive className="h-8 w-8 text-primary" />, // Updated Icon
-    title: "Secure Asset Management",
-    description: "Centralized, protected file sharing and version control for all project assets.",
+  {
+    icon: <GitCompareArrows className="h-8 w-8 text-primary" />,
+    title: "Cross-Validation",
+    description: "Multiple models (Gemini, GPT-4o, Claude) review outputs before submission. Discrepancies are flagged with suggested edits.",
+  },
+  {
+    icon: <Lock className="h-8 w-8 text-primary" />,
+    title: "Security and Simplicity",
+    description: "All payments are handled via Stripe. No hourly ambiguity—project fees and timelines are estimated up front using model-calculated baselines.",
   },
 ];
 
-// Data for Freelancer Skillsets (Reordered and Updated Descriptions/Icons)
-const freelancerSkillsets = [
-  {
-    icon: <SquareCode className="h-8 w-8 text-primary" />,
-    title: "Development & Tech",
-    description: "AI model building, neural networks, distributed systems, data science, API development, web apps, and more.",
-  },
-  {
-    icon: <DraftingCompass className="h-8 w-8 text-primary" />,
-    title: "Engineering & Drafting",
-    description: "CAD drafting, product prototyping, mechanical design, controls engineering, and schematics.",
-  },
-  {
-    icon: <Palette className="h-8 w-8 text-primary" />,
-    title: "Graphic Design",
-    description: "Logos, branding, marketing materials, UX/UI design, illustrations, and presentations.",
-  },
-  {
-    icon: <Video className="h-8 w-8 text-primary" />, // Updated icon/category
-    title: "Media Production",
-    description: "Video editing, music production, podcast editing, motion graphics, and animation.",
-  },
-  {
-    icon: <Edit3 className="h-8 w-8 text-primary" />,
-    title: "Copywriting & Editing",
-    description: "Technical writing, marketing content, blog posts, website copy, and proofreading.",
-  },
-  {
-    icon: <Briefcase className="h-8 w-8 text-primary" />,
-    title: "Additional Expertise",
-    description: "Recruiting, business strategy, virtual assistance, translation, and many other specialized services.",
-  },
-];
 
 export default function Home() {
   return (
@@ -98,59 +67,50 @@ export default function Home() {
 
       <main className="flex-1">
         {/* Hero Section - Updated */}
-        <section className="container mx-auto flex flex-col items-center px-4 py-20 text-center md:px-6 md:py-28"> {/* Adjusted padding */}
+        <section className="container mx-auto flex flex-col items-center px-4 py-20 text-center md:px-6 md:py-28">
           <div className="flex flex-col items-center space-y-6 w-full max-w-3xl">
-            {/* Updated Headline */}
             <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl">
-              AI Hiring Solutions Built for Speed and Precision
+              Harness AI Precision with Expert Fine-Tuning
             </h1>
-            {/* Updated Sub-headline */}
             <p className="max-w-[700px] text-lg text-muted-foreground md:text-xl">
-               Harness the speed of AI and the power of human parallel processing. Submit your project brief and get matched with top freelancers who solve problems faster, smarter, and together.
+              Combine cutting-edge AI decision-making with the nuanced oversight of a human expert. hireverse.ai is the operating system for project execution, pairing clients with precision-matched freelancers through AI-led project decomposition and vetting workflows.
             </p>
-            {/* AI Matcher Component */}
-            <div className="mt-8 w-full max-w-xl">
-                <AiMatcher />
-            </div>
-            {/* Updated CTA button (Optional, could be removed if AiMatcher handles it) */}
-            {/* <div className="mt-8">
-                <Button size="lg" asChild>
-                   <Link href="/client/signup">Start Hiring Smarter</Link>
-                </Button>
-            </div> */}
+            {/* AiMatcher removed from here, CTAs will be at the bottom */}
           </div>
         </section>
 
         {/* Separator */}
         <Separator className="my-16 md:my-20" />
 
-        {/* How It Works Section - Using WorkflowGrid */}
-        <section className="container mx-auto px-4 pb-16 pt-8 md:px-6 lg:pb-24">
-           <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl">
-             How Hireverse AI Works
-           </h2>
-           {/* WorkflowGrid itself handles responsiveness */}
-           <WorkflowGrid />
+        {/* How It Works Section - Updated */}
+        <section id="how-it-works" className="container mx-auto px-4 pb-16 pt-8 md:px-6 lg:pb-24">
+           <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+              How Hireverse AI Works
+            </h2>
+           </div>
+           <div className="max-w-3xl mx-auto text-lg text-muted-foreground text-center leading-relaxed">
+            <p>
+              Create a project request in plain English. AI breaks it into milestones, specs, and role types. Top-matching freelancers are recommended based on skill, availability, and model-determined fit. Project collaboration occurs in a single dashboard, with the AI continuously adjusting scope, team suggestions, and deliverables.
+            </p>
+           </div>
         </section>
 
         {/* Separator */}
         <Separator className="my-16 md:my-20" />
 
-         {/* Core Platform Features Section - Updated with Responsive Grid Layout */}
+         {/* Key Features Section - Updated */}
          <section className="container mx-auto px-4 pb-16 pt-8 md:px-6 lg:pb-24">
            <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl">
-            Core Platform Features
+            Key Features
            </h2>
-           {/* Using Responsive Grid Layout for Feature Tiles */}
            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {coreFeatures.map((feature) => (
-                  <div key={feature.title} className="p-1"> {/* Added padding wrapper for visual spacing */}
+              {keyFeaturesData.map((feature) => (
+                  <div key={feature.title} className="p-1">
                       <FeatureCard
                         icon={feature.icon}
                         title={feature.title}
                         description={feature.description}
-                        integrationLogos={feature.integrationLogos}
-                        isNew={feature.isNew} // Pass isNew prop
                       />
                   </div>
               ))}
@@ -160,56 +120,28 @@ export default function Home() {
         {/* Separator */}
         <Separator className="my-16 md:my-20" />
 
-        {/* Freelancer Skillsets Section - Updated with Responsive Grid Layout */}
-        <section className="container mx-auto px-4 pb-16 pt-8 md:px-6 lg:pb-24">
-            <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl">
-                Freelancer Skillsets
+        {/* Call to Action Section - New */}
+        <section className="container mx-auto px-4 py-16 text-center md:px-6 md:py-20">
+          <div className="max-w-2xl mx-auto">
+            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+              Start your first AI-led project today.
             </h2>
-            {/* Using Responsive Grid Layout for Skill Tiles */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {freelancerSkillsets.map((skillset) => (
-                   <div key={skillset.title} className="p-1"> {/* Added padding wrapper */}
-                     {/* Can replace FeatureCard with a simpler tile if needed */}
-                      <FeatureCard
-                          icon={skillset.icon}
-                          title={skillset.title}
-                          description={skillset.description}
-                       />
-                   </div>
-                ))}
+            <p className="mt-4 text-lg text-muted-foreground md:text-xl">
+              Eliminate scope creep, late work, and bad hires.
+            </p>
+            <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
+              <Button size="lg" asChild>
+                <Link href="/client/signup">
+                  Start a Project <Rocket className="ml-2 h-5 w-5" />
+                </Link>
+              </Button>
+              <Button size="lg" variant="outline" asChild>
+                <Link href="#how-it-works">
+                  See How It Works <ChevronRight className="ml-2 h-5 w-5" />
+                </Link>
+              </Button>
             </div>
-        </section>
-
-         {/* Separator */}
-         <Separator className="my-16 md:my-20" />
-
-         {/* Gamified Community Section */}
-        <section className="container mx-auto px-4 pb-16 pt-8 md:px-6 lg:pb-24">
-           <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                Join Our Thriving Community
-              </h2>
-              <p className="mt-3 max-w-2xl mx-auto text-muted-foreground md:text-lg">
-                Engage, learn, and grow with fellow freelancers. Earn rewards and climb the leaderboard!
-              </p>
-           </div>
-           <div className="grid gap-8 md:grid-cols-2">
-                <FeatureCard
-                    icon={<Trophy className="h-8 w-8 text-primary" />}
-                    title="Gamified Leaderboard"
-                    description="Showcase your skills and contributions. Earn XP and badges to climb the ranks."
-                />
-                <FeatureCard
-                    icon={<Users className="h-8 w-8 text-primary" />}
-                    title="Peer Mentoring & Forums"
-                    description="Connect with peers, share knowledge, and get support in our community forums."
-                />
-           </div>
-            <div className="text-center mt-8">
-                <Button asChild>
-                    <Link href="/community">View Leaderboard & Join</Link>
-                </Button>
-            </div>
+          </div>
         </section>
 
       </main>
