@@ -24,7 +24,7 @@ import {
   HardDrive,
   ShieldCheck,
   ChevronRight,
-  UserPlus, // Ensure UserPlus is imported
+  UserPlus, 
   Briefcase,
   Sparkles,
   UsersRound,
@@ -32,10 +32,10 @@ import {
 } from 'lucide-react';
 import { HeaderNavigationClient } from '@/components/header-navigation-client';
 
-// Data for "Key Features" Section - NOW REPLACED WITH CORE PLATFORM FEATURES
+// Data for "Key Features" Section
 const keyFeaturesData = [
   {
-    icon: Users, // Was Zap, using Users as per original corePlatformFeaturesData comment
+    icon: Users,
     title: "Parallel Human Processing",
     description: "Boost project speed dramatically by breaking large projects into efficiently managed microtasks executed simultaneously.",
     isNew: true,
@@ -46,12 +46,12 @@ const keyFeaturesData = [
     description: "Automatically assemble ideal freelancer teams tailored specifically to each project’s requirements.",
   },
   {
-    icon: Zap, // Was GitCompareArrows, using Zap as per original corePlatformFeaturesData comment
+    icon: Zap,
     title: "Optimized Task Assignment",
     description: "Tasks are swiftly routed to the most qualified and available freelancers using advanced AI matching.",
   },
   {
-    icon: CheckCircle, // Was ShieldCheck, using CheckCircle as per original corePlatformFeaturesData comment
+    icon: CheckCircle,
     title: "Integrated Quality Assurance",
     description: "Built-in automated checks and optional peer reviews ensure every deliverable meets high-quality standards.",
   },
@@ -75,7 +75,7 @@ const hireverseWorkflowData = [
     description: "Provide your project goals and requirements easily and clearly.",
   },
   {
-    icon: BrainCircuit, // Changed from Search to BrainCircuit for "AI Match"
+    icon: BrainCircuit, 
     title: "Instant Talent Matching",
     description: "AI immediately matches you with precisely vetted freelancers suited to your project’s unique needs.",
   },
@@ -85,7 +85,7 @@ const hireverseWorkflowData = [
     description: "Your project is intelligently divided into parallel microtasks, speeding up delivery through simultaneous expert collaboration.",
   },
   {
-    icon: GanttChart, // Changed from ListChecks to GanttChart for "Dynamic Project Management"
+    icon: GanttChart, 
     title: "Dynamic Project Management",
     description: "Track real-time progress, communicate effortlessly, and request updates or changes anytime.",
   },
@@ -150,22 +150,6 @@ export default function Home() {
 
         <div className="py-8 md:py-10"> <Separator /> </div>
 
-        {/* How It Works (Paragraph Section) */}
-        <section id="how-it-works" className="container mx-auto px-4 py-12 md:px-6 md:py-16">
-           <div className="text-center mb-10">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
-              How It Works
-            </h2>
-           </div>
-           <div className="max-w-3xl mx-auto text-lg text-muted-foreground text-center leading-relaxed">
-            <p>
-              Describe your project in simple, plain English. Our AI instantly translates your request into clear milestones, specifications, and role requirements. It then matches you with top-tier freelancers based on skills, availability, and fit. Collaborate seamlessly in one intuitive dashboard, with AI dynamically refining project scope, team composition, and deliverables as needed.
-            </p>
-           </div>
-        </section>
-
-        <div className="py-8 md:py-10"> <Separator /> </div>
-
         {/* Key Features Section */}
          <section className="container mx-auto px-4 py-12 md:px-6 md:py-16 bg-gray-50 rounded-lg">
            <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
@@ -197,9 +181,14 @@ export default function Home() {
 
         {/* Hireverse AI Workflow Section (Vertical Timeline) */}
         <section id="hireverse-ai-workflow" className="container mx-auto px-4 py-12 md:px-6 md:py-16">
-          <h2 className="mb-16 text-center text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
+          <h2 className="mb-10 text-center text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
             Hireverse AI Workflow
           </h2>
+          <div className="max-w-3xl mx-auto text-lg text-muted-foreground text-center leading-relaxed mb-16">
+            <p>
+              Describe your project in simple, plain English. Our AI instantly translates your request into clear milestones, specifications, and role requirements. It then matches you with top-tier freelancers based on skills, availability, and fit. Collaborate seamlessly in one intuitive dashboard, with AI dynamically refining project scope, team composition, and deliverables as needed.
+            </p>
+          </div>
           <div className="relative max-w-4xl mx-auto">
             <div className="space-y-12 md:space-y-16">
               {hireverseWorkflowData.map((step, index) => (
