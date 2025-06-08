@@ -5,7 +5,7 @@ import React, { useState, useTransition, useRef, useEffect, useCallback, useMemo
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Info, Clock, DollarSign, Layers, Check, X, ChevronDown, ChevronUp, AlertCircle, Loader2, Wand2, Bot, Calendar, Tag, Hourglass } from 'lucide-react';
+import { Info, Clock, DollarSign, Layers, Check, X, ChevronDown, ChevronUp, AlertCircle, Loader2, Wand2, Bot, Calendar, Tag, Hourglass, Rocket } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
@@ -218,10 +218,10 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
 
   return (
     <div className="rounded-lg bg-gradient-to-br from-blue-500 via-purple-600 to-orange-500 p-1 shadow-xl">
-      <Card className="w-full"> {/* Removed border-t-4 border-primary */}
+      <Card className="w-full">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <CardContent className="pt-6 space-y-4 text-center">
+            <CardContent className="pt-6 space-y-4"> {/* Removed text-center from CardContent */}
               <FormField
                 control={form.control}
                 name="projectBrief"
@@ -321,6 +321,23 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
                       </button>
                   </div>
               )}
+              
+              {/* Submit Button within the CardContent */}
+              <div className="pt-4 flex justify-center">
+                <Button
+                  type="submit"
+                  size="lg"
+                  disabled={isPending || isMatching || !form.formState.isValid}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 w-full max-w-xs"
+                >
+                  {isPending || isMatching ? (
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  ) : (
+                    <Rocket className="mr-2 h-5 w-5" />
+                  )}
+                  {isPending || isMatching ? 'Processing...' : 'Find Talent'}
+                </Button>
+              </div>
 
               {matchResult && !isMatching && !error && (
                 <Alert
@@ -430,3 +447,6 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
 });
 
 AiMatcher.displayName = "AiMatcher";
+
+
+    
