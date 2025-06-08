@@ -97,12 +97,12 @@ const generateAssessmentQuestionFlow = ai.defineFlow<
        const originalPromptText = generateQuestionPromptTemplate
             .replace('{{{freelancerId}}}', input.freelancerId)
             .replace('{{{primarySkill}}}', input.primarySkill)
-            .replace('{{#each allSkills}}- {{{this}}}
-{{/each}}', input.allSkills.map(s => `- ${s}`).join('\n'))
+            .replace(`{{#each allSkills}}- {{{this}}}
+{{/each}}`, input.allSkills.map(s => `- ${s}`).join('\n'))
             .replace('{{{difficulty}}}', input.difficulty)
-            .replace('{{#if previousQuestions}}Avoid generating questions similar to:
+            .replace(`{{#if previousQuestions}}Avoid generating questions similar to:
 {{#each previousQuestions}}- {{{this}}}
-{{/each}}{{/if}}',
+{{/each}}{{/if}}`,
                      input.previousQuestions && input.previousQuestions.length > 0
                          ? `Avoid generating questions similar to:\n${input.previousQuestions.map(q => `- ${q}`).join('\n')}`
                          : '');
