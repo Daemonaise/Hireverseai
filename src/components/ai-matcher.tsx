@@ -221,7 +221,7 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
       <Card className="w-full">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <CardContent className="pt-6 space-y-4"> {/* Removed text-center from CardContent */}
+            <CardContent className="pt-6 space-y-4">
               <FormField
                 control={form.control}
                 name="projectBrief"
@@ -250,20 +250,34 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
                 )}
               />
 
-              <div className="text-center pt-2">
+              <div className="flex flex-col sm:flex-row justify-center items-center gap-2 pt-2">
                 <Button
                    size="sm"
                    type="button"
                    onClick={handleGenerateIdea}
                    disabled={ideaLoading || ideaGenerationCounter >= 3}
-                   className="mx-auto text-primary-foreground bg-gradient-to-r from-orange-500 via-pink-500 to-blue-500 hover:from-orange-600 hover:via-pink-600 hover:to-blue-600 transition-all duration-300 ease-in-out shadow-md hover:shadow-lg px-4 py-2 rounded-md"
+                   className="w-full sm:w-auto text-primary-foreground bg-gradient-to-r from-orange-500 via-pink-500 to-blue-500 hover:from-orange-600 hover:via-pink-600 hover:to-blue-600 transition-all duration-300 ease-in-out shadow-md hover:shadow-lg px-4 py-2 rounded-md"
                  >
                   <Wand2 className="mr-2 h-4 w-4" /> Need an example?
                 </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isPending || isMatching || !form.formState.isValid}
+                  className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  {isPending || isMatching ? (
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  ) : (
+                    <Rocket className="mr-2 h-5 w-5" />
+                  )}
+                  {isPending || isMatching ? 'Processing...' : 'Find Talent'}
+                </Button>
               </div>
+              
 
               <div className={cn(
-                  "transition-all duration-200 ease-out overflow-hidden",
+                  "transition-all duration-200 ease-out overflow-hidden pt-2", // Added pt-2 for spacing
                   showFreelancerIdInput ? "max-h-40 opacity-100 mt-4" : "max-h-0 opacity-0"
               )}>
                 <FormField
@@ -322,23 +336,6 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
                   </div>
               )}
               
-              {/* Submit Button within the CardContent */}
-              <div className="pt-4 flex justify-center">
-                <Button
-                  type="submit"
-                  size="lg"
-                  disabled={isPending || isMatching || !form.formState.isValid}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 w-full max-w-xs"
-                >
-                  {isPending || isMatching ? (
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  ) : (
-                    <Rocket className="mr-2 h-5 w-5" />
-                  )}
-                  {isPending || isMatching ? 'Processing...' : 'Find Talent'}
-                </Button>
-              </div>
-
               {matchResult && !isMatching && !error && (
                 <Alert
                   variant={matchResult.status === 'matched' ? 'default' : 'default'}
@@ -447,6 +444,3 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
 });
 
 AiMatcher.displayName = "AiMatcher";
-
-
-    
