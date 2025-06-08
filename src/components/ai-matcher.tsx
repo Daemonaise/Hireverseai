@@ -218,7 +218,7 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
 
   return (
     <div className="rounded-lg bg-gradient-to-br from-blue-500 via-purple-600 to-orange-500 p-1 shadow-xl">
-      <Card className="w-full">
+      <Card className="w-full border-transparent">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <CardContent className="pt-6 space-y-4">
@@ -249,7 +249,7 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
                   </FormItem>
                 )}
               />
-
+              
               <div className="flex flex-col sm:flex-row justify-center items-center gap-2 pt-2">
                 <Button
                    size="sm"
@@ -274,10 +274,21 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
                   {isPending || isMatching ? 'Processing...' : 'Find Talent'}
                 </Button>
               </div>
-              
 
+              {!showFreelancerIdInput && (
+                  <div className="text-center mt-3">
+                      <button
+                          type="button"
+                          onClick={() => setShowFreelancerIdInput(true)}
+                          className="text-sm text-muted-foreground hover:text-primary hover:underline focus:outline-none focus:text-primary focus:underline"
+                      >
+                          Have a specific freelancer ID? Click here
+                      </button>
+                  </div>
+              )}
+              
               <div className={cn(
-                  "transition-all duration-200 ease-out overflow-hidden pt-2", // Added pt-2 for spacing
+                  "transition-all duration-200 ease-out overflow-hidden pt-2", 
                   showFreelancerIdInput ? "max-h-40 opacity-100 mt-4" : "max-h-0 opacity-0"
               )}>
                 <FormField
@@ -323,18 +334,6 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
                   )}
                 />
               </div>
-
-              {!showFreelancerIdInput && (
-                  <div className="text-center mt-3">
-                      <button
-                          type="button"
-                          onClick={() => setShowFreelancerIdInput(true)}
-                          className="text-sm text-muted-foreground hover:text-primary hover:underline focus:outline-none focus:text-primary focus:underline"
-                      >
-                          Have a specific freelancer ID? Click here
-                      </button>
-                  </div>
-              )}
               
               {matchResult && !isMatching && !error && (
                 <Alert
