@@ -34,59 +34,48 @@ import {
 } from 'lucide-react';
 import { HeaderNavigationClient } from '@/components/header-navigation-client';
 
-// Data for "Key Features" Section
+// Data for "Core Features" Section
 const keyFeaturesData = [
   {
     icon: BrainCircuit,
-    title: 'AI-Powered Instant Matching',
-    description: 'Parses your plain-language project brief and finds the best-fit freelancers by skills, style, and availability in seconds. Accesses and assesses freelancer community, looking for currently available, logged in talent.',
+    title: 'AI-Powered Instant Matching & Auto Assignment',
+    description: 'Parses plain-language briefs, finds best-fit freelancers by skills/style/availability, then auto-assigns microtasks for immediate kickoff.',
     isNew: true,
   },
   {
     icon: Split,
-    title: 'Human Parallel Processing (Microtasks Engine)',
-    description: 'Automatically splits larger projects into bite-sized tasks that many freelancers tackle simultaneously, then aggregates their outputs into a complete deliverable.',
+    title: 'Microtasks Engine',
+    description: 'Decomposes large projects into bite-sized tasks run in parallel and aggregates individual outputs into a cohesive deliverable.',
   },
   {
     icon: ShieldCheck,
     title: 'Built-In Quality Assurance',
-    description: 'Automated reviews (grammar, code linting, design spec checks) plus optional peer-review steps ensure every output meets your standards before delivery.',
+    description: 'Automated linting, spec checks and optional peer-review steps ensure every output meets your standards before delivery.',
   },
   {
     icon: UsersRound,
     title: 'Universal Digital Skill Support',
-    description: 'One hub for any computer-based work—graphic design, copywriting, editing, video production, CAD, development, marketing assets, and more.',
+    description: 'One hub for any computer-based work—graphic design, copywriting, editing, video, CAD, development, marketing assets, and more.',
   },
   {
     icon: GitCompareArrows,
     title: 'Seamless Project-Management Integrations',
-    description: 'Native connectors for Monday.com and Microsoft Teams let you post tasks, track progress, chat, and manage approvals without leaving your existing workspace.',
+    description: 'Native connectors for Monday.com and Microsoft Teams let you post tasks, track progress, chat and manage approvals without leaving your existing workspace.',
   },
   {
-    icon: Workflow, // From former corePlatformFeaturesData
+    icon: Workflow,
     title: 'Dynamic Workflow Engine',
-    description: 'Projects are auto-decomposed. The system manages dependencies and re-routes work based on real-time performance.',
+    description: 'Manages dependencies and reroutes work in real time based on performance metrics.',
   },
   {
-    icon: HardDrive, // From former corePlatformFeaturesData
-    title: 'Automated Aggregation', // Slightly reworded from "Automated QA & Aggregation" to be more distinct from "Built-In QA"
-    description: 'AI compiles individual outputs from microtasks into the final, cohesive deliverable for you.',
-  },
-  {
-    icon: LayoutDashboard, // From former corePlatformFeaturesData
+    icon: LayoutDashboard,
     title: 'Unified Project Dashboard',
-    description: 'Manage briefs, track progress, communicate, and approve work in a single, intuitive interface.',
+    description: 'Manage briefs, monitor progress, communicate and approve work in a single, intuitive interface.',
   },
   {
-    icon: Zap, // From former corePlatformFeaturesData (Instant Matching & Tasking) - using Zap as BrainCircuit is used
-    title: 'Rapid Task Assignment', // Reworded to be distinct
-    description: 'Once matched, AI can auto-assign microtasks to available talent for immediate project kick-off.',
-    isNew: true,
-  },
-  {
-    icon: ShieldCheck, // Using ShieldCheck again for this distinct point
-    title: 'Secure & Compliant Platform', // Reworded to be distinct
-    description: 'Enterprise-grade security, data protection, and built with compliance with industry standards in mind.',
+    icon: Lock,
+    title: 'Secure & Compliant Platform',
+    description: 'Enterprise-grade security, data protection and compliance with industry standards.',
   }
 ];
 
@@ -174,10 +163,10 @@ export default function Home() {
 
         <div className="py-8 md:py-10"> <Separator /> </div>
 
-        {/* Key Features Section */}
+        {/* Core Features Section */}
          <section className="container mx-auto px-4 py-12 md:px-6 md:py-16 bg-gray-50 rounded-lg">
            <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
-            Key Features
+            Core Features
            </h2>
            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
               {keyFeaturesData.map((feature) => (
