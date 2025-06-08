@@ -1,19 +1,24 @@
+
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
-import {  StripeElementsOptions, loadStripe } from '@stripe/stripe-js';
+import { StripeElementsOptions, loadStripe, Stripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { Button } from '@/components/ui/button';
-import { Loader2} from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
-if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
-  throw new Error('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not set.');
+// Initialize stripePromise as null initially
+let stripePromise: ReturnType<typeof loadStripe> | null = null;
+const stripeKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+
+if (stripeKey) {
+  stripePromise = loadStripe(stripeKey);
 }
-
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 
 interface CheckoutFormProps {
   clientSecret: string;
@@ -71,12 +76,26 @@ function CheckoutPageInner() {
   const [clientSecret, setClientSecret] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [stripeKeyMissing, setStripeKeyMissing] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
   const projectId = searchParams?.get('projectId');
   const baseCost = Number(searchParams?.get('cost'));
 
   useEffect(() => {
+    if (!stripeKey) {
+      setError("Stripe configuration is missing. Payment cannot be processed.");
+      setStripeKeyMissing(true);
+      setIsLoading(false);
+      console.error("CRITICAL: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not set in the environment.");
+      return;
+    }
+    // Ensure stripePromise is initialized if key was found (it should be by this point if stripeKey is truthy)
+    if (!stripePromise) {
+        stripePromise = loadStripe(stripeKey);
+    }
+
+
     if (!projectId || isNaN(baseCost) || baseCost <= 0) {
       setError("Missing or invalid project details for payment.");
       setIsLoading(false);
@@ -86,7 +105,7 @@ function CheckoutPageInner() {
     fetch('/api/stripe/create-payment-intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectId, baseCost, clientId: 'test-client-001' }),
+      body: JSON.stringify({ projectId, baseCost, clientId: 'test-client-001' }), // TODO: Replace test-client-001 with actual client ID
     })
       .then((res) => {
          if (!res.ok) throw new Error(`Failed to fetch payment intent (${res.status})`);
@@ -124,6 +143,31 @@ function CheckoutPageInner() {
     appearance,
   };
 
+  if (stripeKeyMissing) {
+    return (
+        <div className="flex min-h-screen items-center justify-center bg-muted/40 py-12">
+            <Card className="w-full max-w-md shadow-lg">
+                <CardHeader>
+                    <CardTitle>Payment Error</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Configuration Error</AlertTitle>
+                        <AlertDescription>
+                            The payment system is not configured correctly. Please contact support.
+                            (Missing Stripe Publishable Key).
+                        </AlertDescription>
+                    </Alert>
+                </CardContent>
+                <CardFooter>
+                    <Button variant="outline" onClick={() => router.back()} className="w-full">Go Back</Button>
+                </CardFooter>
+            </Card>
+        </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 py-12">
       <Card className="w-full max-w-md shadow-lg">
@@ -135,8 +179,8 @@ function CheckoutPageInner() {
               {isLoading && <div className="flex justify-center items-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>}
-              {error && <p className="text-center text-destructive">{error}</p>}
-              {clientSecret && !isLoading && !error && (
+              {error && !isLoading && <p className="text-center text-destructive">{error}</p>}
+              {clientSecret && !isLoading && !error && stripePromise && (
                   <Elements options={options} stripe={stripePromise}>
                       <CheckoutForm clientSecret={clientSecret} projectId={projectId!} />
                   </Elements>
@@ -154,7 +198,7 @@ function CheckoutPageInner() {
 
 export default function CheckoutPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /> <span className="ml-2">Loading Checkout...</span></div>}>
       <CheckoutPageInner />
     </Suspense>
   );
