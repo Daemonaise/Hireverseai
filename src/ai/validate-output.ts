@@ -1,63 +1,23 @@
-'use server';
+'use server'; // Ensure 'use server' is at the top
+
 /**
  * @fileOverview Cross-validation logic for AI outputs.
  * Exports:
  * - validateAIOutput (async function)
  */
 
-import { ai } from '@/lib/ai'; // Import the base AI instance from the correct location
+import { ai } from '@/lib/ai';
 import { z } from 'zod';
-import { ValidationSchema, type ValidationResult } from '@/ai/schemas/validation-schema'; // Import schema and type
+import { ValidationSchema, type ValidationResult } from '@/ai/schemas/validation-schema';
+import { ALL_MODELS, type ModelId } from '@/lib/ai-models';
 
-/**
- * Performs cross-validation of an AI model's output using other available models.
- * This function is a server action and must be called from a server context.
- */
-export async function validateAIOutput(
-  originalPrompt: string,
-  originalOutput: string,
-  primaryModelName: string
-): Promise<{ allValid: boolean; results: ValidationResult[] }> {
+// Read environment variables once at the module level
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
-  console.log(`[AI Validation] Starting validation process...`);
-  console.log(`[AI Validation] Primary Model: ${primaryModelName}`);
-  console.log(`[AI Validation] Original Prompt (first 100 chars):`, originalPrompt.substring(0, 100) + "...");
-  console.log(`[AI Validation] Original Output (first 100 chars):`, originalOutput.substring(0, 100) + "...");
-
-  const validatorModels: string[] = [];
-  // Updated model identifiers for validation
-  const allModels = {
-    google: 'google/gemini-1.5-flash', // Use Flash for faster validation
-    openai: 'openai/gpt-4o-mini', // Use Mini for faster/cheaper validation
-    anthropicHaiku: 'anthropic/claude-3-haiku',      // Use Haiku (stable ID)
-    anthropicSonnet: 'anthropic/claude-3-sonnet'     // Use Sonnet (stable ID) - CORRECTED
-  };
-
-  // Re-read env vars inside this function to ensure up-to-date checks
-  const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-  const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-
-  // Determine validator models based on availability and ensuring not to validate with the primary model itself
-  if (GOOGLE_API_KEY && primaryModelName !== allModels.google) validatorModels.push(allModels.google);
-  if (OPENAI_API_KEY && primaryModelName !== allModels.openai) validatorModels.push(allModels.openai);
-  if (ANTHROPIC_API_KEY) {
-       // Add Anthropic models if available and not the primary model
-       if (primaryModelName !== allModels.anthropicHaiku) validatorModels.push(allModels.anthropicHaiku);
-       // Also consider Sonnet for validation if it wasn't the primary model
-       if (primaryModelName !== allModels.anthropicSonnet) validatorModels.push(allModels.anthropicSonnet);
-  }
-
-
-  if (validatorModels.length === 0) {
-    console.warn(`[AI Validation] No other models available for cross-validation. Skipping.`);
-    return { allValid: true, results: [] }; // Assume valid if no validators
-  }
-
-  console.log(`[AI Validation] Attempting validation using models: ${validatorModels.join(', ')}`);
-
-  // Define the prompt template locally
-  const validationPromptTemplate = `You are an AI evaluator. Assess if the following AI output accurately and completely fulfills the original request.
+// Define the prompt template at the module scope for reusability and testability
+const validationPromptTemplate = `You are an AI evaluator. Assess if the following AI output accurately and completely fulfills the original request.
 Return ONLY a JSON object with keys "isValid" (boolean) and "reasoning" (string, explanation if invalid, or brief confirmation if valid).
 
 === Original Request ===
@@ -71,53 +31,84 @@ Does the output strictly follow the requested format (if any) and address all pa
 Is the output sensible and relevant to the request?
 Respond ONLY with the JSON object: {"isValid": boolean, "reasoning": string}`;
 
-  const validationResults: ValidationResult[] = [];
-  let allValid = true;
+/**
+ * Performs cross-validation of an AI model's output using other available models.
+ */
+export async function validateAIOutput(
+  originalPrompt: string,
+  originalOutput: string,
+  primaryModelName: ModelId // Use the strong ModelId type
+): Promise<{ allValid: boolean; results: ValidationResult[] }> {
+  console.log(`[AI Validation] Starting validation process...`);
+  console.log(`[AI Validation] Primary Model: ${primaryModelName}`);
+  console.log(`[AI Validation] Original Prompt (first 100 chars):`, originalPrompt.substring(0, 100) + '...');
+  console.log(`[AI Validation] Original Output (first 100 chars):`, originalOutput.substring(0, 100) + '...');
 
-  for (const modelName of validatorModels) {
-    console.log(`
-[AI Validation] --- Starting validation with ${modelName} ---`);
+  const validatorModels: ModelId[] = [];
+
+  // Determine validator models based on API key availability and ensuring not to validate with the primary model itself
+  if (GOOGLE_API_KEY) {
+    if (primaryModelName !== ALL_MODELS.googleFast) validatorModels.push(ALL_MODELS.googleFast);
+    // Optionally add googlePro if different and available
+    if (primaryModelName !== ALL_MODELS.googlePro && ALL_MODELS.googlePro !== ALL_MODELS.googleFast) validatorModels.push(ALL_MODELS.googlePro);
+  }
+  if (OPENAI_API_KEY) {
+    if (primaryModelName !== ALL_MODELS.openaiMini) validatorModels.push(ALL_MODELS.openaiMini);
+    if (primaryModelName !== ALL_MODELS.openaiFull && ALL_MODELS.openaiFull !== ALL_MODELS.openaiMini) validatorModels.push(ALL_MODELS.openaiFull);
+  }
+  if (ANTHROPIC_API_KEY) {
+    if (primaryModelName !== ALL_MODELS.anthropicHaiku) validatorModels.push(ALL_MODELS.anthropicHaiku);
+    if (primaryModelName !== ALL_MODELS.anthropicSonnet && ALL_MODELS.anthropicSonnet !== ALL_MODELS.anthropicHaiku) validatorModels.push(ALL_MODELS.anthropicSonnet);
+    // Opus is expensive, consider if it should be a validator or only a primary
+    // if (primaryModelName !== ALL_MODELS.anthropicOpus && ...) validatorModels.push(ALL_MODELS.anthropicOpus);
+  }
+
+  // Remove duplicates that might occur if, e.g., googleFast and googlePro are the same model id.
+  const uniqueValidatorModels = Array.from(new Set(validatorModels));
+
+  if (uniqueValidatorModels.length === 0) {
+    console.warn(`[AI Validation] No other models available for cross-validation. Skipping.`);
+    return { allValid: true, results: [] }; // Assume valid if no validators
+  }
+
+  console.log(`[AI Validation] Attempting validation using models: ${uniqueValidatorModels.join(', ')}`);
+
+  const validationResults: ValidationResult[] = [];
+
+  for (const modelName of uniqueValidatorModels) {
+    console.log(`\n[AI Validation] --- Starting validation with ${modelName} ---`);
     try {
-      // Define the prompt dynamically within the loop for validation
-      // Use the imported `ai` instance to define the prompt
       const validationPrompt = ai.definePrompt({
-          name: `validationPrompt_${modelName.replace(/[^a-zA-Z0-9]/g, '_')}`,
-          input: { schema: z.object({ originalPrompt: z.string(), originalOutput: z.string() }) },
-          output: { schema: ValidationSchema }, // Request JSON output
-          prompt: validationPromptTemplate, // Use the template variable directly
-          model: modelName, // Specify the model string directly
+        name: `validationPrompt_${modelName.replace(/[^a-zA-Z0-9]/g, '_')}`, // Ensure unique prompt name
+        input: { schema: z.object({ originalPrompt: z.string(), originalOutput: z.string() }) },
+        output: { schema: ValidationSchema },
+        prompt: validationPromptTemplate,
+        model: modelName,
       });
 
-
-      // Generate the validation result using the dynamically defined prompt
       console.log(`[AI Validation] Calling ${modelName} for validation...`);
       const { output } = await validationPrompt({ originalPrompt, originalOutput });
-      console.log(`[AI Validation] Raw output from ${modelName}:`, JSON.stringify(output, null, 2)); // Log raw output
+      console.log(`[AI Validation] Raw output from ${modelName}:`, JSON.stringify(output, null, 2));
 
       if (output) {
-         console.log(`[AI Validation] Parsing output from ${modelName}...`);
-         const parsedOutput = ValidationSchema.parse(output);
-         console.log(`[AI Validation] Parsed output from ${modelName}:`, parsedOutput);
-         validationResults.push(parsedOutput);
-         if (!parsedOutput.isValid) {
-           console.log(`[AI Validation] ${modelName} reported INVALID.`);
-           allValid = false;
-         } else {
-            console.log(`[AI Validation] ${modelName} reported VALID.`);
-         }
+        console.log(`[AI Validation] Parsing output from ${modelName}...`);
+        const parsedOutput = ValidationSchema.parse(output); // Zod parse will throw if schema mismatch
+        console.log(`[AI Validation] Parsed output from ${modelName}:`, parsedOutput);
+        validationResults.push(parsedOutput);
       } else {
-        console.warn(`[AI Validation] Validator ${modelName} returned empty output.`);
+        console.warn(`[AI Validation] Validator ${modelName} returned empty or invalid output.`);
         validationResults.push({ isValid: false, reasoning: `Validator ${modelName} failed to provide valid output.` });
-        allValid = false;
       }
     } catch (error: any) {
-        console.error(`[AI Validation] Error validating with ${modelName}:`, error.message);
-        console.error(`[AI Validation] Full error object:`, error);
-        validationResults.push({ isValid: false, reasoning: `Error during validation with ${modelName}: ${error.message}` });
-        allValid = false;
+      console.error(`[AI Validation] Error validating with ${modelName}:`, error.message);
+      console.error(`[AI Validation] Full error object:`, error);
+      validationResults.push({ isValid: false, reasoning: `Error during validation with ${modelName}: ${error.message}` });
     }
     console.log(`[AI Validation] --- Finished validation with ${modelName} ---`);
   }
+
+  // Compute allValid after collecting all results
+  const allValid = validationResults.length > 0 && validationResults.every(r => r.isValid);
 
   console.log(`[AI Validation] Final overall validation result: allValid=${allValid}`);
   console.log(`[AI Validation] Detailed results:`, JSON.stringify(validationResults, null, 2));

@@ -108,7 +108,7 @@ const generateAssessmentQuestionFlow = ai.defineFlow<
                          : '');
 
        // validateAIOutput is async and exported from its own 'use server' file
-       const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
+       const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel as any); // Cast primaryModel
 
        if (!validation.allValid) {
            console.warn(`Validation failed for question generation (Skill: ${input.primarySkill}, Difficulty: ${input.difficulty}). Reasoning:`, validation.results);

@@ -108,7 +108,7 @@ export async function decomposeProject(
 
     // Perform cross-validation
     // validateAIOutput is async and exported from its own 'use server' file
-    const validation = await validateAIOutput(promptContent, JSON.stringify(parsedOutput), primaryModel);
+    const validation = await validateAIOutput(promptContent, JSON.stringify(parsedOutput), primaryModel as any); // Cast primaryModel to ModelId if chooseModelBasedOnPrompt returns it
     if (!validation.allValid) {
       console.warn(`Validation failed for project decomposition (${input.projectId}). Reasoning:`, validation.results);
       throw new Error(`Project decomposition failed cross-validation.`);

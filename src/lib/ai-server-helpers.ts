@@ -1,95 +1,116 @@
+'use server'; // Ensure 'use server' is at the top
 
-'use server'; // This function accesses environment variables at runtime
+/**
+ * @fileOverview Server-side helper functions for AI operations, including model selection.
+ */
+
+import { ALL_MODELS, type ModelId } from '@/lib/ai-models';
+
+// Read environment variables once at the module level
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 /**
  * Chooses an AI model based on the prompt's content and API key availability.
- * This function reads environment variables at runtime. Needs 'use server'.
  */
-export async function chooseModelBasedOnPrompt(promptContent: string): Promise<string> {
-  // Re-evaluate API keys at runtime inside the function
-  const GOOGLE_API_KEY    = process.env.GOOGLE_API_KEY;
-  const OPENAI_API_KEY    = process.env.OPENAI_API_KEY;
-  const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-
+export async function chooseModelBasedOnPrompt(promptContent: string): Promise<ModelId> {
   const promptLength = promptContent.length;
   const promptLower = promptContent.toLowerCase();
-  const availableModels: string[] = [];
+  const availableModels: ModelId[] = [];
 
-  // Updated model identifiers with provider prefix
-   const allModels = {
-      googleFast: 'googleai/gemini-pro', // Changed from gemini-1.5-flash to gemini-pro
-      googlePro: 'googleai/gemini-1.5-pro',
-      openaiMini: 'openai/gpt-4o-mini',
-      openaiFull: 'openai/gpt-4o',
-      anthropicHaiku: 'anthropic/claude-3-haiku-20240307', // Specific Haiku version
-      anthropicSonnet: 'anthropic/claude-3.5-sonnet-20240620', // Specific Sonnet 3.5 version
-      anthropicOpus: 'anthropic/claude-3-opus-20240229' // Specific Opus version
-   };
-
-  // Populate availableModels based on which keys are present *at call time*
-  if (GOOGLE_API_KEY)    availableModels.push(allModels.googleFast, allModels.googlePro);
-  if (OPENAI_API_KEY)    availableModels.push(allModels.openaiMini, allModels.openaiFull);
-  if (ANTHROPIC_API_KEY) availableModels.push(allModels.anthropicHaiku, allModels.anthropicSonnet, allModels.anthropicOpus);
+  // Populate availableModels based on which keys are present at call time
+  if (GOOGLE_API_KEY) availableModels.push(ALL_MODELS.googleFast, ALL_MODELS.googlePro);
+  if (OPENAI_API_KEY) availableModels.push(ALL_MODELS.openaiMini, ALL_MODELS.openaiFull);
+  if (ANTHROPIC_API_KEY) availableModels.push(ALL_MODELS.anthropicHaiku, ALL_MODELS.anthropicSonnet, ALL_MODELS.anthropicOpus);
 
   if (availableModels.length === 0) {
-    console.error('[AI Model Selection] No models available due to missing API keys.');
-    return allModels.googleFast; // Default fallback (gemini-pro)
+    console.error('[AI Model Selection] No models available due to missing API keys. Defaulting to googleFast.');
+    return ALL_MODELS.googleFast; // Default fallback if no keys are found
   }
 
-  // Specific routing for coding/development to OpenAI o3 mini (gpt-4o-mini)
-  if ( (promptLower.includes('code') || promptLower.includes('```') || promptLower.includes('debug') || promptLower.includes('development') || promptLower.includes('software') || promptLower.includes('scripting')) && availableModels.includes(allModels.openaiMini) ) {
-     console.log("[AI Model Selection] Choosing gpt-4o-mini for coding/dev task.");
-     return allModels.openaiMini;
+  // --- Prioritized Routing Logic ---
+
+  // 1. Coding/Development tasks to OpenAI GPT-4o Mini if available
+  if (
+    (promptLower.includes('code') ||
+      promptLower.includes('```') ||
+      promptLower.includes('debug') ||
+      promptLower.includes('development') ||
+      promptLower.includes('software') ||
+      promptLower.includes('scripting')) &&
+    availableModels.includes(ALL_MODELS.openaiMini)
+  ) {
+    console.log(`[AI Model Selection] Choosing ${ALL_MODELS.openaiMini} for coding/dev task.`);
+    return ALL_MODELS.openaiMini;
   }
 
-  // Prioritize specific models based on keywords if available
-  if ( (promptLower.includes('graphic design') || promptLower.includes('visual critique')) && availableModels.includes(allModels.openaiFull) ) { // Use full gpt-4o for visual tasks
-    console.log("[AI Model Selection] Choosing gpt-4o for graphic design.");
-    return allModels.openaiFull;
-  }
-   // Use Opus for deep analysis
-   if ( (promptLength > 1500 || promptLower.includes('analysis') || promptLower.includes('report')) && availableModels.includes(allModels.anthropicOpus) ) {
-    console.log(`[AI Model Selection] Choosing ${allModels.anthropicOpus} for long/analysis task.`);
-    return allModels.anthropicOpus;
-  }
-  // Use Sonnet (now Claude 3.5 Sonnet) for creative tasks or long context
-  if ( (promptLower.includes('creative') || promptLower.includes('story') || promptLower.includes('marketing') || promptLength > 1500) && availableModels.includes(allModels.anthropicSonnet) ) {
-      console.log(`[AI Model Selection] Choosing ${allModels.anthropicSonnet} for creative/long task.`);
-      return allModels.anthropicSonnet;
-  }
-  // Use Gemini Pro (1.5 version) for high-quality reasoning if not Opus or Sonnet
-  if ( (promptLower.includes('reasoning') || promptLower.includes('complex problem')) && availableModels.includes(allModels.googlePro) ) {
-      console.log(`[AI Model Selection] Choosing ${allModels.googlePro} for reasoning task.`);
-      return allModels.googlePro;
+  // 2. Graphic design/visual critique to OpenAI GPT-4o Full if available
+  if (
+    (promptLower.includes('graphic design') || promptLower.includes('visual critique')) &&
+    availableModels.includes(ALL_MODELS.openaiFull)
+  ) {
+    console.log(`[AI Model Selection] Choosing ${ALL_MODELS.openaiFull} for graphic design task.`);
+    return ALL_MODELS.openaiFull;
   }
 
-
-  // Fallback logic - Prioritize cost-effective models
-
-  // Default general model: Sonnet (now Claude 3.5 Sonnet)
-  if (availableModels.includes(allModels.anthropicSonnet)) {
-    console.log(`[AI Model Selection] Defaulting to ${allModels.anthropicSonnet}.`);
-    return allModels.anthropicSonnet;
+  // 3. Very long prompts or deep analysis/reports to Anthropic Opus if available
+  if (
+    (promptLength > 1500 || promptLower.includes('analysis') || promptLower.includes('report')) &&
+    availableModels.includes(ALL_MODELS.anthropicOpus)
+  ) {
+    console.log(`[AI Model Selection] Choosing ${ALL_MODELS.anthropicOpus} for long/analysis task.`);
+    return ALL_MODELS.anthropicOpus;
   }
-  // Next fallback: Our "fast" Google model (gemini-pro)
-  if (availableModels.includes(allModels.googleFast)) {
-    console.log(`[AI Model Selection] Fallback to ${allModels.googleFast}.`);
-    return allModels.googleFast;
+
+  // 4. Creative tasks, marketing, or moderately long prompts to Anthropic Sonnet 3.5 if available
+  if (
+    (promptLower.includes('creative') ||
+      promptLower.includes('story') ||
+      promptLower.includes('marketing') ||
+      promptLength > 1000) && // Using 1000 as a threshold for Sonnet
+    availableModels.includes(ALL_MODELS.anthropicSonnet)
+  ) {
+    console.log(`[AI Model Selection] Choosing ${ALL_MODELS.anthropicSonnet} for creative/moderately long task.`);
+    return ALL_MODELS.anthropicSonnet;
   }
-  // Next fallback: GPT-4o Mini
-  if (availableModels.includes(allModels.openaiMini)) {
-    console.log(`[AI Model Selection] Fallback to ${allModels.openaiMini}.`);
-    return allModels.openaiMini;
+
+  // 5. High-quality reasoning or complex problems to Google Gemini 1.5 Pro if available
+  if (
+    (promptLower.includes('reasoning') || promptLower.includes('complex problem')) &&
+    availableModels.includes(ALL_MODELS.googlePro)
+  ) {
+    console.log(`[AI Model Selection] Choosing ${ALL_MODELS.googlePro} for reasoning task.`);
+    return ALL_MODELS.googlePro;
+  }
+
+  // --- Fallback Model Selection (Prioritize cost-effectiveness and general capability) ---
+
+  // Default general model: Anthropic Sonnet 3.5
+  if (availableModels.includes(ALL_MODELS.anthropicSonnet)) {
+    console.log(`[AI Model Selection] Defaulting to ${ALL_MODELS.anthropicSonnet}.`);
+    return ALL_MODELS.anthropicSonnet;
+  }
+  // Next fallback: Google Gemini Pro (fast version)
+  if (availableModels.includes(ALL_MODELS.googleFast)) {
+    console.log(`[AI Model Selection] Fallback to ${ALL_MODELS.googleFast}.`);
+    return ALL_MODELS.googleFast;
+  }
+  // Next fallback: OpenAI GPT-4o Mini
+  if (availableModels.includes(ALL_MODELS.openaiMini)) {
+    console.log(`[AI Model Selection] Fallback to ${ALL_MODELS.openaiMini}.`);
+    return ALL_MODELS.openaiMini;
   }
   // Next fallback: Anthropic Haiku
-  if (availableModels.includes(allModels.anthropicHaiku)) {
-    console.log(`[AI Model Selection] Fallback to ${allModels.anthropicHaiku}.`);
-    return allModels.anthropicHaiku;
+  if (availableModels.includes(ALL_MODELS.anthropicHaiku)) {
+    console.log(`[AI Model Selection] Fallback to ${ALL_MODELS.anthropicHaiku}.`);
+    return ALL_MODELS.anthropicHaiku;
   }
 
-
-  // If somehow none of the specific fallbacks match, return the first available
-  console.warn("[AI Model Selection] No specific model match or preferred fallback found, returning first available:", availableModels[0]);
+  // If somehow none of the specific fallbacks match, return the first available model from the list
+  // This should ideally not be reached if API keys are present.
+  console.warn(
+    `[AI Model Selection] No specific model match or preferred fallback found. Returning first available model: ${availableModels[0]}`
+  );
   return availableModels[0];
 }
-

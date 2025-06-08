@@ -108,7 +108,7 @@ const gradeAssessmentAnswerFlow = ai.defineFlow<
             .replace('{{{answerText}}}', input.answerText);
 
        // validateAIOutput is async and exported from its own 'use server' file
-       const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
+       const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel as any); // Cast primaryModel
 
        if (!validation.allValid) {
            console.warn(`Validation failed for grading question ${input.questionId}. Reasoning:`, validation.results);

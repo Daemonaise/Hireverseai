@@ -120,7 +120,7 @@ const matchFreelancerFlow = ai.defineFlow<
           // 1d. Validate the output with other models
           const originalPromptText = skillExtractionPromptTemplate.replace('{{{projectBrief}}}', input.projectBrief);
           // validateAIOutput is async and exported from its own 'use server' file
-          const validation = await validateAIOutput(originalPromptText, JSON.stringify(skillOutput), skillExtractionModel);
+          const validation = await validateAIOutput(originalPromptText, JSON.stringify(skillOutput), skillExtractionModel as any); // Cast primaryModel
 
           if (!validation.allValid) {
               console.warn(`Validation failed for skill extraction. Reasoning:`, validation.results);
@@ -185,7 +185,7 @@ const matchFreelancerFlow = ai.defineFlow<
               .replace('{{#each requiredSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}', skills.join(', '));
 
          // validateAIOutput is async and exported from its own 'use server' file
-         const validation = await validateAIOutput(originalPromptText, JSON.stringify(estimationResult), estimationModel);
+         const validation = await validateAIOutput(originalPromptText, JSON.stringify(estimationResult), estimationModel as any); // Cast primaryModel
 
           if (!validation.allValid) {
               console.warn(`Validation failed for project estimation. Reasoning:`, validation.results);

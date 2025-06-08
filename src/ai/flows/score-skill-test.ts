@@ -150,7 +150,7 @@ Answer: ${a.answerText}
               .replace('{{{answersText}}}', answersText);
 
           // validateAIOutput is async and exported from its own 'use server' file
-          const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), scoreModel);
+          const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), scoreModel as any); // Cast primaryModel
 
           if (!validation.allValid) {
               console.warn(`Validation failed for skill scoring (skill: ${skill}). Reasoning:`, validation.results);
@@ -219,7 +219,7 @@ Answer: ${a.answerText}
                   .replace('{{{scoresText}}}', scoresText);
 
              // validateAIOutput is async and exported from its own 'use server' file
-             const validation = await validateAIOutput(originalPromptText, JSON.stringify(feedbackOutput), feedbackModel);
+             const validation = await validateAIOutput(originalPromptText, JSON.stringify(feedbackOutput), feedbackModel as any); // Cast primaryModel
 
              if (!validation.allValid) {
                  console.warn(`Validation failed for feedback aggregation (test ID: ${input.testId}). Reasoning:`, validation.results);

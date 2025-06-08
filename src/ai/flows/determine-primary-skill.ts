@@ -79,7 +79,7 @@ const determinePrimarySkillFlow = ai.defineFlow<
                 .replace('{{{skillsDescription}}}', input.skillsDescription);
 
             // validateAIOutput is async and exported from its own 'use server' file
-            const validation = await validateAIOutput(originalPromptText, JSON.stringify(output), primaryModel);
+            const validation = await validateAIOutput(originalPromptText, JSON.stringify(output), primaryModel as any); // Cast primaryModel
 
             if (!validation.allValid) {
                 console.warn(`Validation failed for skill determination. Reasoning:`, validation.results);

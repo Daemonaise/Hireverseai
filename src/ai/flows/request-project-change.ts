@@ -99,7 +99,7 @@ const estimateProjectChangeImpactFlow = ai.defineFlow<
          .replace('{{{priority}}}', input.priority);
 
        // validateAIOutput is async and exported from its own 'use server' file
-       const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
+       const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel as any); // Cast primaryModel
 
        if (!validation.allValid) {
            console.warn(`Validation failed for project change estimation ${input.projectId}. Reasoning:`, validation.results);
