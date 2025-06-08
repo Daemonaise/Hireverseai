@@ -5,9 +5,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import React, { useRef } from 'react'; // Added useRef
 import { AiMatcher, type AiMatcherRef } from '@/components/ai-matcher'; // Import AiMatcher and its Ref type
-import { FeatureCard } from '@/components/feature-card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge'; // Import Badge
 import {
   BrainCircuit,
   Users,
@@ -32,37 +32,38 @@ import {
 } from 'lucide-react';
 import { HeaderNavigationClient } from '@/components/header-navigation-client';
 
-// Data for "Key Features" Section
+// Data for "Key Features" Section - NOW REPLACED WITH CORE PLATFORM FEATURES
 const keyFeaturesData = [
   {
-    icon: BrainCircuit,
-    title: "AI Project Breakdown",
-    description: "Convert general requests into structured tasks, precise technical specs, and accurate budget estimates using Genkit-driven prompt logic.",
+    icon: Users, // Was Zap, using Users as per original corePlatformFeaturesData comment
+    title: "Parallel Human Processing",
+    description: "Boost project speed dramatically by breaking large projects into efficiently managed microtasks executed simultaneously.",
+    isNew: true,
   },
   {
-    icon: Users,
-    title: "Smart Freelancer Matching",
-    description: "Our AI thoroughly evaluates freelancer expertise, portfolios, and past projects to surface only the best-matched talent for your needs.",
+    icon: UserPlus,
+    title: "Instant Team Formation",
+    description: "Automatically assemble ideal freelancer teams tailored specifically to each project’s requirements.",
   },
   {
-    icon: LayoutDashboard,
-    title: "Real-Time Collaboration Dashboard",
-    description: "Communicate, share files, manage tasks, and track progress in a unified workspace—no external tools required.",
+    icon: Zap, // Was GitCompareArrows, using Zap as per original corePlatformFeaturesData comment
+    title: "Optimized Task Assignment",
+    description: "Tasks are swiftly routed to the most qualified and available freelancers using advanced AI matching.",
   },
   {
-    icon: Activity,
-    title: "Continuous Performance Monitoring",
-    description: "AI proactively monitors task completion, communication quality, and pace, offering real-time optimization suggestions and risk alerts.",
+    icon: CheckCircle, // Was ShieldCheck, using CheckCircle as per original corePlatformFeaturesData comment
+    title: "Integrated Quality Assurance",
+    description: "Built-in automated checks and optional peer reviews ensure every deliverable meets high-quality standards.",
   },
   {
-    icon: GitCompareArrows,
-    title: "Multi-Model Cross-Validation",
-    description: "Outputs undergo reviews by leading models (Gemini, GPT-4o, Claude), ensuring discrepancies are identified and resolved before final submission.",
+    icon: Workflow,
+    title: "Effortless Integrations",
+    description: "Easily connect and manage your projects within tools like Monday.com, Microsoft Teams, and more.",
   },
   {
-    icon: Lock,
-    title: "Secure and Transparent Payments",
-    description: "Payments are securely processed via Stripe with clear, upfront project pricing and timeline estimates—no hidden fees or hourly uncertainty.",
+    icon: HardDrive,
+    title: "Secure Asset Management",
+    description: "Centralized file sharing, version control, and robust security ensure safe and organized management of all project assets.",
   },
 ];
 
@@ -99,61 +100,6 @@ const hireverseWorkflowData = [
     description: "Receive your fully assembled, ready-to-launch project seamlessly integrated from completed microtasks.",
   },
 ];
-
-// Data for "Core Platform Features" Section
-const corePlatformFeaturesData = [
-  {
-    icon: Users, // Changed from Zap for "Parallel Human Processing"
-    title: "Parallel Human Processing",
-    description: "Boost project speed dramatically by breaking large projects into efficiently managed microtasks executed simultaneously.",
-    isNew: true,
-  },
-  {
-    icon: UserPlus,
-    title: "Instant Team Formation",
-    description: "Automatically assemble ideal freelancer teams tailored specifically to each project’s requirements.",
-  },
-  {
-    icon: Zap, // Changed from GitCompareArrows for "Optimized Task Assignment"
-    title: "Optimized Task Assignment",
-    description: "Tasks are swiftly routed to the most qualified and available freelancers using advanced AI matching.",
-  },
-  {
-    icon: CheckCircle, // Changed from ShieldCheck for "Integrated Quality Assurance"
-    title: "Integrated Quality Assurance",
-    description: "Built-in automated checks and optional peer reviews ensure every deliverable meets high-quality standards.",
-  },
-  {
-    icon: Workflow,
-    title: "Effortless Integrations",
-    description: "Easily connect and manage your projects within tools like Monday.com, Microsoft Teams, and more.",
-  },
-  {
-    icon: HardDrive,
-    title: "Secure Asset Management",
-    description: "Centralized file sharing, version control, and robust security ensure safe and organized management of all project assets.",
-  },
-];
-
-// Data for "How It Works" three-step horizontal process - this section was removed based on latest request,
-// using paragraph format instead. Keeping data here in case it's needed for another component.
-// const howItWorksStepsData = [
-//   {
-//     icon: Briefcase,
-//     title: "1. Define Your Project",
-//     description: "Describe your project needs in plain English. Our AI handles the rest."
-//   },
-//   {
-//     icon: Sparkles,
-//     title: "2. AI-Powered Matching",
-//     description: "Intelligent algorithms match you with top-tier, vetted freelancers instantly."
-//   },
-//   {
-//     icon: UsersRound,
-//     title: "3. Collaborate & Succeed",
-//     description: "Work seamlessly in a unified dashboard with AI-assisted project management."
-//   }
-// ];
 
 
 export default function Home() {
@@ -232,7 +178,14 @@ export default function Home() {
                         <feature.icon className="h-8 w-8 text-primary stroke-2" />
                       </div>
                       <div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-1">{feature.title}</h3>
+                        <h3 className="text-xl font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                            {feature.title}
+                            {feature.isNew && (
+                                <Badge variant="default" className="text-xs whitespace-nowrap bg-green-500 text-white border-green-600">
+                                    NEW
+                                </Badge>
+                            )}
+                        </h3>
                         <p className="text-muted-foreground">{feature.description}</p>
                       </div>
                   </div>
@@ -248,7 +201,6 @@ export default function Home() {
             Hireverse AI Workflow
           </h2>
           <div className="relative max-w-4xl mx-auto">
-            {/* The blue line div that was here has been removed */}
             <div className="space-y-12 md:space-y-16">
               {hireverseWorkflowData.map((step, index) => (
                 <div key={step.title} className={`flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-10 ${index % 2 !== 0 ? 'md:flex-row-reverse' : ''}`}>
@@ -267,28 +219,6 @@ export default function Home() {
                 </div>
               ))}
             </div>
-          </div>
-        </section>
-
-        <div className="py-8 md:py-10"> <Separator /> </div>
-
-        {/* Core Platform Features Section */}
-        <section className="container mx-auto px-4 py-12 md:px-6 md:py-16 bg-gray-50 rounded-lg">
-          <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl text-gray-900">
-            Core Platform Features
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {corePlatformFeaturesData.map((feature) => (
-              <div key={feature.title} className="p-1">
-                <FeatureCard
-                  icon={<feature.icon className="h-8 w-8 text-primary stroke-2" />}
-                  title={feature.title}
-                  description={feature.description}
-                  isNew={feature.isNew}
-                  className="bg-white border-2 border-primary hover:scale-[1.02] hover:shadow-xl transition-transform duration-300"
-                />
-              </div>
-            ))}
           </div>
         </section>
 
