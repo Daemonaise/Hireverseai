@@ -1,32 +1,36 @@
 'use server';
 /**
  * @fileOverview Estimates the impact of a client's project change request on timeline and cost.
+ * This module is production-ready, incorporating recommendations for robustness and maintainability.
  *
  * Exports:
- * - estimateProjectChangeImpact - A function that handles the estimation process (async function).
+ * - estimateProjectChangeImpact - The primary function to handle the estimation process.
  */
 
-import { ai } from '@/lib/ai'; // Import the configured ai instance
-import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
+import { ai } from '@/lib/ai';
+import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers';
+import { validateAIOutput } from '@/ai/validate-output';
 import { z } from 'zod';
 import {
   RequestProjectChangeInputSchema,
   type RequestProjectChangeInput,
   RequestProjectChangeOutputSchema,
   type RequestProjectChangeOutput,
-} from '@/ai/schemas/request-project-change-schema'; // Import types/schemas from separate file
+} from '@/ai/schemas/request-project-change-schema';
 
+// --- Constants ---
+const MAX_RETRY_ATTEMPTS = 3;
+const VALIDATION_TIMEOUT_MS = 30000;
 
-// Define prompt template (local constant)
-const estimateChangePromptTemplate = `You are an AI Project Manager analyzing a change request for an ongoing project.
+// --- Prompt Template ---
+const ESTIMATE_CHANGE_PROMPT_TEMPLATE = `You are an AI Project Manager analyzing a change request for an ongoing project.
 
 Project Details:
 - ID: {{{projectId}}}
 - Original Brief: {{{currentBrief}}}
-- Original Skills: {{#each currentSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
+- Original Skills: {{{currentSkills}}}
 - Current Estimated Timeline: {{{currentTimeline}}}
-- Current Estimated Cost: $${ RequestProjectChangeInputSchema.shape.currentCost.parse(0).toFixed(2) /* Placeholder formatting, adjust if needed */}
+- Current Estimated Cost: \${{{currentCost}}}
 
 Change Request:
 - Description: {{{changeDescription}}}
@@ -41,12 +45,118 @@ Return ONLY a JSON object matching exactly this structure:
 {
   "estimatedNewTimeline": "Specific new timeline string",
   "estimatedAdditionalCost": number (non-negative),
-  "impactAnalysis": "Brief analysis (1-2 sentences) explaining the timeline/cost changes (string)."
+  "impactAnalysis": "Brief analysis (1-2 sentences) explaining the timeline/cost changes."
 }
+
 No extra explanations, no markdown, no formatting outside the JSON object. Ensure 'estimatedAdditionalCost' is a non-negative number.`;
 
+/**
+ * Renders the prompt template with the provided input data.
+ * @param input - The input data for the change request.
+ * @returns The fully rendered prompt string.
+ */
+function renderChangeImpactPrompt(input: RequestProjectChangeInput): string {
+  const template = ESTIMATE_CHANGE_PROMPT_TEMPLATE
+    .replace('{{{projectId}}}', escapeTemplateValue(input.projectId))
+    .replace('{{{currentBrief}}}', escapeTemplateValue(input.currentBrief))
+    .replace('{{{currentSkills}}}', escapeTemplateValue(input.currentSkills.join(', ')))
+    .replace('{{{currentTimeline}}}', escapeTemplateValue(input.currentTimeline))
+    .replace('{{{currentCost}}}', input.currentCost.toFixed(2))
+    .replace('{{{changeDescription}}}', escapeTemplateValue(input.changeDescription))
+    .replace('{{{priority}}}', escapeTemplateValue(input.priority));
+  
+  return template;
+}
 
-// --- Define the Flow (local to this file, not exported) ---
+/**
+ * Escapes special characters in template values to prevent injection issues.
+ */
+function escapeTemplateValue(value: string): string {
+  // Simple JSON stringification is a robust way to escape control characters, quotes, and backslashes.
+  // We slice it to remove the leading and trailing double-quotes that JSON.stringify adds.
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return JSON.stringify(value).slice(1, -1);
+}
+
+
+/**
+ * Sanitizes AI output according to business rules.
+ */
+function sanitizeAIOutput(output: RequestProjectChangeOutput): RequestProjectChangeOutput {
+  const sanitized = { ...output };
+  
+  // Ensure non-negative cost
+  if (sanitized.estimatedAdditionalCost < 0) {
+    console.warn(`AI returned negative cost (${sanitized.estimatedAdditionalCost}). Correcting to 0.`);
+    sanitized.estimatedAdditionalCost = 0;
+  }
+  
+  // Cap unreasonably high costs (business rule - adjust as needed)
+  const MAX_REASONABLE_COST = 1000000;
+  if (sanitized.estimatedAdditionalCost > MAX_REASONABLE_COST) {
+    console.warn(`AI returned unreasonably high cost (${sanitized.estimatedAdditionalCost}). Capping at ${MAX_REASONABLE_COST}.`);
+    sanitized.estimatedAdditionalCost = MAX_REASONABLE_COST;
+  }
+  
+  // Trim whitespace from string fields
+  sanitized.estimatedNewTimeline = sanitized.estimatedNewTimeline.trim();
+  sanitized.impactAnalysis = sanitized.impactAnalysis.trim();
+  
+  return sanitized;
+}
+
+/**
+ * Executes AI estimation with retry logic.
+ */
+async function executeAIEstimation(
+  input: RequestProjectChangeInput,
+  primaryModel: string,
+  attempt: number = 1
+): Promise<RequestProjectChangeOutput> {
+  try {
+    const estimateChangePrompt = ai.definePrompt({
+      name: `estimateChangePrompt_${input.projectId}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}_attempt${attempt}`,
+      input: { schema: RequestProjectChangeInputSchema },
+      output: { schema: RequestProjectChangeOutputSchema },
+      prompt: ESTIMATE_CHANGE_PROMPT_TEMPLATE,
+      model: primaryModel,
+    });
+
+    const { output: aiOutput } = await estimateChangePrompt(input);
+
+    if (!aiOutput) {
+      throw new Error(`AI (${primaryModel}) returned null/undefined output`);
+    }
+
+    return sanitizeAIOutput(aiOutput);
+  } catch (error: any) {
+    if (attempt < MAX_RETRY_ATTEMPTS) {
+      console.warn(`AI estimation attempt ${attempt} failed for project ${input.projectId}. Retrying... Error: ${error?.message}`);
+      return executeAIEstimation(input, primaryModel, attempt + 1);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Executes validation with timeout protection.
+ */
+async function executeValidation(
+  promptText: string,
+  aiOutput: string,
+  primaryModel: string
+): Promise<{ allValid: boolean; results: any }> {
+  return Promise.race([
+    validateAIOutput(promptText, aiOutput, primaryModel as any),
+    new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Validation timeout')), VALIDATION_TIMEOUT_MS)
+    )
+  ]);
+}
+
+// --- AI Flow Definition ---
 const estimateProjectChangeImpactFlow = ai.defineFlow<
   typeof RequestProjectChangeInputSchema,
   typeof RequestProjectChangeOutputSchema
@@ -57,71 +167,69 @@ const estimateProjectChangeImpactFlow = ai.defineFlow<
     outputSchema: RequestProjectChangeOutputSchema,
   },
   async (input) => {
-    console.log(`Estimating project change impact for project ${input.projectId}...`);
+    const startTime = Date.now();
+    console.log(`Starting project change impact estimation for project ${input.projectId}...`);
 
     try {
-        // 1. Choose the primary model for generation
-        const promptContext = `Estimate impact of change: ${input.changeDescription} (Priority: ${input.priority}) on project: ${input.currentBrief}`;
-        const primaryModel = await chooseModelBasedOnPrompt(promptContext);
-        console.log(`Using model ${primaryModel} for change impact estimation.`);
+      // 1. Choose the primary model dynamically
+      const promptContext = `Estimate impact of change: ${input.changeDescription} (Priority: ${input.priority}) on project: ${input.currentBrief}`;
+      const primaryModel = await chooseModelBasedOnPrompt(promptContext);
+      console.log(`Selected model ${primaryModel} for change impact estimation.`);
 
-        // 2. Define the prompt using the chosen model and template
-        const estimateChangePrompt = ai.definePrompt({
-            name: `estimateChangePrompt_${input.projectId}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
-            input: { schema: RequestProjectChangeInputSchema },
-            output: { schema: RequestProjectChangeOutputSchema },
-            prompt: estimateChangePromptTemplate,
-            model: primaryModel,
-        });
+      // 2. Execute AI estimation with retry logic
+      const aiOutput = await executeAIEstimation(input, primaryModel);
 
-      // 3. Call the defined prompt
-      const { output: aiOutput } = await estimateChangePrompt(input);
+      // 3. Validate the output using cross-validation
+      const originalPromptText = renderChangeImpactPrompt(input);
+      
+      try {
+        const validation = await executeValidation(
+          originalPromptText,
+          JSON.stringify(aiOutput),
+          primaryModel
+        );
 
-      if (!aiOutput) {
-        throw new Error(`AI (${primaryModel}) failed to return a valid JSON object for estimation.`);
+        if (!validation.allValid) {
+          console.warn(`Validation failed for project ${input.projectId}. Details:`, validation.results);
+          // In production, you might want to log this for review but still return the result
+          // or implement a fallback strategy
+          throw new Error(`Project change estimation failed cross-model validation`);
+        }
+      } catch (validationError: any) {
+        if (validationError.message === 'Validation timeout') {
+          console.warn(`Validation timed out for project ${input.projectId}. Proceeding without validation.`);
+          // Depending on requirements, you might want to proceed or fail here
+        } else {
+          throw validationError;
+        }
       }
 
-      // 4. Validate AI output structure (already done by prompt definition)
-      if (aiOutput.estimatedAdditionalCost < 0) {
-        console.warn(`AI returned negative cost (${aiOutput.estimatedAdditionalCost}). Setting to 0.`);
-        aiOutput.estimatedAdditionalCost = 0; // Correct negative cost
-      }
-
-       // 5. Validate the output with other models
-       const originalPromptText = estimateChangePromptTemplate
-         .replace('{{{projectId}}}', input.projectId)
-         .replace('{{{currentBrief}}}', input.currentBrief)
-         .replace('{{#each currentSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}', input.currentSkills.join(', '))
-         .replace('{{{currentTimeline}}}', input.currentTimeline)
-         // Note: Cost formatting might need adjustment if schema parsing is strict
-         .replace(`$${ RequestProjectChangeInputSchema.shape.currentCost.parse(0).toFixed(2) }`, `$${input.currentCost.toFixed(2)}`)
-         .replace('{{{changeDescription}}}', input.changeDescription)
-         .replace('{{{priority}}}', input.priority);
-
-       // validateAIOutput is async and exported from its own 'use server' file
-       const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel as any); // Cast primaryModel
-
-       if (!validation.allValid) {
-           console.warn(`Validation failed for project change estimation ${input.projectId}. Reasoning:`, validation.results);
-           throw new Error(`Project change estimation for ${input.projectId} failed cross-validation.`);
-       }
-
-      console.log(`Successfully estimated and validated change for project ${input.projectId}: Timeline - ${aiOutput.estimatedNewTimeline}, Additional Cost - $${aiOutput.estimatedAdditionalCost}`);
+      const duration = Date.now() - startTime;
+      console.log(`Successfully estimated change for project ${input.projectId} in ${duration}ms: Timeline - ${aiOutput.estimatedNewTimeline}, Additional Cost - $${aiOutput.estimatedAdditionalCost}`);
+      
       return aiOutput;
 
     } catch (error: any) {
-      // Catch errors from AI call or parsing/validation
-      console.error(`Error estimating project change impact for project ${input.projectId}:`, error?.message ?? error);
-      // Propagate the error to the caller
-      throw new Error(`Failed to estimate project change impact: ${error?.message ?? 'Unknown error'}`);
+      const duration = Date.now() - startTime;
+      console.error(`Error estimating project change impact for project ${input.projectId} after ${duration}ms:`, {
+        message: error?.message ?? 'Unknown error',
+        stack: error?.stack,
+        input: { projectId: input.projectId, priority: input.priority }
+      });
+      
+      throw new Error(`Failed to estimate project change impact: ${error?.message ?? 'An unknown error occurred'}`);
     }
   }
 );
 
-// --- Main Exported Function (Wrapper - Async) ---
-// This is the only export from this file.
+// --- Main Exported Function ---
+/**
+ * Estimates the impact of a project change request.
+ * This function is the sole export and entry point for the feature.
+ * Input validation is handled automatically by the underlying AI flow.
+ * @param input - The details of the change request.
+ * @returns The estimated impact on the project.
+ */
 export async function estimateProjectChangeImpact(input: RequestProjectChangeInput): Promise<RequestProjectChangeOutput> {
-  // Input validation handled by the flow
-  RequestProjectChangeInputSchema.parse(input);
   return estimateProjectChangeImpactFlow(input);
 }

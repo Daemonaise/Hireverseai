@@ -50,15 +50,15 @@ export async function validateAIOutput(
   if (GOOGLE_API_KEY) {
     if (primaryModelName !== ALL_MODELS.googleFast) validatorModels.push(ALL_MODELS.googleFast);
     // Optionally add googlePro if different and available
-    if (primaryModelName !== ALL_MODELS.googlePro && ALL_MODELS.googlePro !== ALL_MODELS.googleFast) validatorModels.push(ALL_MODELS.googlePro);
+    if (primaryModelName !== ALL_MODELS.googlePro) validatorModels.push(ALL_MODELS.googlePro);
   }
   if (OPENAI_API_KEY) {
     if (primaryModelName !== ALL_MODELS.openaiMini) validatorModels.push(ALL_MODELS.openaiMini);
-    if (primaryModelName !== ALL_MODELS.openaiFull && ALL_MODELS.openaiFull !== ALL_MODELS.openaiMini) validatorModels.push(ALL_MODELS.openaiFull);
+    if (primaryModelName !== ALL_MODELS.openaiFull) validatorModels.push(ALL_MODELS.openaiFull);
   }
   if (ANTHROPIC_API_KEY) {
     if (primaryModelName !== ALL_MODELS.anthropicHaiku) validatorModels.push(ALL_MODELS.anthropicHaiku);
-    if (primaryModelName !== ALL_MODELS.anthropicSonnet && ALL_MODELS.anthropicSonnet !== ALL_MODELS.anthropicHaiku) validatorModels.push(ALL_MODELS.anthropicSonnet);
+    if (primaryModelName !== ALL_MODELS.anthropicSonnet) validatorModels.push(ALL_MODELS.anthropicSonnet);
     // Opus is expensive, consider if it should be a validator or only a primary
     // if (primaryModelName !== ALL_MODELS.anthropicOpus && ...) validatorModels.push(ALL_MODELS.anthropicOpus);
   }
@@ -76,7 +76,8 @@ export async function validateAIOutput(
   const validationResults: ValidationResult[] = [];
 
   for (const modelName of uniqueValidatorModels) {
-    console.log(`\n[AI Validation] --- Starting validation with ${modelName} ---`);
+    console.log(`
+[AI Validation] --- Starting validation with ${modelName} ---`);
     try {
       const validationPrompt = ai.definePrompt({
         name: `validationPrompt_${modelName.replace(/[^a-zA-Z0-9]/g, '_')}`, // Ensure unique prompt name
