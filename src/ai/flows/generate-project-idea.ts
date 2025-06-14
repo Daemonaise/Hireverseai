@@ -27,8 +27,19 @@ const projectIdeaPromptTemplate = `CRITICAL: Your entire response MUST be ONLY a
 Do NOT include ANY text or formatting outside the JSON.
 Start immediately with '{' and end immediately with '}'.
 
-Generate a unique freelance project idea based on the hint (if provided).
-Use this random factor: {{{randomNumber}}}
+Your goal is to generate a DIVERSE and UNIQUE freelance project idea. Avoid common or repetitive suggestions.
+Consider a wide range of digital freelance work, such as:
+- Software Development (web, mobile, API, scripts)
+- Creative Writing (blog posts, ad copy, technical writing, fiction snippets)
+- Graphic Design (logos, illustrations, social media assets, UI mockups)
+- Data Analysis & Visualization
+- Digital Marketing (SEO, content strategy, social media campaigns)
+- Audio/Video Production (editing, voiceovers, short animations)
+- Technical Support or Consultation
+- Virtual Assistance or Admin tasks
+
+Generate a project idea based on the hint (if provided).
+Use this random factor to inspire creativity and ensure variety: {{{randomNumber}}}
 
 Strictly follow this JSON structure:
 {
@@ -38,7 +49,7 @@ Strictly follow this JSON structure:
   "estimatedHours": number (>= 1),
   "requiredSkills": ["array of 1-5 skill strings (non-empty)"]
 }
-{{#if industryHint}}Focus on the industry: '{{{industryHint}}}'.{{/if}}
+{{#if industryHint}}If an industry hint is provided (Industry: '{{{industryHint}}}'), tailor the project idea to that industry.{{else}}If no industry hint is provided, feel free to pick an interesting category from the list above or generate a completely novel idea.{{/if}}
 
 REMEMBER: ONLY the JSON object.`;
 
