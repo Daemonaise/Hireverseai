@@ -1,5 +1,5 @@
 
-import type { Timestamp } from 'firebase/firestore';
+import type { Timestamp, FieldValue } from 'firebase/firestore'; // Import FieldValue
 
 /**
  * Represents the possible availability statuses for a freelancer.
@@ -15,6 +15,8 @@ export interface Freelancer {
   name: string;
   email: string; // Used for login identification, but password is not stored.
   skills: string[]; // List of skills identified (potentially updated after assessment)
+  hourlyRate?: number; // Added hourly rate
+  rating?: number; // Added rating (e.g., 0-5)
   testScores?: { [skill: string]: number }; // Optional: Scores for each skill test (might be deprecated for adaptive)
   assessmentResultId?: string | null; // Optional: ID linking to the AdaptiveAssessmentResult document
   xp?: number; // Experience points for gamification

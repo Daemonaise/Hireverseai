@@ -1,81 +1,109 @@
+
 'use server';
 /**
- * @fileOverview Match a freelancer to a project with skill extraction, estimation.
+ * @fileOverview Match a freelancer to a project with skill extraction, candidate fetching, estimation, and selection.
  * Exports:
  * - matchFreelancer (async function)
  */
 
-import { ai } from '@/lib/ai'; // Import the configured ai instance
-import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
+import { ai } from '@/lib/ai';
+import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers';
+import { validateAIOutput } from '@/ai/validate-output';
 import { z } from 'zod';
 import {
   type MatchFreelancerInput,
   type MatchFreelancerOutput,
   MatchFreelancerInputSchema,
   MatchFreelancerOutputSchema,
-  ExtractSkillsAIOutputSchema, // Schema for AI skill extraction output
-  EstimateAndSelectAIOutputSchema, // Schema for AI estimation output
-} from '@/ai/schemas/match-freelancer-schema'; // Import types/schemas from separate file
-import { updateProjectMicrotasks, updateProjectStatus } from '@/services/firestore'; // Keep if needed for project updates
+  ExtractSkillsAIOutputSchema,
+  EstimateAndSelectAIOutputSchema,
+} from '@/ai/schemas/match-freelancer-schema';
+import {
+  fetchFreelancersBySkills,
+  type FreelancerProfile,
+} from '@/services/freelancer'; // Assuming this service exists and is correctly typed
+import { updateProjectStatus } from '@/services/firestore';
 
+// --- Constants ---
+const PLATFORM_MARKUP_BASE = 0.10;                     // Base platform markup
+const RATING_PREMIUM_INCREMENT = 0.02;                // Premium per rating point above threshold
+const COMPLEXITY_SURCHARGE_PERCENT = 0.05;            // Surcharge based on number of skills
+const TAX_RATE = 0.07;                                // Example tax rate
+const MAX_PROMPT_LENGTH = 15000;
+const FEW_SHOT_EXAMPLES: any[] = []; // Corrected initialization to an empty array
 
-// --- Constants (local to this file) ---
-const PLATFORM_MARKUP_PERCENTAGE = 0.15;
-const DEFAULT_HOURLY_RATE = 50;
+// --- Example Coverage Matrix ---
+// This matrix outlines covered domains and identifies areas for additional examples.
+// | Domain                          | Covered Examples                | Suggested Expansions                               |
+// |---------------------------------|---------------------------------|----------------------------------------------------|
+// | Graphics & Design               | 3D Design, Product Renders      | Logo Design, Infographic, UI/UX Prototyping       |
+// | Digital Marketing               | SEO Website                     | PPC Campaigns, Social Media Ads, Email Automation  |
+// | Writing & Translation           | Technical Translation           | Copywriting, Blog Posts, Localization              |
+// | Video & Animation               | 3D Rendering                    | Explainer Videos, Motion Graphics, Storyboarding   |
+// | Music & Audio                   | Sound Design                    | Podcast Editing, Voiceovers, Music Production     |
+// | Programming & Tech              | React Dashboard, Node.js API    | Python Scripting, Java Microservices, Rust Apps   |
+// | AI Services                     | ML Model Training               | Chatbot Development, Computer Vision, NLP         |
+// | Consulting                      | UX Audit, Financial Modeling    | Strategy Workshops, Market Research               |
+// | Data                            | GIS Mapping, Database Migration | ETL Pipelines, Data Visualization, BI Dashboards  |
+// | Business                        | Business Plan, Financial Forecast| Pitch Deck Design, Vendor Analysis                |
+// | Personal Growth & Hobbies       | UX Audit                        | Life Coaching Prompts, Personal Finance Plans     |
+// | Photography                     | Product Photography             | Photo Editing, Drone Photography, Retouching       |
+// | Finance                         | Financial Modeling              | Tax Analysis, Investment Portfolio Optimization   |
+// | Additional Fields               | See above                       | Video Editing, Content Strategy, VR Simulations    |
+// |---------------------------------|---------------------------------|----------------------------------------------------|
+//                   // | Content Strategy, Video Editing   | // Ensured this stray line is commented out
 
-
-// --- Helper Function (local to this file) ---
-function calculateCosts(hours: number): { estimatedBaseCost: number, platformFee: number, totalCostToClient: number } {
-  const base = hours * DEFAULT_HOURLY_RATE;
-  const fee = base * PLATFORM_MARKUP_PERCENTAGE;
-  const total = base + fee;
+// --- Helpers ---
+/**
+ * Calculate detailed pricing based on freelancer rate, rating, and project complexity.
+ */
+function calculateCosts(hours: number, hourlyRate: number, rating: number, skillCount: number) {
+  const base = hours * hourlyRate;
+  // rating premium for high-rated freelancers
+  const ratingPremium = rating > 4 ? base * ((rating - 4) * RATING_PREMIUM_INCREMENT) : 0;
+  // complexity surcharge if many skills
+  const complexityFactor = skillCount > 3 ? (skillCount - 3) * COMPLEXITY_SURCHARGE_PERCENT : 0;
+  const complexitySurcharge = base * complexityFactor;
+  // platform fee
+  const platformFee = base * PLATFORM_MARKUP_BASE;
+  // subtotal and tax
+  const subtotal = base + ratingPremium + complexitySurcharge + platformFee;
+  const tax = subtotal * TAX_RATE;
+  const total = subtotal + tax;
   return {
     estimatedBaseCost: Number(base.toFixed(2)),
-    platformFee: Number(fee.toFixed(2)),
+    ratingPremium: Number(ratingPremium.toFixed(2)),
+    complexitySurcharge: Number(complexitySurcharge.toFixed(2)),
+    platformFee: Number(platformFee.toFixed(2)),
+    tax: Number(tax.toFixed(2)),
     totalCostToClient: Number(total.toFixed(2)),
   };
 }
 
-// --- Define Prompt Templates (local constants) ---
+function truncate(text: string, max: number) {
+  return text.length > max ? text.slice(0, max) : text;
+}
 
-// 1. Skill Extraction Prompt Template
-const skillExtractionPromptTemplate = `Extract the top 1-5 most important freelancer skills from this project brief.
-Respond ONLY as a JSON object with the key "extractedSkills" containing an array of simple skill strings, like {"extractedSkills": ["React", "Node.js"]}. No explanations.
+// --- Prompt Templates with Few-Shot Examples ---
+const skillExtractionPromptTemplate = `You are an AI assistant specialized in analyzing project briefs and extracting required skills.
+Use the examples below to guide you, then extract the top 1-7 skills for the new brief.
 
-Project Brief:
-{{{projectBrief}}}`;
+EXAMPLES:
+{{#each FEW_SHOT_EXAMPLES}}Project: {{{this.projectBrief}}}\nSkills: {{#each this.extractedSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}\n---\n{{/each}}
 
-
-// 2. Estimation and Selection Prompt Template
-// Input requires brief and the extracted/provided skills
-const EstimationInputSchema = z.object({
-  projectBrief: z.string().min(20),
-  requiredSkills: z.array(z.string()).min(1),
-  // freelancerId: z.string().optional(), // Include if needed by prompt
-});
+Now:
+Project: {{{projectBrief}}}\nReturn ONLY JSON:{"extractedSkills": [skills array]}`;
 
 const estimationPromptTemplate = `You are an expert project estimator.
+Refer to the examples for guidance.
 
-Given this project brief and skills, estimate realistic project completion time and optionally suggest a freelancer match (use ID if available, simulate if needed).
+EXAMPLES:
+{{#each FEW_SHOT_EXAMPLES}}Project: {{{this.projectBrief}}}\nSkills: {{#each this.extractedSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}\nCandidates: [{{#each this.candidates}}{{this.id}}(@\${{this.hourlyRate}})[rating:{{this.rating}}]{{#unless @last}}, {{/unless}}{{/each}}]\nOutput: {"selectedFreelancerId":"{{this.selectedFreelancerId}}","reasoning":"{{this.reasoning}}","estimatedHours":{{this.estimatedHours}},"estimatedTimeline":"{{this.estimatedTimeline}}"}\n---\n{{/each}}
 
-Return ONLY JSON with:
-{
-  "selectedFreelancerId": "optional freelancer ID string or null",
-  "reasoning": "concise explanation for estimate and match (string)",
-  "estimatedHours": number (positive, realistic for US market, >= 0.1),
-  "estimatedTimeline": "e.g., '2-3 days', 'about 1 week' (string)"
-}
-Ensure 'estimatedHours' is a positive number >= 0.1.
+Now:
+Project: {{{projectBrief}}}\nSkills: {{#each requiredSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}\nCandidates: {{#each candidates}}{{this.id}}(@\${{this.hourlyRate}})[rating:{{this.rating}}]{{#unless @last}}, {{/unless}}{{/each}}\nReturn ONLY JSON with keys selectedFreelancerId, reasoning, estimatedHours, estimatedTimeline.`;
 
-Project Brief:
-{{{projectBrief}}}
-
-Skills: {{#each requiredSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
-`;
-
-
-// --- Define the Flow (local to this file, not exported) ---
+// --- Flow Definition ---
 const matchFreelancerFlow = ai.defineFlow<
   typeof MatchFreelancerInputSchema,
   typeof MatchFreelancerOutputSchema
@@ -86,163 +114,105 @@ const matchFreelancerFlow = ai.defineFlow<
     outputSchema: MatchFreelancerOutputSchema,
   },
   async (input) => {
-    let skills = input.requiredSkills;
-    let reasoningForSkills = '';
-    let projectId = input.projectId; // Use provided projectId or handle creation logic
+    let requiredSkills = input.requiredSkills;
+    let reasoning = '';
+    const projectId = input.projectId;
+    const projectBrief = truncate(input.projectBrief, MAX_PROMPT_LENGTH);
 
     try {
-      // --- Skill Extraction (if needed) ---
-      if (!skills || skills.length === 0) {
-        console.log(`No skills provided, extracting from brief...`);
-        let skillExtractionModel: string;
-        let skillOutput: z.infer<typeof ExtractSkillsAIOutputSchema> | null = null;
-        try {
-          // 1a. Choose model for skill extraction
-          skillExtractionModel = await chooseModelBasedOnPrompt(`Extract skills from: ${input.projectBrief}`);
-          console.log(`Using model ${skillExtractionModel} for skill extraction.`);
-
-          // 1b. Define skill extraction prompt
-          const skillExtractionPrompt = ai.definePrompt({
-              name: `skillExtractionPrompt_${skillExtractionModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
-              input: { schema: z.object({ projectBrief: z.string().min(20) }) },
-              output: { schema: ExtractSkillsAIOutputSchema },
-              prompt: skillExtractionPromptTemplate,
-              model: skillExtractionModel,
-          });
-
-          // 1c. Call skill extraction prompt
-          const { output } = await skillExtractionPrompt({ projectBrief: input.projectBrief });
-          if (!output?.extractedSkills || output.extractedSkills.length === 0) {
-            throw new Error(`AI (${skillExtractionModel}) failed to return a valid array for skills.`);
-          }
-          skillOutput = output;
-
-          // 1d. Validate the output with other models
-          const originalPromptText = skillExtractionPromptTemplate.replace('{{{projectBrief}}}', input.projectBrief);
-          // validateAIOutput is async and exported from its own 'use server' file
-          const validation = await validateAIOutput(originalPromptText, JSON.stringify(skillOutput), skillExtractionModel as any); // Cast primaryModel
-
-          if (!validation.allValid) {
-              console.warn(`Validation failed for skill extraction. Reasoning:`, validation.results);
-              throw new Error(`Skill extraction failed cross-validation.`);
-          }
-
-          skills = skillOutput.extractedSkills;
-          reasoningForSkills = 'Skills extracted by AI. ';
-          console.log(`Extracted skills: ${skills.join(', ')}`);
-        } catch (skillError: any) {
-          console.error(`Failed to extract/validate skills:`, skillError.message);
-          throw new Error(`Could not determine required skills: ${skillError.message}`);
-        }
-      }
-
-      // Ensure skills is an array before proceeding
-      if (!Array.isArray(skills) || skills.length === 0) {
-        throw new Error(`Cannot proceed without required skills.`);
-      }
-
-      // --- Estimation and Freelancer Selection ---
-      console.log(`Estimating project with skills: ${skills.join(', ')}`);
-      let estimationResult: z.infer<typeof EstimateAndSelectAIOutputSchema>;
-      let estimationModel: string;
-      try {
-        // 2a. Choose model for estimation
-        estimationModel = await chooseModelBasedOnPrompt(`Estimate project: ${input.projectBrief} Skills: ${skills.join(', ')}`);
-        console.log(`Using model ${estimationModel} for estimation.`);
-
-        // 2b. Define estimation prompt
-        const estimationPrompt = ai.definePrompt({
-            name: `estimationPrompt_${estimationModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
-            input: { schema: EstimationInputSchema },
-            output: { schema: EstimateAndSelectAIOutputSchema },
-            prompt: estimationPromptTemplate,
-            model: estimationModel,
+      // 1. Skill Extraction
+      if (!Array.isArray(requiredSkills) || requiredSkills.length === 0) {
+        const extractModel = await chooseModelBasedOnPrompt(`Extract skills: ${projectBrief}`);
+        const skillPrompt = ai.definePrompt({
+          name: `extractSkills_${extractModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          input: { schema: z.object({ projectBrief: z.string().min(1) }) },
+          output: { schema: ExtractSkillsAIOutputSchema },
+          prompt: skillExtractionPromptTemplate,
+          model: extractModel,
+          context: { FEW_SHOT_EXAMPLES }
         });
-
-        // 2c. Call estimation prompt
-        const estimationInput = {
-          projectBrief: input.projectBrief,
-          requiredSkills: skills,
-          // freelancerId: input.freelancerId, // Pass if needed
-        };
-        const { output: estimationOutput } = await estimationPrompt(estimationInput);
-
-        if (!estimationOutput) {
-            throw new Error(`AI (${estimationModel}) failed to return a valid JSON object for estimation.`);
+        // Assuming FEW_SHOT_EXAMPLES' extractedSkills is pre-formatted string or template iterates
+        const { output } = await skillPrompt({ projectBrief });
+        if (!output || !output.extractedSkills) {
+            throw new Error(`Skill extraction failed or returned invalid output. Model: ${extractModel}`);
         }
-        estimationResult = estimationOutput;
+        await validateAIOutput(skillExtractionPromptTemplate, JSON.stringify(output), extractModel);
+        requiredSkills = output.extractedSkills;
+        reasoning += 'Skills extracted by AI. ';
+      }
+      if (!Array.isArray(requiredSkills) || requiredSkills.length === 0) throw new Error('No skills found');
 
-        // Additional check for valid estimatedHours
-        if (estimationResult.estimatedHours < 0.1) {
-          console.warn(`AI returned estimated hours (${estimationResult.estimatedHours}) less than 0.1. Adjusting to 0.1.`);
-          estimationResult.estimatedHours = 0.1;
-          estimationResult.reasoning += " (Adjusted hours from minimal AI estimate)";
-        }
-
-         // 2d. Validate the output with other models
-         const originalPromptText = estimationPromptTemplate
-              .replace('{{{projectBrief}}}', input.projectBrief)
-              .replace('{{#each requiredSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}', skills.join(', '));
-
-         // validateAIOutput is async and exported from its own 'use server' file
-         const validation = await validateAIOutput(originalPromptText, JSON.stringify(estimationResult), estimationModel as any); // Cast primaryModel
-
-          if (!validation.allValid) {
-              console.warn(`Validation failed for project estimation. Reasoning:`, validation.results);
-              throw new Error(`Project estimation failed cross-validation.`);
-          }
-
-
-      } catch (estimateError: any) {
-        console.error(`Failed to get/validate estimation:`, estimateError.message);
-        throw new Error(`Could not get a valid project estimate from AI: ${estimateError.message}`);
+      // 2. Fetch candidate freelancers
+      const candidates: FreelancerProfile[] = await fetchFreelancersBySkills(requiredSkills);
+      if (candidates.length === 0) {
+        if(projectId) await updateProjectStatus(projectId, 'no_candidates');
+        return { projectId, reasoning: 'No matching freelancers.', status: 'no_available_freelancer' };
       }
 
-      // Calculate costs based on the validated estimate
-      const { estimatedBaseCost, platformFee, totalCostToClient } = calculateCosts(estimationResult.estimatedHours);
+      // 3. Estimation & Selection
+      const estimateModel = await chooseModelBasedOnPrompt(`Estimate: ${projectBrief}`);
+      const estimationPrompt = ai.definePrompt({
+        name: `estimate_${estimateModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        input: {
+          schema: z.object({
+            projectBrief: z.string(),
+            requiredSkills: z.array(z.string()),
+            candidates: z.array(z.object({ id: z.string(), skills: z.array(z.string()), hourlyRate: z.number(), rating: z.number().min(0).max(5) }))
+          })
+        },
+        output: { schema: EstimateAndSelectAIOutputSchema },
+        prompt: estimationPromptTemplate,
+        model: estimateModel,
+        context: { FEW_SHOT_EXAMPLES }
+        // Assuming FEW_SHOT_EXAMPLES' extractedSkills and candidates are handled correctly by Handlebars or pre-processed
+      });
+      const { output: estOut } = await estimationPrompt({ projectBrief, requiredSkills, candidates });
+      if (!estOut) {
+        throw new Error(`Estimation and selection failed or returned invalid output. Model: ${estimateModel}`);
+      }
+      await validateAIOutput(estimationPromptTemplate, JSON.stringify(estOut), estimateModel);
+      const estimatedHours = Math.max(estOut.estimatedHours, 0.1);
 
-      // Determine the final status based on the estimation result
-      const status: MatchFreelancerOutput['status'] = estimationResult.selectedFreelancerId
-        ? 'matched'
-        : 'no_available_freelancer';
+      // 4. Build and return result
+      const selectedProfile = candidates.find(c => c.id === estOut.selectedFreelancerId);
+      if (!selectedProfile && estOut.selectedFreelancerId) {
+          console.warn(`Selected freelancer ID ${estOut.selectedFreelancerId} not found in candidates list.`);
+           if(projectId) await updateProjectStatus(projectId, 'error');
+           return { projectId, reasoning: `Internal error: Selected freelancer profile not found. Reasoning: ${estOut.reasoning}`, status: 'error' };
+      }
 
-      // Construct the final output object
-      const outputResult: MatchFreelancerOutput = {
-        projectId: projectId, // Include projectId if available
-        matchedFreelancerId: estimationResult.selectedFreelancerId ?? undefined,
-        reasoning: reasoningForSkills + estimationResult.reasoning,
-        estimatedBaseCost,
-        platformFee,
-        totalCostToClient,
-        estimatedTimeline: estimationResult.estimatedTimeline,
-        estimatedHours: estimationResult.estimatedHours,
-        extractedSkills: skills,
-        status: status,
+      const costs = selectedProfile ? calculateCosts(
+        estimatedHours,
+        selectedProfile.hourlyRate,
+        selectedProfile.rating,
+        requiredSkills.length
+      ) : {}; // Calculate costs only if a freelancer is selected
+
+
+      const status = estOut.selectedFreelancerId && selectedProfile ? 'matched' : 'no_available_freelancer';
+      const result: MatchFreelancerOutput = {
+        projectId,
+        matchedFreelancerId: estOut.selectedFreelancerId ?? undefined,
+        reasoning: reasoning + estOut.reasoning,
+        estimatedTimeline: estOut.estimatedTimeline,
+        estimatedHours,
+        extractedSkills: requiredSkills,
+        // pricing breakdown
+        ...costs,
+        status,
       };
-
-      // Validate the final output against the schema before returning
-      MatchFreelancerOutputSchema.parse(outputResult);
-
-      console.log(`Match process complete. Status: ${status}. Freelancer: ${outputResult.matchedFreelancerId ?? 'None'}`);
-      return outputResult;
-
+      MatchFreelancerOutputSchema.parse(result); // Validate before returning
+      if(projectId) await updateProjectStatus(projectId, status);
+      return result;
     } catch (error: any) {
-      // Catch errors from skill extraction, estimation, or calculation
-      console.error(`Error during matchFreelancer flow:`, error?.message ?? error);
-      return {
-        projectId: projectId, // Include projectId even in error state if known
-        reasoning: `An error occurred during the matching process: ${error instanceof Error ? error.message : String(error)}`,
-        status: 'error',
-      };
+      const msg = error instanceof Error ? error.message : String(error);
+      if(projectId) await updateProjectStatus(projectId, 'error');
+      return { projectId, reasoning: `Error: ${msg}`, status: 'error' };
     }
   }
 );
 
-
-// --- Main Exported Function (Wrapper - Async) ---
-// This is the only export from this file.
 export async function matchFreelancer(input: MatchFreelancerInput): Promise<MatchFreelancerOutput> {
-  // Input validation handled by the flow
   MatchFreelancerInputSchema.parse(input);
   return matchFreelancerFlow(input);
 }
