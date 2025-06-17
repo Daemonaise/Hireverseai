@@ -24,9 +24,9 @@ const plugins = [];
 // Add plugins conditionally based on key presence *at initialization*
 // This determines if the plugin is even available to Genkit.
 if (GOOGLE_API_KEY) {
-  console.log("[AI Config] Adding Google AI Plugin...");
+  console.log("[AI Config] Adding Google AI Plugin with explicit key...");
   try {
-    plugins.push(googleAI()); // Pass API key if required by specific plugin version, otherwise it reads from env
+    plugins.push(googleAI({ apiKey: GOOGLE_API_KEY })); // Explicitly pass the API key
     console.log("[AI Config] Google AI Plugin Added.");
   } catch (e: any) {
     console.error("[AI Config] Error initializing Google AI Plugin:", e.message);
