@@ -13,7 +13,8 @@ export type ProjectStatus =
  | 'change_approved' // Change approved, work may need adjustments
  | 'review' // Work submitted, pending QA/client review
  | 'completed'
- | 'cancelled';
+ | 'cancelled'
+ | 'no_candidates';
 
  /**
   * Represents the payment status of a project.
@@ -41,7 +42,7 @@ export interface Microtask {
  * Represents a change request associated with a project.
  */
 export interface ChangeRequest {
-    id: string; // Unique ID for the change request
+    id:string; // Unique ID for the change request
     requestedBy: string; // Client ID
     description: string;
     priority: 'Normal' | 'High';

@@ -23,6 +23,7 @@ import {
   type FreelancerProfile,
 } from '@/services/freelancer'; // Assuming this service exists and is correctly typed
 import { updateProjectStatus } from '@/services/firestore';
+import { ProjectStatus } from '@/types/project';
 
 // --- Constants ---
 const PLATFORM_MARKUP_BASE = 0.10;                     // Base platform markup
@@ -89,19 +90,31 @@ const skillExtractionPromptTemplate = `You are an AI assistant specialized in an
 Use the examples below to guide you, then extract the top 1-7 skills for the new brief.
 
 EXAMPLES:
-{{#each FEW_SHOT_EXAMPLES}}Project: {{{this.projectBrief}}}\nSkills: {{#each this.extractedSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}\n---\n{{/each}}
+{{#each FEW_SHOT_EXAMPLES}}Project: {{{this.projectBrief}}}
+Skills: {{#each this.extractedSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
+---
+{{/each}}
 
 Now:
-Project: {{{projectBrief}}}\nReturn ONLY JSON:{"extractedSkills": [skills array]}`;
+Project: {{{projectBrief}}}
+Return ONLY JSON:{"extractedSkills": [skills array]}`;
 
 const estimationPromptTemplate = `You are an expert project estimator.
 Refer to the examples for guidance.
 
 EXAMPLES:
-{{#each FEW_SHOT_EXAMPLES}}Project: {{{this.projectBrief}}}\nSkills: {{#each this.extractedSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}\nCandidates: [{{#each this.candidates}}{{this.id}}(@\${{this.hourlyRate}})[rating:{{this.rating}}]{{#unless @last}}, {{/unless}}{{/each}}]\nOutput: {"selectedFreelancerId":"{{this.selectedFreelancerId}}","reasoning":"{{this.reasoning}}","estimatedHours":{{this.estimatedHours}},"estimatedTimeline":"{{this.estimatedTimeline}}"}\n---\n{{/each}}
+{{#each FEW_SHOT_EXAMPLES}}Project: {{{this.projectBrief}}}
+Skills: {{#each this.extractedSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
+Candidates: [{{#each this.candidates}}{{this.id}}(@\${{this.hourlyRate}})[rating:{{this.rating}}]{{#unless @last}}, {{/unless}}{{/each}}]
+Output: {"selectedFreelancerId":"{{this.selectedFreelancerId}}","reasoning":"{{this.reasoning}}","estimatedHours":{{this.estimatedHours}},"estimatedTimeline":"{{this.estimatedTimeline}}"}
+---
+{{/each}}
 
 Now:
-Project: {{{projectBrief}}}\nSkills: {{#each requiredSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}\nCandidates: {{#each candidates}}{{this.id}}(@\${{this.hourlyRate}})[rating:{{this.rating}}]{{#unless @last}}, {{/unless}}{{/each}}\nReturn ONLY JSON with keys selectedFreelancerId, reasoning, estimatedHours, estimatedTimeline.`;
+Project: {{{projectBrief}}}
+Skills: {{#each requiredSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
+Candidates: {{#each candidates}}{{this.id}}(@\${{this.hourlyRate}})[rating:{{this.rating}}]{{#unless @last}}, {{/unless}}{{/each}}
+Return ONLY JSON with keys selectedFreelancerId, reasoning, estimatedHours, estimatedTimeline.`;
 
 // --- Flow Definition ---
 const matchFreelancerFlow = ai.defineFlow<
@@ -131,7 +144,6 @@ const matchFreelancerFlow = ai.defineFlow<
           model: extractModel,
           context: { FEW_SHOT_EXAMPLES }
         });
-        // Assuming FEW_SHOT_EXAMPLES' extractedSkills is pre-formatted string or template iterates
         const { output } = await skillPrompt({ projectBrief });
         if (!output || !output.extractedSkills) {
             throw new Error(`Skill extraction failed or returned invalid output. Model: ${extractModel}`);
@@ -149,6 +161,21 @@ const matchFreelancerFlow = ai.defineFlow<
         return { projectId, reasoning: 'No matching freelancers.', status: 'no_available_freelancer' };
       }
 
+      // Filter candidates to ensure they have the required properties for estimation.
+      const viableCandidates = candidates.filter(
+        (c): c is FreelancerProfile & { hourlyRate: number; rating: number } =>
+          c.hourlyRate !== undefined && c.rating !== undefined
+      );
+
+      if (viableCandidates.length === 0) {
+        if (projectId) await updateProjectStatus(projectId, 'no_candidates');
+        return {
+          projectId,
+          reasoning: 'No freelancers with complete profiles (rate and rating) were found.',
+          status: 'no_available_freelancer',
+        };
+      }
+
       // 3. Estimation & Selection
       const estimateModel = await chooseModelBasedOnPrompt(`Estimate: ${projectBrief}`);
       const estimationPrompt = ai.definePrompt({
@@ -164,9 +191,8 @@ const matchFreelancerFlow = ai.defineFlow<
         prompt: estimationPromptTemplate,
         model: estimateModel,
         context: { FEW_SHOT_EXAMPLES }
-        // Assuming FEW_SHOT_EXAMPLES' extractedSkills and candidates are handled correctly by Handlebars or pre-processed
       });
-      const { output: estOut } = await estimationPrompt({ projectBrief, requiredSkills, candidates });
+      const { output: estOut } = await estimationPrompt({ projectBrief, requiredSkills, candidates: viableCandidates });
       if (!estOut) {
         throw new Error(`Estimation and selection failed or returned invalid output. Model: ${estimateModel}`);
       }
@@ -174,10 +200,10 @@ const matchFreelancerFlow = ai.defineFlow<
       const estimatedHours = Math.max(estOut.estimatedHours, 0.1);
 
       // 4. Build and return result
-      const selectedProfile = candidates.find(c => c.id === estOut.selectedFreelancerId);
+      const selectedProfile = viableCandidates.find(c => c.id === estOut.selectedFreelancerId);
       if (!selectedProfile && estOut.selectedFreelancerId) {
           console.warn(`Selected freelancer ID ${estOut.selectedFreelancerId} not found in candidates list.`);
-           if(projectId) await updateProjectStatus(projectId, 'error');
+           if(projectId) await updateProjectStatus(projectId, 'pending');
            return { projectId, reasoning: `Internal error: Selected freelancer profile not found. Reasoning: ${estOut.reasoning}`, status: 'error' };
       }
 
@@ -202,11 +228,11 @@ const matchFreelancerFlow = ai.defineFlow<
         status,
       };
       MatchFreelancerOutputSchema.parse(result); // Validate before returning
-      if(projectId) await updateProjectStatus(projectId, status);
+      if(projectId) await updateProjectStatus(projectId, 'pending');
       return result;
     } catch (error: any) {
       const msg = error instanceof Error ? error.message : String(error);
-      if(projectId) await updateProjectStatus(projectId, 'error');
+      if(projectId) await updateProjectStatus(projectId, 'pending');
       return { projectId, reasoning: `Error: ${msg}`, status: 'error' };
     }
   }

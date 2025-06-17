@@ -36,8 +36,8 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
   const [isStatusPending, startStatusTransition] = useTransition();
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
   const [submissionData, setSubmissionData] = useState<{ [projectId: string]: { work: string; qaFeedback?: string; isSubmitting: boolean; isQAPending: boolean } }>({});
-  const [showAssessmentModal, setShowAssessmentModal] = useState(false);
-  const [assessmentComplete, setAssessmentComplete] = useState(false);
+  const [showAssessmentModal, setShowAssessmentModal] = useState(false); // Default to false, determined by fetchData
+  const [assessmentComplete, setAssessmentComplete] = useState(false); // Default to false
 
   const { toast } = useToast();
 
@@ -46,90 +46,75 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
     if (!freelancerId || freelancerId === PLACEHOLDER_ID) {
       setError("Freelancer ID is missing. Cannot load dashboard.");
       setIsLoading(false);
+      setAssessmentComplete(true); // Prevent assessment modal if ID is invalid
       return;
     }
     setIsLoading(true);
-
     setError(null);
-    setProjectLoadError(null); // Clear project specific errors on refetch
-
+    setProjectLoadError(null);
 
     try {
-      // Fetch freelancer and projects concurrently
-      const [freelancerData, projectData] = await Promise.all([
-        getFreelancerById(freelancerId).catch(err => {
-            console.error("Error fetching freelancer:", err);
-            setError("Failed to load freelancer profile.");
-            return null; // Allow component to render partially if projects load
-        }),
-        getAssignedProjects(freelancerId).catch(err => {
-            console.error("Error fetching projects:", err);
-            setProjectLoadError("Failed to load assigned projects.");
-            return []; // Return empty array on error
-        })
-      ]);
-
-
-      // Fetch assessment status only if assessment is not complete
-      if(!assessmentComplete) {
-          const assessmentStatus = await getFreelancerAssessmentStatus(freelancerId);
-          if (assessmentStatus === "not-started" || assessmentStatus === "in-progress") {
-            setShowAssessmentModal(true);
-          } else {
-            setAssessmentComplete(true);
-          }
-      }
-
+      const freelancerData = await getFreelancerById(freelancerId);
       if (freelancerData) {
         setFreelancer(freelancerData);
-        // Simulate login status update only if explicitly needed for demo
+        // Simulate login status update
         if (!freelancerData.isLoggedIn && freelancerData.status === 'offline') {
-           try {
-             await updateFreelancerStatus(freelancerId, 'available', true);
-             setFreelancer(prev => prev ? { ...prev, isLoggedIn: true, status: 'available' } : null);
-             console.log("Simulated login status update for demo.");
-           } catch (statusErr) {
-             console.error("Failed to simulate login status update:", statusErr);
-             // Non-critical error, dashboard can still load
-           }
-        }
-      } else if (!error) { // Only set error if not already set by fetchFreelancerById catch
-          setError(`Freelancer profile not found for ID: ${freelancerId}`);
-      }
-
-      setProjects(projectData);
-      // Initialize submission state for each project
-      setSubmissionData(prev => {
-        const newState = { ...prev };
-        projectData.forEach(p => {
-          if (!newState[p.id as string]) {
-            newState[p.id as string] = { work: '', qaFeedback: undefined, isSubmitting: false, isQAPending: false };
+          try {
+            await updateFreelancerStatus(freelancerId, 'available', true);
+            setFreelancer(prev => prev ? { ...prev, isLoggedIn: true, status: 'available' } : null);
+          } catch (statusErr) {
+            console.error("Failed to simulate login status update:", statusErr);
           }
-        });
-        return newState;
-      });
+        }
 
-    } catch (err) { // Catch any unexpected errors
-      console.error("Unexpected error fetching dashboard data:", err);
+        // Check assessment status *after* freelancer data is fetched
+        const assessmentStatus = await getFreelancerAssessmentStatus(freelancerId);
+        if (assessmentStatus === "completed") {
+          setAssessmentComplete(true);
+          setShowAssessmentModal(false);
+        } else {
+          setAssessmentComplete(false);
+          setShowAssessmentModal(true); // Show modal if assessment not complete
+        }
+
+        // Fetch projects only if assessment is complete or not required to show immediately
+        if (assessmentStatus === "completed") {
+            const projectData = await getAssignedProjects(freelancerId);
+            setProjects(projectData);
+            setSubmissionData(prev => {
+                const newState = { ...prev };
+                projectData.forEach(p => {
+                if (!newState[p.id as string]) {
+                    newState[p.id as string] = { work: '', qaFeedback: undefined, isSubmitting: false, isQAPending: false };
+                }
+                });
+                return newState;
+            });
+        }
+
+
+      } else {
+        setError(`Freelancer profile not found for ID: ${freelancerId}`);
+        setAssessmentComplete(true); // Prevent assessment modal if profile not found
+      }
+    } catch (err) {
+      console.error("Error fetching dashboard data:", err);
       setError("An unexpected error occurred while loading the dashboard.");
+      setAssessmentComplete(true); // Prevent assessment modal on generic error
     } finally {
       setIsLoading(false);
     }
-  }, [freelancerId, error, assessmentComplete]); // Added error to dependencies to avoid infinite loops if error occurs
+  }, [freelancerId]);
 
 
   useEffect(() => {
-    // Fetch data if assessment is complete or if freelancerId is valid and not placeholder
-    if (assessmentComplete || (freelancerId && freelancerId !== PLACEHOLDER_ID)) {
-      fetchData();
-    }
-    // Dependency array includes assessmentComplete and freelancerId to trigger refetch when they change
-  }, [assessmentComplete, freelancerId, fetchData]); // Added fetchData to dependency array
+    fetchData();
+  }, [fetchData]); // fetchData has freelancerId in its dependencies
 
 
   const handleStatusChange = useCallback((newStatus: FreelancerStatus) => {
     if (!freelancer?.id) return;
-    const currentFreelancerId = freelancer.id; // Capture ID in case state changes mid-flight
+    const currentFreelancerId = freelancer.id;
 
     startStatusTransition(async () => {
       try {
@@ -166,9 +151,9 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
     setSubmissionData(prev => ({
       ...prev,
       [projectId]: {
-        ...(prev[projectId] || { work: '', isSubmitting: false, isQAPending: false }), // Ensure entry exists
+        ...(prev[projectId] || { work: '', isSubmitting: false, isQAPending: false }),
         work: value,
-        qaFeedback: undefined, // Reset QA feedback on work change
+        qaFeedback: undefined,
       },
     }));
   }, []);
@@ -195,12 +180,8 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
 
       try {
           console.log(`Requesting QA check for project ${projectId}...`);
-          // --- TODO: Implement Real AI Quality Check Flow call ---
-          // Simulating AI check
           await new Promise(resolve => setTimeout(resolve, 1500));
-          // const qaResult = await performQualityCheck({ projectId, submittedWork: projectData.work });
-          const qaResult = { feedback: "AI QA Placeholder: Looks plausible. Consider adding more examples.", passed: Math.random() > 0.3 }; // Placeholder with random pass/fail
-          // --- End Simulation ---
+          const qaResult = { feedback: "AI QA Placeholder: Looks plausible. Consider adding more examples.", passed: Math.random() > 0.3 };
 
           setProjectState(projectId, { qaFeedback: qaResult.feedback });
           if (qaResult.passed) {
@@ -225,30 +206,21 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
       toast({ title: "Input Missing", description: "Please enter your work before submitting.", variant: "destructive" });
       return;
     }
-    // Optional: Add check for QA feedback if required before submission
-    // if (!projectData.qaFeedback || projectData.qaFeedback.includes("Error")) { ... }
 
     setProjectState(projectId, { isSubmitting: true });
 
     try {
       console.log(`Submitting work for project ${projectId}...`);
-      // --- TODO: Implement actual work submission logic ---
-      // 1. Update the project/microtask status in Firestore
-      // 2. Upload files if necessary
-      // 3. Notify the system/client
-      await updateProjectStatus(projectId, 'review'); // Example: Update status to 'review'
-
-      // Simulating unassignment for demo purposes. In reality, it might stay assigned during review.
+      await updateProjectStatus(projectId, 'review');
       await unassignProjectFromFreelancer(freelancerId, projectId);
 
       setProjects(prev => prev.filter(p => p.id !== projectId));
-      // Clean up state for the submitted project
       setSubmissionData(prev => {
           const newState = { ...prev };
           delete newState[projectId];
           return newState;
       });
-      toast({ title: "Work Submitted", description: `Work for project ${projectId} submitted for review.`, variant: "success" }); // Use success variant
+      toast({ title: "Work Submitted", description: `Work for project ${projectId} submitted for review.`, variant: "default" }); // Changed to default
 
     } catch (err) {
       console.error("Error submitting work:", err);
@@ -259,10 +231,19 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
   }, [submissionData, toast, freelancerId, setProjectState]);
 
 
-  // Derived state (memoized for performance if calculations were complex)
   const activeProjects = useMemo(() => projects.filter(p => p.status !== 'completed' && p.status !== 'cancelled'), [projects]);
 
-  // --- Render Logic ---
+  const handleAssessmentOnboardingComplete = useCallback(() => {
+    setShowAssessmentModal(false);
+    setAssessmentComplete(true);
+    toast({
+        title: "Assessment Complete",
+        description: "Thank you! You can now access your dashboard.",
+        variant: "default", // Changed to default
+    });
+    fetchData(); // Re-fetch data to load projects and other dashboard content
+  }, [toast, fetchData]);
+
 
   if (isLoading) {
     return (
@@ -273,75 +254,64 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
     );
   }
 
-  if (error || !freelancerId) {
+  if (error) {
     return (
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>Error Loading Dashboard</AlertTitle>
         <AlertDescription>{error}</AlertDescription>
          <Button variant="outline" size="sm" onClick={fetchData} className="mt-4">Retry</Button>
-            </Alert>
+      </Alert>
     );
   }
 
   if (!freelancer && !error) {
-    // This case indicates freelancer data couldn't be loaded, possibly due to ID issue handled in fetchData
     return (
         <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>Could not load your freelancer profile. Please try logging out and back in.</AlertDescription>
-            <Button variant="outline" size="sm" onClick={handleLogout} className="mt-4">Logout</Button>
+            {/* Avoid calling handleLogout directly in render if it sets state */}
+            <Button variant="outline" size="sm" onClick={() => console.log("Attempting manual logout trigger")} className="mt-4">Logout (Placeholder)</Button>
         </Alert>
     );
   }
 
-  const handleAssessmentComplete = useCallback(() => {
-    setShowAssessmentModal(false); // Close the modal
-    setAssessmentComplete(true); // Mark assessment as complete
-    toast({
-        title: "Assessment Complete",
-        description: "Thank you for completing the assessment!",
-        variant: "success",
-    });
-    // No need to call fetchData here, useEffect dependency change will trigger it
-  }, [toast]);
+  // This is the new gatekeeper: if assessment is not complete and modal should be shown
+  if (!assessmentComplete && showAssessmentModal && freelancer) {
+    return (
+      <Dialog open={showAssessmentModal} onOpenChange={(open) => {
+        // Prevent closing if assessment is mandatory, or handle cancellation logic
+        if (!open && !assessmentComplete) {
+            toast({ title: "Assessment Required", description: "Please complete the assessment to proceed.", variant: "destructive"});
+            // setShowAssessmentModal(true); // Optionally force it to stay open
+            return;
+        }
+        setShowAssessmentModal(open);
+      }}>
+        <DialogContent className="sm:max-w-[850px] overflow-y-auto max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Skill Assessment Required</DialogTitle>
+            <DialogDescription>
+              Welcome! Please complete this one-time skill assessment to activate your dashboard and start receiving project matches.
+            </DialogDescription>
+          </DialogHeader>
+          <AdaptiveSkillAssessment
+            onComplete={handleAssessmentOnboardingComplete}
+            freelancerId={freelancerId}
+            primarySkill={freelancer.skills?.[0] ?? 'General'}
+            allSkills={freelancer.skills ?? []}
+          />
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
-  const handleCloseAssessmentModal = useCallback(() => {
-    setShowAssessmentModal(false);
-  }, []);
 
-
-
-  // Wrap the entire return statement in a fragment
-  return (
-    <>
-      {!assessmentComplete && showAssessmentModal && (
-        <Dialog open={showAssessmentModal} onOpenChange={setShowAssessmentModal}>
-          <DialogContent className="sm:max-w-[850px] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Adaptive Skill Assessment</DialogTitle>
-              <DialogDescription>
-                Please complete the assessment to unlock full access to your
-                freelancer dashboard.
-              </DialogDescription>
-            </DialogHeader>
-            <AdaptiveSkillAssessment
-              onComplete={handleAssessmentComplete}
-              // Removed onCancel prop as it's not used in AdaptiveSkillAssessment component
-              freelancerId={freelancerId}
-              // Ensure primarySkill and allSkills are passed if needed by the component
-              // For now, passing dummy values or fetching actual skills
-              primarySkill={freelancer?.skills?.[0] ?? 'General'}
-              allSkills={freelancer?.skills ?? []}
-            />
-            {/* Removed DialogClose with onCancel handler as it's handled by onOpenChange */}
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Render dashboard content only if assessment is complete */}
-      {assessmentComplete && (
+  // Render dashboard content only if assessment is complete
+  // And freelancer data is available
+  if (assessmentComplete && freelancer) {
+    return (
         <div className="space-y-8">
             <Card className="shadow-md">
               <CardHeader className="flex flex-row items-center justify-between space-x-4">
@@ -402,8 +372,6 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
                     <Briefcase className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <p className="text-lg font-medium text-muted-foreground">No active projects.</p>
                     <p className="text-sm text-muted-foreground mb-6">Set your status to "Available" to get matched!</p>
-                    {/* Optional: Add a button to refresh projects */}
-                    {/* <Button variant="outline" onClick={fetchData}>Refresh Projects</Button> */}
                 </CardContent>
               </Card>
             )}
@@ -488,8 +456,15 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
             </div>
           </section>
         </div>
-      )}
-   </>
+    );
+  }
+
+  // Fallback loading state if none of the above conditions are met
+  // (e.g., if assessment is not complete but modal is not shown for some reason)
+  return (
+    <div className="flex justify-center items-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2 text-muted-foreground">Initializing dashboard...</span>
+    </div>
   );
 }
-

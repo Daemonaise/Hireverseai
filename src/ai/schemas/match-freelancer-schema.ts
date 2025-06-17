@@ -31,6 +31,7 @@ export type EstimateAndSelectAIOutput = z.infer<typeof EstimateAndSelectAIOutput
 
 // --- Final Output Schema for matchFreelancer ---
 export const MatchFreelancerOutputSchema = z.object({
+  projectId: z.string().optional().describe('ID of the project.'),
   matchedFreelancerId: z.string().optional().describe('ID of the matched freelancer, if any.'),
   reasoning: z.string().describe('Explanation for the match or estimation outcome.'),
   estimatedBaseCost: z.number().nonnegative().optional().describe('Base cost estimate paid to the freelancer.'),
