@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 
 /**
@@ -74,4 +75,8 @@ export interface Project {
     createdAt: Timestamp;
     updatedAt?: Timestamp;
     deliveredUrl?: string; // URL to the final aggregated deliverable
+    externalSourceData?: { // To store info if project came from an external system
+        id: string; // ID from the external system (e.g., Monday.com task ID)
+        system: string; // Name of the external system (e.g., "Monday.com", "Teams")
+    };
 }

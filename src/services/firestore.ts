@@ -695,5 +695,49 @@ export async function signInAuthUser(email: string, password: string): Promise<{
         return { userId: simulatedId };
     }
     console.log("Simulated Auth failed: Invalid password.");
-    return null; // Simulate failure
+    throw new Error("Invalid email or password."); // Simulate auth failure
+}
+
+// --- Project Creation from External Source ---
+interface ExternalProjectData {
+  name: string;
+  brief: string;
+  requiredSkills: string[];
+  clientId: string;
+  externalProjectId?: string; // Optional ID from the source system
+}
+
+/**
+ * Creates a new project document in Firestore from an external source.
+ * @param projectData - The project details.
+ * @returns The ID of the newly created project document.
+ */
+export async function createProjectFromExternal(projectData: ExternalProjectData): Promise<string> {
+  const newProjectRef = doc(projectsRef); // Auto-generate ID for the new project
+
+  const projectDocument: Project = {
+    id: newProjectRef.id,
+    clientId: projectData.clientId,
+    name: projectData.name,
+    brief: projectData.brief,
+    requiredSkills: projectData.requiredSkills,
+    status: 'pending', // Initial status for externally created projects
+    paymentStatus: 'pending', // Payment will need to be handled
+    // assignedFreelancerId will be set later by the matching flow
+    // microtasks and changeRequests are subcollections
+    // estimatedDeliveryDate will be set later
+    createdAt: now() as FirestoreTimestamp,
+    updatedAt: now() as FirestoreTimestamp,
+    // Optionally store the external ID
+    ...(projectData.externalProjectId && { externalSourceData: { id: projectData.externalProjectId, system: 'UnknownExternal' } }), // Example, refine as needed
+  };
+
+  try {
+    await setDoc(newProjectRef, projectDocument);
+    console.log(`Project ${newProjectRef.id} created from external source for client ${projectData.clientId}.`);
+    return newProjectRef.id;
+  } catch (error) {
+    console.error(`Error creating project from external source for client ${projectData.clientId}:`, error);
+    throw new Error('Failed to create project from external source.');
+  }
 }
