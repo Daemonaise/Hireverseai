@@ -13,11 +13,8 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     return (
       <textarea
         // Use cn to merge classes correctly
-        // Added 'peer' class for use with peer-placeholder-shown
         className={cn(
-          'peer flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-transparent focus:placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm', // Keep min-h, make placeholder transparent by default
-          // Add padding-top only when placeholder is used for floating label effect (e.g., placeholder=" ")
-          placeholder === " " && "pt-5", // Increased top padding for floating label space
+          'flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm', // Keep min-h, make placeholder text muted
           className
         )}
         placeholder={placeholder} // Pass placeholder down
@@ -30,3 +27,4 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
 Textarea.displayName = 'Textarea';
 
 export {Textarea};
+

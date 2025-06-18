@@ -226,26 +226,19 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
                 control={form.control}
                 name="projectBrief"
                 render={({ field }) => (
-                  <FormItem className="relative">
-                    <FormLabel
-                      htmlFor="projectBrief"
-                      className={cn(
-                        "absolute left-1/2 top-2 -translate-x-1/2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none",
-                        "peer-focus:top-2 peer-focus:left-3 peer-focus:translate-x-0 peer-focus:-translate-y-0 peer-focus:text-xs peer-focus:text-primary",
-                        (field.value || form.formState.isSubmitted) && "top-2 left-3 translate-x-0 -translate-y-0 text-xs text-primary"
-                      )}
-                    >
+                  <FormItem>
+                    <FormLabel htmlFor="projectBrief">
                       Describe your project goal, key deliverables, and any specific requirements...
                     </FormLabel>
                     <FormControl>
                       <Textarea
                         id="projectBrief"
                         {...field}
-                        placeholder=" "
-                        className="min-h-[120px] max-h-[250px] pt-5 resize-y mx-auto border-2 border-input focus:border-primary peer"
+                        placeholder="e.g., I need a modern logo for my tech startup, focusing on simplicity and scalability. The logo should be versatile for web and print..."
+                        className="min-h-[120px] max-h-[250px] resize-y border-2 border-input focus:border-primary"
                       />
                     </FormControl>
-                    <FormMessage className="text-center" />
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -295,16 +288,8 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
                   control={form.control}
                   name="freelancerId"
                   render={({ field }) => (
-                    <FormItem className="relative">
-                      <FormLabel
-                        htmlFor="freelancerId"
-                        className={cn(
-                          "absolute left-3 top-2 text-muted-foreground transition-all duration-200 ease-out pointer-events-none",
-                          "peer-placeholder-shown:top-2 peer-placeholder-shown:text-base",
-                          "peer-focus:top-[-0.7rem] peer-focus:text-xs peer-focus:text-primary",
-                           field.value && "top-[-0.7rem] text-xs text-primary"
-                        )}
-                      >
+                    <FormItem>
+                      <FormLabel htmlFor="freelancerId">
                         Freelancer ID (Optional)
                       </FormLabel>
                       <FormControl>
@@ -313,8 +298,7 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
                              id="freelancerId"
                              ref={freelancerIdInputRef}
                              {...field}
-                             placeholder=" "
-                             className="pt-4 peer"
+                             placeholder="Enter ID if known"
                            />
                            {field.value && (
                              <Button
@@ -443,3 +427,4 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
 });
 
 AiMatcher.displayName = "AiMatcher";
+

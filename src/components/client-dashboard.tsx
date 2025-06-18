@@ -135,7 +135,7 @@ export function ClientDashboard({ clientId }: ClientDashboardProps) {
         startChangeTransition(async () => {
             try {
                  // TODO: Handle file upload if 'changeFile' is set
-                 let fileUrl: string | undefined = undefined;
+                 const fileUrl: string | undefined = undefined;
                  if (changeFile) {
                      console.log("Simulating file upload for:", changeFile.name);
                      // Replace with actual upload logic (e.g., to Firebase Storage)

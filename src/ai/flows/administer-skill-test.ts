@@ -1,49 +1,40 @@
 'use server';
 /**
- * @fileOverview Generates skill test questions for freelancers based on their selected skills.
+ * @fileOverview Generates scenario-rich skill test questions for freelancers based on their selected skills.
  *
  * Exports:
  * - administerSkillTest - Generates and returns test questions (async function).
  */
-import { ai } from '@/lib/ai'; // Import the configured ai instance
-import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
+import { ai } from '@/lib/ai';
+import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers';
+import { validateAIOutput } from '@/ai/validate-output';
 import { z } from 'zod';
 import {
   AdministerSkillTestInputSchema,
   type AdministerSkillTestInput,
   AdministerSkillTestOutputSchema,
   type AdministerSkillTestOutput,
-  QuestionSchema,
   type Question,
-} from '@/ai/schemas/administer-skill-test-schema'; // Import types/schemas from separate file
+} from '@/ai/schemas/administer-skill-test-schema';
 
-// Define schemas used internally within the flow (not exported)
 const SingleQuestionInputSchema = z.object({
   skill: z.string(),
   freelancerId: z.string(),
 });
 const SingleQuestionOutputSchema = z.object({
-  questionText: z.string().min(10), // Expecting just the question text from AI
+  questionText: z.string().min(10),
 });
 
-const skillQuestionPromptTemplate = `You are an AI hiring assistant specializing in creating skill assessment questions.
-Generate exactly ONE practical and relevant test question for a freelancer (ID: {{{freelancerId}}}) claiming the following skill: {{{skill}}}.
-The question should effectively probe their proficiency in this specific skill.
+const skillQuestionPromptTemplate = `You are an imaginative AI hiring assistant crafting engaging, scenario-driven skill assessment questions.
+Add a creative or real-world twist to probe mastery. Generate exactly ONE practical, vivid, and relevant test question for a freelancer (ID: {{{freelancerId}}}) claiming the skill: {{{skill}}}.
+Include a scenario or problem statement that feels authentic—use a client context, data samples, or visual cues.
 
-Focus on realistic scenarios:
-- For visual skills (e.g., Graphic Design), ask to describe design processes or critique examples.
-- For technical skills (e.g., React Development), ask conceptual or code analysis questions.
-- For writing skills (e.g., Copywriting), ask to write or critique a short text.
-
-Return ONLY a JSON object with:
+Return ONLY a JSON object:
 {
-  "questionText": "The test question."
+  "questionText": "The test question with scenario."
 }
-Do NOT add any extra explanations outside the JSON object. Ensure 'questionText' is at least 10 characters long.`;
+Do NOT include any extra text outside the JSON object. Ensure 'questionText' is at least 10 characters long.`;
 
-
-// --- Define the Flow (local to this file, not exported) ---
 const administerSkillTestFlow = ai.defineFlow<
   typeof AdministerSkillTestInputSchema,
   typeof AdministerSkillTestOutputSchema
@@ -57,104 +48,82 @@ const administerSkillTestFlow = ai.defineFlow<
     const testId = `test_${input.freelancerId}_${Date.now()}`;
     const questions: Question[] = [];
 
-    console.log(`Generating skill test for Freelancer ${input.freelancerId} with skills: ${input.skills.join(', ')}`);
+    console.log(
+      `Generating skill test for ${input.freelancerId}: ${input.skills.join(
+        ', ',
+      )}`,
+    );
 
-    // Loop through each skill and generate a question
     for (const skill of input.skills) {
       try {
-        console.log(`Generating question for skill: ${skill}...`);
+        console.log(`-> Generating for ${skill}`);
+        const primaryModel = await chooseModelBasedOnPrompt(
+          `Create skill question for: ${skill}`,
+        );
+        console.log(`Model: ${primaryModel}`);
 
-        // 1. Choose the primary model for generation
-        const primaryModel = await chooseModelBasedOnPrompt(`Generate skill test question for: ${skill}`);
-        console.log(`Using model ${primaryModel} for generation.`);
-
-        // 2. Define the prompt using the chosen model and template
-        // Defined inside the loop/async function to use the selected model
         const skillQuestionPrompt = ai.definePrompt({
-          name: `skillQuestionPrompt_${skill}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          name: `skillQuestionPrompt_${skill}`,
           input: { schema: SingleQuestionInputSchema },
           output: { schema: SingleQuestionOutputSchema },
           prompt: skillQuestionPromptTemplate,
-          model: primaryModel, // Set the chosen model
+          model: primaryModel,
         });
 
-        // 3. Generate the initial question
-        const promptInput = { skill, freelancerId: input.freelancerId };
-        const { output: aiOutput } = await skillQuestionPrompt(promptInput);
+        const { output: aiOutput } = await skillQuestionPrompt({
+          skill,
+          freelancerId: input.freelancerId,
+        });
+        if (!aiOutput?.questionText) throw new Error('No question returned.');
 
-        if (!aiOutput?.questionText) {
-            throw new Error(`AI (${primaryModel}) did not return valid question text for skill "${skill}".`);
-        }
+        const originalPromptText = skillQuestionPromptTemplate
+          .replace('{{{skill}}}', skill)
+          .replace('{{{freelancerId}}}', input.freelancerId);
+        const validation = await validateAIOutput(
+          originalPromptText,
+          JSON.stringify(aiOutput),
+          primaryModel,
+        );
+        if (!validation.allValid) throw new Error('Validation failed.');
 
-        // 4. Validate the output with other models
-         const originalPromptText = skillQuestionPromptTemplate
-              .replace('{{{skill}}}', skill)
-              .replace('{{{freelancerId}}}', input.freelancerId);
-
-          // validateAIOutput is async and exported from its own 'use server' file
-          const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel);
-
-          if (!validation.allValid) {
-              console.warn(`Validation failed for question generation (skill: ${skill}). Reasoning:`, validation.results);
-              // Optionally, retry or use fallback
-              throw new Error(`Question generation for skill "${skill}" failed cross-validation.`);
-          }
-
-
-        // 5. Construct and add the validated question
-        const validatedQuestion: Question = {
-          questionText: aiOutput.questionText,
-          skillTested: skill, // Ensure the skillTested field is correctly set
-        };
-
-        questions.push(validatedQuestion);
-        console.log(`Successfully generated and validated question for skill: ${skill}`);
-
-      } catch (error: any) {
-        console.error(`Error generating or validating question for skill "${skill}":`, error?.message || error);
-        // Fallback: Insert placeholder question
         questions.push({
-          questionText: `Placeholder question for ${skill}: Describe your experience with ${skill}.`,
+          questionText: aiOutput.questionText,
+          skillTested: skill,
+        });
+        console.log(`✔ ${skill}`);
+      } catch (err: Error) {
+        console.error(`Error for ${skill}:`, err.message);
+        questions.push({
+          questionText: `Placeholder for ${skill}: Describe a real-world scenario showcasing your expertise with ${skill}.`,
           skillTested: skill,
         });
       }
     }
 
-    // Validate overall result
-    if (questions.length !== input.skills.length) {
-      console.warn(`Mismatch: Expected ${input.skills.length} questions but got ${questions.length}.`);
-      // This might happen if errors occurred for some skills
-    }
-
-    if (questions.length === 0) {
-      console.error(`No questions generated. Returning empty test.`);
-      return {
-        testId,
-        instructions: 'Error: Could not generate test questions. Please try again later.',
-        questions: [],
-      };
-    }
-
-    // Construct the final output adhering to the schema
+    const instructions =
+      'Answer each scenario-based question to demonstrate your skill mastery.';
     const output: AdministerSkillTestOutput = {
       testId,
-      instructions: 'Please answer the following questions carefully to demonstrate your skills.',
+      instructions,
       questions,
     };
-
-    // Validate the final output before returning (optional but good practice)
     AdministerSkillTestOutputSchema.parse(output);
-
     return output;
-  }
+  },
 );
 
-
-// --- Main Exported Function (Wrapper - Async) ---
-// This is the only export from this file.
-export async function administerSkillTest(input: AdministerSkillTestInput): Promise<AdministerSkillTestOutput> {
-  // Validation is implicitly handled by Zod schema in the Flow definition,
-  // but can be done here too for immediate feedback if called directly.
+/**
+ * Generates a skill test with scenario-based questions for a freelancer.
+ *
+ * @param {AdministerSkillTestInput} input - The input object containing the freelancer's ID and a list of skills to be tested.
+ * @property {string} input.freelancerId - The unique identifier for the freelancer.
+ * @property {string[]} input.skills - An array of skills to generate questions for.
+ * @returns {Promise<AdministerSkillTestOutput>} A promise that resolves to the generated skill test, including a test ID, instructions, and an array of questions.
+ * @throws {Error} Throws an error if the input validation fails.
+ */
+export async function administerSkillTest(
+  input: AdministerSkillTestInput,
+): Promise<AdministerSkillTestOutput> {
   AdministerSkillTestInputSchema.parse(input);
   return administerSkillTestFlow(input);
 }
