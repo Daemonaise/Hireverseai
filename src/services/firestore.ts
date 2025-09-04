@@ -216,9 +216,6 @@ export async function updateFreelancerStatus(freelancerId: string, status?: Free
       finalIsLoggedIn = status === 'offline' ? false : undefined;
   }
 
-  if (finalStatus !== undefined) updateData.status = finalStatus;
-  if (finalIsLoggedIn !== undefined) updateData.isLoggedIn = finalIsLoggedIn;
-
    // Only proceed if there are actual changes to make
    if (Object.keys(updateData).length > 1) {
       try {
