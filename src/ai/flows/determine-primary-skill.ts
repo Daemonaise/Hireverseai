@@ -1,109 +1,83 @@
+
 'use server';
 /**
- * @fileOverview Determines primary and extracts all skills from a description.
+ * @fileOverview Determines primary and extracts all skills from a freelancer's resume text.
  * Exports:
  * - determinePrimarySkill (async function)
  */
 
-import { ai } from '@/lib/ai'; // Import the configured ai instance
-import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
+import { ai } from '@/lib/ai';
 import { z } from 'zod';
 import {
   DeterminePrimarySkillInputSchema,
   type DeterminePrimarySkillInput,
   DeterminePrimarySkillOutputSchema,
   type DeterminePrimarySkillOutput,
-} from '@/ai/schemas/determine-primary-skill-schema'; // Import types/schemas from separate file
+} from '@/ai/schemas/determine-primary-skill-schema';
 
+// Define prompt template for resume analysis
+const determineSkillFromResumePromptTemplate = `You are an expert technical recruiter analyzing a freelancer's resume. Your goal is to identify their primary area of expertise and all other relevant skills.
 
-// Define prompt template (local constant)
-const determineSkillPromptTemplate = `You are analyzing a freelancer's skills description.
-Identify:
-1. The single most prominent (primary) skill.
-2. All distinct skills mentioned or implied.
-
-Description:
+Analyze the following resume text:
+---
 {{{skillsDescription}}}
+---
+
+Based on the entire resume, perform the following actions:
+1.  Identify the single most prominent skill or role. This should be the area where the candidate has the most significant experience or focus (e.g., "Senior React Developer", "UX/UI Designer", "Data Scientist"). This will be the 'primarySkill'.
+2.  Extract a comprehensive list of all distinct technical skills, software, and methodologies mentioned. These are the 'extractedSkills'. Include the primary skill in this list.
 
 Return ONLY a valid JSON object with the following structure:
 {
-  "primarySkill": "string (non-empty)",
-  "extractedSkills": ["string", "..."] (array of non-empty strings, at least one)
+  "primarySkill": "string (the single most prominent skill or role, non-empty)",
+  "extractedSkills": ["string", "..."] (array of all distinct skills, non-empty)
 }`;
 
+const determinePrimarySkillFlow = ai.defineFlow(
+  {
+    name: 'determinePrimarySkillFlow',
+    inputSchema: DeterminePrimarySkillInputSchema,
+    outputSchema: DeterminePrimarySkillOutputSchema,
+  },
+  async (input) => {
+    console.log(`Determining primary skill from resume starting with: "${input.skillsDescription.substring(0, 80)}..."`);
 
-// --- Define the Flow (local to this file, not exported) ---
-const determinePrimarySkillFlow = ai.defineFlow<
-    typeof DeterminePrimarySkillInputSchema,
-    typeof DeterminePrimarySkillOutputSchema
->(
-    {
-        name: 'determinePrimarySkillFlow',
-        inputSchema: DeterminePrimarySkillInputSchema,
-        outputSchema: DeterminePrimarySkillOutputSchema,
-    },
-    async (input) => {
-        console.log(`Determining primary skill for description starting with: "${input.skillsDescription.substring(0, 50)}..."`);
+    try {
+      const determineSkillPrompt = ai.definePrompt({
+        name: 'determineSkillFromResumePrompt',
+        input: { schema: DeterminePrimarySkillInputSchema },
+        output: { schema: DeterminePrimarySkillOutputSchema },
+        prompt: determineSkillFromResumePromptTemplate,
+      });
 
-        try {
-            // 1. Choose the primary model for generation
-            const primaryModel = await chooseModelBasedOnPrompt(input.skillsDescription);
-            console.log(`Using model ${primaryModel} for skill determination.`);
+      const { output } = await determineSkillPrompt(input);
 
-            // 2. Define the prompt using the chosen model and template
-            const determineSkillPrompt = ai.definePrompt({
-                name: `determineSkillPrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
-                input: { schema: DeterminePrimarySkillInputSchema },
-                output: { schema: DeterminePrimarySkillOutputSchema },
-                prompt: determineSkillPromptTemplate,
-                model: primaryModel,
-            });
+      if (!output) {
+        throw new Error('AI did not return a valid JSON object for skills.');
+      }
 
-            // 3. Call the defined prompt
-            const { output } = await determineSkillPrompt(input);
+      if (!output.primarySkill || output.extractedSkills.length === 0) {
+        throw new Error('AI failed to identify a primary skill or extract any skills.');
+      }
 
-            if (!output) {
-                throw new Error(`AI (${primaryModel}) did not return a valid JSON object for skills.`);
-            }
-
-            // 4. Validate the AI's output structure (already done by prompt definition)
-            // Additional checks if needed
-            if (!output.primarySkill) throw new Error("Primary skill cannot be empty.");
-            if (!output.extractedSkills || output.extractedSkills.length === 0 || output.extractedSkills.some(s => !s)) {
-                throw new Error("Extracted skills cannot be empty or contain empty strings.");
-            }
-
-            // 5. Validate the output with other models
-            const originalPromptText = determineSkillPromptTemplate
-                .replace('{{{skillsDescription}}}', input.skillsDescription);
-
-            // validateAIOutput is async and exported from its own 'use server' file
-            const validation = await validateAIOutput(originalPromptText, JSON.stringify(output), primaryModel as any); // Cast primaryModel
-
-            if (!validation.allValid) {
-                console.warn(`Validation failed for skill determination. Reasoning:`, validation.results);
-                throw new Error(`Skill determination failed cross-validation.`);
-            }
-
-            console.log(`Determined primary skill: ${output.primarySkill}, Extracted: ${output.extractedSkills.join(', ')}`);
-            return output;
-
-        } catch (error: any) {
-            console.error(`Error in determinePrimarySkill flow:`, error?.message || error);
-            // Return a default value on error
-            return { primarySkill: 'General', extractedSkills: ['General'] };
-        }
+      console.log(`Determined primary skill: ${output.primarySkill}, Extracted: ${output.extractedSkills.length} skills`);
+      return output;
+    } catch (error: any) {
+      console.error('Error in determinePrimarySkill flow:', error?.message || error);
+      // On failure, return a generic result to prevent breaking the signup flow.
+      return { primarySkill: 'Generalist', extractedSkills: ['Generalist'] };
     }
+  }
 );
 
-
-// --- Main Exported Function (Wrapper - Async) ---
-// This is the only export from this file.
+/**
+ * Analyzes a freelancer's resume text to determine their primary skill and extract all skills.
+ * @param input - The input object containing the resume text.
+ * @returns A promise that resolves to the primary skill and a list of all extracted skills.
+ */
 export async function determinePrimarySkill(
   input: DeterminePrimarySkillInput
 ): Promise<DeterminePrimarySkillOutput> {
-  // Input validation handled by the flow
   DeterminePrimarySkillInputSchema.parse(input);
   return determinePrimarySkillFlow(input);
 }
