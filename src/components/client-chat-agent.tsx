@@ -20,6 +20,7 @@ export function ClientChatAgent({ clientId }: ClientChatAgentProps) {
 
   const { messages, input, handleInputChange, handleSubmit, append, isLoading } = useChat({
     // The `body` object is passed to the API route. We add our client ID here.
+    api: '/api/chat',
     body: {
       clientId: clientId,
     },
@@ -71,7 +72,7 @@ export function ClientChatAgent({ clientId }: ClientChatAgentProps) {
                     'rounded-lg px-3 py-2 max-w-sm',
                     m.role === 'user'
                       ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted'
+                      : 'bg-gradient-to-br from-blue-500 to-blue-600 text-primary-foreground shadow-md'
                   )}
                 >
                   {m.content}
