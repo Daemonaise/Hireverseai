@@ -296,11 +296,12 @@ export async function storeAssessmentResult(assessment: AdaptiveAssessmentResult
 
 
 export async function getFreelancerById(id: string): Promise<Freelancer | null> {
+   console.log(`[MOCK] Fetching freelancer by ID: ${id} from dummy data.`);
    try {
-      const snap = await getDoc(getDocRef('freelancers', id));
-      return snap.exists() ? { id: snap.id, ...snap.data() } as Freelancer : null;
+     const freelancer = dummyFreelancers.find(f => f.id === id);
+     return freelancer ? { ...freelancer } : null; // Return a copy to prevent mutation
    } catch (error) {
-      console.error(`Error fetching freelancer by ID ${id}:`, error);
+      console.error(`Error fetching freelancer by ID ${id} from dummy data:`, error);
       throw new Error('Failed to fetch freelancer data.');
    }
 }
