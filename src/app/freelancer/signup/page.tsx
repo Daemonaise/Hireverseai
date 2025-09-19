@@ -11,8 +11,8 @@ export default function FreelancerSignupPage() {
         </Link>
         <nav className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">Already have an account?</span>
-             <Link href="/freelancer/login" className="text-sm font-medium text-primary hover:underline">
-                 Log In
+             <Link href="/freelancer/dashboard" className="text-sm font-medium text-primary hover:underline">
+                 Go to Dashboard
              </Link>
         </nav>
       </header>

@@ -49,8 +49,8 @@ export function HeaderNavigationClient() {
           Client Portal
         </Button>
         <Button variant="outline" size="sm" asChild>
-          <Link href="/freelancer/login">
-            Freelancer Login
+          <Link href="/freelancer/dashboard">
+            Freelancer Dashboard
           </Link>
         </Button>
         <Button variant="default" size="sm" asChild>

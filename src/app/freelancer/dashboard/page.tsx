@@ -6,19 +6,18 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useSearchParams } from 'next/navigation';
 
 function FreelancerDashboardInner() {
-  const searchParams = useSearchParams();
-  // For testing, use a default ID if none is provided in the URL
-  const freelancerId = searchParams?.get('id') ?? "test-freelancer-001";
+  // For testing, always use a default ID.
+  const freelancerId = "test-freelancer-001";
 
+  // The login flow is removed, so this check is simplified.
   if (!freelancerId) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
-        <p className="text-destructive">Authentication required or ID missing.</p>
-        <Link href="/freelancer/login">
-          <Button className="mt-4">Go to Login</Button>
+        <p className="text-destructive">Freelancer ID is missing.</p>
+        <Link href="/">
+          <Button className="mt-4">Go to Homepage</Button>
         </Link>
       </div>
     );
