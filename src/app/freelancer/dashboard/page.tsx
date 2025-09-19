@@ -1,3 +1,4 @@
+
 "use client";
 
 import { FreelancerDashboard } from '@/components/freelancer-dashboard';
@@ -9,9 +10,10 @@ import { useSearchParams } from 'next/navigation';
 
 function FreelancerDashboardInner() {
   const searchParams = useSearchParams();
-  const freelancerId = searchParams?.get('id') ?? "PLACEHOLDER_ID";
+  // For testing, use a default ID if none is provided in the URL
+  const freelancerId = searchParams?.get('id') ?? "test-freelancer-001";
 
-  if (!freelancerId || freelancerId === "PLACEHOLDER_ID") {
+  if (!freelancerId) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
         <p className="text-destructive">Authentication required or ID missing.</p>

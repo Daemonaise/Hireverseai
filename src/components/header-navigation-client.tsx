@@ -11,7 +11,8 @@ import { AuthPromptDialog } from '@/components/auth-prompt-dialog';
 // Placeholder for actual authentication check
 const checkAuthentication = (): { isAuthenticated: boolean; userId: string | null } => {
   console.log("Simulating authentication check...");
-  const isAuthenticated = false; // Default to false for demo
+  // For testing, we now assume the user is always authenticated to bypass the dialog.
+  const isAuthenticated = true;
   const userId = isAuthenticated ? 'test-user-id' : null;
   console.log("Auth Check Result:", { isAuthenticated, userId });
   return { isAuthenticated, userId };
@@ -26,8 +27,10 @@ export function HeaderNavigationClient() {
     const { isAuthenticated } = checkAuthentication();
 
     if (isAuthenticated) {
+      // Directly navigate to the dashboard since auth is bypassed.
       router.push('/client/dashboard');
     } else {
+      // This part is now less likely to be triggered, but kept for logical completeness.
       setIsAuthDialogOpen(true);
     }
   };

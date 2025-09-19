@@ -1,3 +1,4 @@
+
 'use client';
 
 import { ClientDashboard } from '@/components/client-dashboard';
@@ -12,11 +13,10 @@ import { AlertCircle, CheckCircle } from "lucide-react"; // Import icons
 
 // TODO: Replace with actual authentication logic
 const useAuthentication = () => {
-     const searchParams = useSearchParams();
-     // For demo, get ID from URL; replace with real auth context later
-     const simulatedClientId = searchParams?.get('clientId') ?? searchParams?.get('id') ?? 'test-client-001';
-     console.log("Simulated auth hook: using client ID -", simulatedClientId);
-     const isAuthenticated = !!simulatedClientId;
+     // For demo purposes, we always return an authenticated state with a default user ID.
+     const simulatedClientId = 'test-client-001';
+     console.log("Simulated auth hook: using default client ID -", simulatedClientId);
+     const isAuthenticated = true;
      return { isAuthenticated, userId: simulatedClientId };
 };
 
