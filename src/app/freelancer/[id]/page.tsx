@@ -51,4 +51,3 @@ export default function FreelancerProfilePage({ params }: FreelancerProfilePageP
       </div>
   );
 }
-

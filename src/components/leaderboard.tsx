@@ -1,13 +1,22 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { getTopFreelancers } from '@/services/firestore';
 import type { Freelancer } from '@/types/freelancer';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Award, Loader2, AlertCircle } from 'lucide-react'; // Added AlertCircle
+import { Award, Loader2, AlertCircle, Star } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge'; // Import Badge component
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+
+const getInitials = (name: string) => {
+  const names = name.split(' ');
+  const initials = names.map((n) => n[0]).join('');
+  return initials.length > 2 ? initials.substring(0, 2) : initials;
+};
 
 export function Leaderboard() {
   const [leaderboardData, setLeaderboardData] = useState<Freelancer[]>([]);
@@ -62,24 +71,33 @@ export function Leaderboard() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[50px]">Rank</TableHead>
-                <TableHead>Name</TableHead>
+                <TableHead>Freelancer</TableHead>
+                <TableHead className="text-center hidden sm:table-cell">Rating</TableHead>
                 <TableHead className="text-right">XP</TableHead>
-                {/* Optional: Add column for badges */}
-                 {/* <TableHead>Badges</TableHead> */}
               </TableRow>
             </TableHeader>
             <TableBody>
               {leaderboardData.map((freelancer, index) => (
                 <TableRow key={freelancer.id}>
-                  <TableCell className="font-medium">{index + 1}</TableCell>
-                  <TableCell>{freelancer.name}</TableCell>
-                  <TableCell className="text-right font-semibold">{freelancer.xp ?? 0}</TableCell>
-                  {/* Optional: Display badges */}
-                   {/* <TableCell>
-                       {freelancer.badges?.map(badgeId => (
-                           <Badge key={badgeId} variant="secondary" className="mr-1">{badgeId}</Badge> // Display badge IDs for now
-                       ))}
-                   </TableCell> */}
+                  <TableCell className="font-medium text-lg text-muted-foreground">{index + 1}</TableCell>
+                  <TableCell>
+                    <Link href={`/freelancer/${freelancer.id}`} className="flex items-center gap-3 group">
+                      <Avatar>
+                        <AvatarFallback>{getInitials(freelancer.name)}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium group-hover:underline">{freelancer.name}</p>
+                        <p className="text-sm text-muted-foreground">{freelancer.skills[0] || 'Generalist'}</p>
+                      </div>
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-center hidden sm:table-cell">
+                    <div className="flex items-center justify-center gap-1">
+                      <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                      <span className="font-medium">{freelancer.rating?.toFixed(1) ?? 'N/A'}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right font-bold text-lg text-primary">{freelancer.xp ?? 0}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
