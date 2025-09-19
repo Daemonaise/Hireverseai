@@ -11,7 +11,6 @@ import { Award, Loader2, AlertCircle, Star } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Separator } from '@/components/ui/separator';
 
 const getInitials = (name: string) => {
   const names = name.split(' ');
@@ -41,8 +40,6 @@ export function Leaderboard() {
     fetchLeaderboard();
   }, []);
 
-  const activeFreelancers = leaderboardData.slice(0, 5);
-
   return (
     <Card className="w-full shadow-lg">
       <CardHeader>
@@ -53,37 +50,6 @@ export function Leaderboard() {
         <CardDescription>Top freelancers based on community contributions and performance.</CardDescription>
       </CardHeader>
       <CardContent>
-        {/* Active Now Section */}
-        {activeFreelancers.length > 0 && (
-            <>
-                <div className="mb-6">
-                    <h3 className="text-sm font-semibold mb-3 text-muted-foreground">Active Now</h3>
-                    <TooltipProvider>
-                        <div className="flex items-center space-x-2">
-                            {activeFreelancers.map((freelancer) => (
-                            <Tooltip key={freelancer.id}>
-                                <TooltipTrigger>
-                                <Link href={`/freelancer/${freelancer.id}`}>
-                                    <div className="relative">
-                                        <Avatar>
-                                            <AvatarFallback>{getInitials(freelancer.name)}</AvatarFallback>
-                                        </Avatar>
-                                        <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background" />
-                                    </div>
-                                </Link>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>{freelancer.name}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                            ))}
-                        </div>
-                    </TooltipProvider>
-                </div>
-                <Separator className="mb-6"/>
-            </>
-        )}
-
         {isLoading && (
           <div className="flex justify-center items-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -107,6 +73,7 @@ export function Leaderboard() {
                 <TableHead className="w-[50px]">Rank</TableHead>
                 <TableHead>Freelancer</TableHead>
                 <TableHead className="text-center hidden sm:table-cell">Experience</TableHead>
+                <TableHead className="text-center hidden sm:table-cell">Active</TableHead>
                 <TableHead className="text-center hidden sm:table-cell">Rating</TableHead>
                 <TableHead className="text-right">XP</TableHead>
               </TableRow>
@@ -128,6 +95,22 @@ export function Leaderboard() {
                   </TableCell>
                   <TableCell className="text-center hidden sm:table-cell">
                     <span className="font-medium">{freelancer.yearsOfExperience ?? 'N/A'} yrs</span>
+                  </TableCell>
+                  <TableCell className="text-center hidden sm:table-cell">
+                    {freelancer.isLoggedIn && freelancer.status === 'available' && (
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger>
+                                    <div className="flex justify-center">
+                                        <span className="block h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-green-500/20" />
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                <p>Online and Available</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    )}
                   </TableCell>
                   <TableCell className="text-center hidden sm:table-cell">
                     <div className="flex items-center justify-center gap-1">
