@@ -8,6 +8,7 @@ import '@/ai/flows/grade-assessment-answer.ts';
 import '@/ai/flows/request-project-change.ts';
 import '@/ai/flows/decompose-project.ts'; // Keep this flow
 import '@/ai/flows/generate-project-idea.ts';
+import '@/ai/flows/client-chat-agent.ts';
 
 // Schemas are implicitly loaded via the flows that import them
 // No need to explicitly import schema files here anymore.

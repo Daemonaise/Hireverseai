@@ -382,7 +382,7 @@ export async function unassignProjectFromFreelancer(freelancerId: string, projec
             status: 'available',
             updatedAt: now(),
         });
-        // Optionally update project status (e.g., back to 'decomposed' or 'review')
+        // Optionally update project status (e.g., back to 'review')
         batch.update(projectRef, {
             assignedFreelancerId: null, // Remove assignment
             // status: 'review', // Example: Set status if needed
