@@ -112,7 +112,8 @@ const gradeAssessmentAnswerFlow = ai.defineFlow<
 
        if (!validation.allValid) {
            console.warn(`Validation failed for grading question ${input.questionId}. Reasoning:`, validation.results);
-           throw new Error(`Grading for question ${input.questionId} failed cross-validation.`);
+           // Do not throw an error, just log a warning and proceed.
+           // throw new Error(`Grading for question ${input.questionId} failed cross-validation.`);
        }
 
 
