@@ -10,7 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Award, Loader2, AlertCircle, Star } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Separator } from '@/components/ui/separator';
 
 const getInitials = (name: string) => {
   const names = name.split(' ');
@@ -40,6 +41,8 @@ export function Leaderboard() {
     fetchLeaderboard();
   }, []);
 
+  const activeFreelancers = leaderboardData.slice(0, 5);
+
   return (
     <Card className="w-full shadow-lg">
       <CardHeader>
@@ -50,6 +53,37 @@ export function Leaderboard() {
         <CardDescription>Top freelancers based on community contributions and performance.</CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Active Now Section */}
+        {activeFreelancers.length > 0 && (
+            <>
+                <div className="mb-6">
+                    <h3 className="text-sm font-semibold mb-3 text-muted-foreground">Active Now</h3>
+                    <TooltipProvider>
+                        <div className="flex items-center space-x-2">
+                            {activeFreelancers.map((freelancer) => (
+                            <Tooltip key={freelancer.id}>
+                                <TooltipTrigger>
+                                <Link href={`/freelancer/${freelancer.id}`}>
+                                    <div className="relative">
+                                        <Avatar>
+                                            <AvatarFallback>{getInitials(freelancer.name)}</AvatarFallback>
+                                        </Avatar>
+                                        <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background" />
+                                    </div>
+                                </Link>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{freelancer.name}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                            ))}
+                        </div>
+                    </TooltipProvider>
+                </div>
+                <Separator className="mb-6"/>
+            </>
+        )}
+
         {isLoading && (
           <div className="flex justify-center items-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
