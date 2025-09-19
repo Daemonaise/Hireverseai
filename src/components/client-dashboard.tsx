@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, useTransition } from 'react';
@@ -301,47 +302,52 @@ export function ClientDashboard({ clientId }: ClientDashboardProps) {
             <div className="lg:col-span-2 space-y-8">
                  {/* Freelancer History Section */}
                  <section>
-                    <h2 className="text-2xl font-semibold mb-4">Freelancer History</h2>
-                     <div className="relative mb-4">
-                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                         <Input
-                            type="search"
-                            placeholder="Search by Freelancer ID, Name, or Project..."
-                            className="pl-8 w-full"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                         />
-                     </div>
-                    <Card className="shadow-md max-h-72 overflow-y-auto">
-                        <CardContent className="p-0">
-                             {filteredProjects.filter(p => p.status === 'completed' || p.assignedFreelancerId).length === 0 ? (
-                                 <p className="p-6 text-center text-muted-foreground">No relevant project history found.</p>
-                             ) : (
-                                <ul className="divide-y divide-border">
-                                    {filteredProjects
-                                        .filter(p => p.status === 'completed' || p.assignedFreelancerId) // Show completed or assigned
-                                        .map((project) => (
-                                        <li key={project.id} className="p-4">
-                                            <div className="flex justify-between items-center">
-                                                <div>
-                                                    <p className="font-medium">{project.name}</p>
-                                                    {project.assignedFreelancerId && (
-                                                         <p className="text-sm">
-                                                            <span className="text-muted-foreground">Freelancer:</span> {freelancerCache[project.assignedFreelancerId] ?? 'Loading...'} (<span className="font-semibold">{project.assignedFreelancerId}</span>)
-                                                         </p>
-                                                    )}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Freelancer History</CardTitle>
+                             <CardDescription>Review your past and current project collaborations.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                             <div className="relative mb-4">
+                                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                 <Input
+                                    type="search"
+                                    placeholder="Search by Freelancer ID, Name, or Project..."
+                                    className="pl-8 w-full"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                 />
+                             </div>
+                            <div className="max-h-72 overflow-y-auto pr-2">
+                                 {filteredProjects.filter(p => p.status === 'completed' || p.assignedFreelancerId).length === 0 ? (
+                                     <p className="py-6 text-center text-muted-foreground">No relevant project history found.</p>
+                                 ) : (
+                                    <ul className="divide-y divide-border">
+                                        {filteredProjects
+                                            .filter(p => p.status === 'completed' || p.assignedFreelancerId) // Show completed or assigned
+                                            .map((project) => (
+                                            <li key={project.id} className="py-3">
+                                                <div className="flex justify-between items-center">
+                                                    <div>
+                                                        <p className="font-medium">{project.name}</p>
+                                                        {project.assignedFreelancerId && (
+                                                             <p className="text-sm">
+                                                                <span className="text-muted-foreground">Freelancer:</span> {freelancerCache[project.assignedFreelancerId] ?? 'Loading...'} (<span className="font-mono text-xs">{project.assignedFreelancerId}</span>)
+                                                             </p>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-sm text-muted-foreground">
+                                                             {project.status === 'completed' ? 'Completed' : 'Last Update'}: {formatDate(project.updatedAt)}
+                                                        </p>
+                                                        {project.status !== 'completed' && <Badge variant="secondary" className="mt-1 capitalize">{project.status.replace('_', ' ')}</Badge>}
+                                                    </div>
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="text-sm text-muted-foreground">
-                                                         {project.status === 'completed' ? 'Completed' : 'Last Update'}: {formatDate(project.updatedAt)}
-                                                    </p>
-                                                    {project.status !== 'completed' && <Badge variant="secondary" className="mt-1 capitalize">{project.status.replace('_', ' ')}</Badge>}
-                                                </div>
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
-                             )}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                 )}
+                             </div>
                         </CardContent>
                     </Card>
                 </section>
@@ -352,7 +358,7 @@ export function ClientDashboard({ clientId }: ClientDashboardProps) {
                 <section>
                     <h2 className="text-2xl font-semibold mb-4">Current Projects</h2>
                     {projects.filter(p => p.status !== 'completed' && p.status !== 'cancelled').length === 0 ? (
-                        <Card className="shadow-sm border-dashed border-muted-foreground/50">
+                        <Card className="border-dashed">
                             <CardContent className="text-center py-12">
                                 <Briefcase className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                                 <p className="text-lg font-medium text-muted-foreground">No active projects yet.</p>
@@ -365,7 +371,7 @@ export function ClientDashboard({ clientId }: ClientDashboardProps) {
                     ) : (
                         <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
                             {projects.filter(p => p.status !== 'completed' && p.status !== 'cancelled').map((project) => (
-                                <Card key={project.id} className="shadow-md flex flex-col">
+                                <Card key={project.id} className="flex flex-col">
                                     <CardHeader>
                                         <div className="flex justify-between items-start">
                                              <CardTitle>{project.name}</CardTitle>
