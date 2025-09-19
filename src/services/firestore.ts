@@ -27,6 +27,7 @@ import type { AdaptiveAssessmentResult } from '@/types/assessment';
 import type { Client } from '@/types/client';
 import { authenticator } from 'otplib';
 import type Stripe from 'stripe';
+import { dummyFreelancers } from '@/lib/dummy-data'; // Import dummy data
 
 // --- Setup and Helpers ---
 // Cast imported `db` to Firestore so it carries the correct type everywhere.
@@ -473,12 +474,14 @@ export async function getAssignedProjects(freelancerId: string): Promise<Project
 
 // Get top N freelancers based on XP
 export async function getTopFreelancers(count: number): Promise<Freelancer[]> {
-    const q = query(freelancersRef, orderBy("xp", "desc"), limit(count));
+    console.log('[MOCK] Using dummy data for the leaderboard.');
     try {
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Freelancer));
+        // Sort dummy data by XP in descending order
+        const sortedFreelancers = [...dummyFreelancers].sort((a, b) => (b.xp ?? 0) - (a.xp ?? 0));
+        // Return the top N freelancers
+        return Promise.resolve(sortedFreelancers.slice(0, count));
     } catch (error) {
-        console.error("Error fetching top freelancers:", error);
+        console.error("Error fetching top freelancers from dummy data:", error);
         throw new Error('Failed to fetch leaderboard.');
     }
 }
