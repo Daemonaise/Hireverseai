@@ -23,7 +23,8 @@ export default async function handler(req: NextRequest) {
 
     // Append new user messages to history
     const newMessages = messages as Message[];
-    history.push(...newMessages.slice(history.length)); // Append only new messages
+    // The chat hook sends the whole history, so we just use it directly
+    history = newMessages;
 
     // Call the Genkit flow
     const responseText = await chatWithClientAgent(clientId, history);
