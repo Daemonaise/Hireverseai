@@ -7,6 +7,7 @@
 
 import type { Freelancer } from '@/types/freelancer';
 import { getAvailableFreelancersBySkill } from '@/services/firestore';
+import { dummyFreelancers } from '@/lib/dummy-data'; // Import dummy data
 
 /**
  * Profile information for a freelancer, potentially a subset of the full Freelancer type.
@@ -22,19 +23,34 @@ export type FreelancerProfile = Freelancer;
  * @returns A promise that resolves to an array of FreelancerProfile objects.
  */
 export async function fetchFreelancersBySkills(skills: string[], limit: number = 10): Promise<FreelancerProfile[]> {
+  console.log('[MOCK] Using dummy data for freelancer matching.');
+
   if (!skills || skills.length === 0) {
     console.warn('[fetchFreelancersBySkills] No skills provided, returning empty array.');
     return [];
   }
 
   try {
-    // Utilize the existing Firestore query function
-    const freelancers = await getAvailableFreelancersBySkill(skills, limit);
-    // The Freelancer type from firestore should already include hourlyRate and rating after the update.
-    return freelancers as FreelancerProfile[];
+    // Filter dummy data instead of calling Firestore
+    const availableFreelancers = dummyFreelancers.filter(f => f.status === 'available');
+
+    const matchedFreelancers = availableFreelancers.filter(freelancer => {
+        const freelancerSkills = new Set(freelancer.skills.map(s => s.toLowerCase()));
+        return skills.some(requiredSkill => freelancerSkills.has(requiredSkill.toLowerCase()));
+    });
+
+    // Sort by rating (desc) as a primary sort key, then XP (desc) as secondary
+    matchedFreelancers.sort((a, b) => {
+        if ((b.rating ?? 0) !== (a.rating ?? 0)) {
+            return (b.rating ?? 0) - (a.rating ?? 0);
+        }
+        return (b.xp ?? 0) - (a.xp ?? 0);
+    });
+
+    return matchedFreelancers.slice(0, limit);
+
   } catch (error) {
-    console.error(`[fetchFreelancersBySkills] Error fetching freelancers by skills (${skills.join(', ')}):`, error);
-    // Depending on error handling strategy, either re-throw or return empty/error indicator
+    console.error(`[fetchFreelancersBySkills] Error filtering dummy data for skills (${skills.join(', ')}):`, error);
     throw new Error(`Failed to fetch freelancers: ${(error as Error).message}`);
   }
 }
