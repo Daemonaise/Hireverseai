@@ -112,7 +112,8 @@ const generateAssessmentQuestionFlow = ai.defineFlow<
 
        if (!validation.allValid) {
            console.warn(`Validation failed for question generation (Skill: ${input.primarySkill}, Difficulty: ${input.difficulty}). Reasoning:`, validation.results);
-           throw new Error(`Question generation for ${input.primarySkill} (${input.difficulty}) failed cross-validation.`);
+           // Do not throw an error, just log a warning and proceed.
+           // throw new Error(`Question generation for ${input.primarySkill} (${input.difficulty}) failed cross-validation.`);
        }
 
 

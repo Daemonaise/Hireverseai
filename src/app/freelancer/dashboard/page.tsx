@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 function FreelancerDashboardInner() {
   // For testing, always use a default ID.
-  const freelancerId = "test-freelancer-001";
+  const freelancerId = "dev-react-001";
 
   // The login flow is removed, so this check is simplified.
   if (!freelancerId) {

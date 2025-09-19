@@ -26,7 +26,7 @@ interface FreelancerDashboardProps {
 }
 
 // Define placeholder ID constant
-const PLACEHOLDER_ID = "PLACEHOLDER_ID";
+const PLACEHOLDER_ID = "dev-react-001";
 
 export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) {
   const [freelancer, setFreelancer] = useState<Freelancer | null>(null);
@@ -43,7 +43,7 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
 
   // Fetch initial data
   const fetchData = useCallback(async () => {
-    if (!freelancerId || freelancerId === PLACEHOLDER_ID) {
+    if (!freelancerId || freelancerId === "PLACEHOLDER_ID") { // Updated placeholder check
       setError("Freelancer ID is missing. Cannot load dashboard.");
       setIsLoading(false);
       setAssessmentComplete(true); // Prevent assessment modal if ID is invalid
