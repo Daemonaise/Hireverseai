@@ -11,6 +11,7 @@ import { Award, Loader2, AlertCircle, Star } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from '@/lib/utils';
 
 const getInitials = (name: string) => {
   const names = name.split(' ');
@@ -39,6 +40,26 @@ export function Leaderboard() {
     }
     fetchLeaderboard();
   }, []);
+
+  const getStatusIndicator = (status?: 'available' | 'busy' | 'offline') => {
+    switch (status) {
+      case 'available':
+        return {
+          className: 'bg-green-500',
+          tooltip: 'Online and Available',
+        };
+      case 'busy':
+        return {
+          className: 'bg-yellow-500',
+          tooltip: 'Online but Busy',
+        };
+      default:
+        return {
+          className: 'bg-gray-400',
+          tooltip: 'Offline',
+        };
+    }
+  };
 
   return (
     <Card className="w-full shadow-lg">
@@ -73,54 +94,61 @@ export function Leaderboard() {
                 <TableHead className="w-[50px]">Rank</TableHead>
                 <TableHead>Freelancer</TableHead>
                 <TableHead className="text-center hidden sm:table-cell">Experience</TableHead>
-                <TableHead className="text-center hidden sm:table-cell">Active</TableHead>
+                <TableHead className="text-center hidden sm:table-cell">Status</TableHead>
                 <TableHead className="text-center hidden sm:table-cell">Rating</TableHead>
                 <TableHead className="text-right">XP</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {leaderboardData.map((freelancer, index) => (
-                <TableRow key={freelancer.id}>
-                  <TableCell className="font-medium text-lg text-muted-foreground">{index + 1}</TableCell>
-                  <TableCell>
-                    <Link href={`/freelancer/${freelancer.id}`} className="flex items-center gap-3 group">
-                      <Avatar>
-                        <AvatarFallback>{getInitials(freelancer.name)}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium group-hover:underline">{freelancer.name}</p>
-                        <p className="text-sm text-muted-foreground">{freelancer.skills[0] || 'Generalist'}</p>
+              {leaderboardData.map((freelancer, index) => {
+                const statusInfo = getStatusIndicator(freelancer.status);
+                return (
+                  <TableRow key={freelancer.id}>
+                    <TableCell className="font-medium text-lg text-muted-foreground">{index + 1}</TableCell>
+                    <TableCell>
+                      <Link href={`/freelancer/${freelancer.id}`} className="flex items-center gap-3 group">
+                        <Avatar>
+                          <AvatarFallback>{getInitials(freelancer.name)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium group-hover:underline">{freelancer.name}</p>
+                          <p className="text-sm text-muted-foreground">{freelancer.skills[0] || 'Generalist'}</p>
+                        </div>
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-center hidden sm:table-cell">
+                      <span className="font-medium">{freelancer.yearsOfExperience ?? 'N/A'} yrs</span>
+                    </TableCell>
+                    <TableCell className="text-center hidden sm:table-cell">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <div className="flex justify-center">
+                              <span
+                                className={cn(
+                                  'block h-2.5 w-2.5 rounded-full ring-2 ring-offset-2 ring-offset-background',
+                                  statusInfo.className,
+                                  `${statusInfo.className.replace('bg-', 'ring-')}/20` // e.g., ring-green-500/20
+                                )}
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{statusInfo.tooltip}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableCell>
+                    <TableCell className="text-center hidden sm:table-cell">
+                      <div className="flex items-center justify-center gap-1">
+                        <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                        <span className="font-medium">{freelancer.rating?.toFixed(1) ?? 'N/A'}</span>
                       </div>
-                    </Link>
-                  </TableCell>
-                  <TableCell className="text-center hidden sm:table-cell">
-                    <span className="font-medium">{freelancer.yearsOfExperience ?? 'N/A'} yrs</span>
-                  </TableCell>
-                  <TableCell className="text-center hidden sm:table-cell">
-                    {freelancer.isLoggedIn && freelancer.status === 'available' && (
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger>
-                                    <div className="flex justify-center">
-                                        <span className="block h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-green-500/20" />
-                                    </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                <p>Online and Available</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center hidden sm:table-cell">
-                    <div className="flex items-center justify-center gap-1">
-                      <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                      <span className="font-medium">{freelancer.rating?.toFixed(1) ?? 'N/A'}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right font-bold text-lg text-primary">{freelancer.xp ?? 0}</TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-lg text-primary">{freelancer.xp ?? 0}</TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}
