@@ -72,6 +72,7 @@ export function Leaderboard() {
               <TableRow>
                 <TableHead className="w-[50px]">Rank</TableHead>
                 <TableHead>Freelancer</TableHead>
+                <TableHead className="text-center hidden sm:table-cell">Experience</TableHead>
                 <TableHead className="text-center hidden sm:table-cell">Rating</TableHead>
                 <TableHead className="text-right">XP</TableHead>
               </TableRow>
@@ -90,6 +91,9 @@ export function Leaderboard() {
                         <p className="text-sm text-muted-foreground">{freelancer.skills[0] || 'Generalist'}</p>
                       </div>
                     </Link>
+                  </TableCell>
+                  <TableCell className="text-center hidden sm:table-cell">
+                    <span className="font-medium">{freelancer.yearsOfExperience ?? 'N/A'} yrs</span>
                   </TableCell>
                   <TableCell className="text-center hidden sm:table-cell">
                     <div className="flex items-center justify-center gap-1">

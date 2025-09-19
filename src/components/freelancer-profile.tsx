@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
 import type { Freelancer } from '@/types/freelancer';
 import { BADGES, type Badge as BadgeType } from '@/types/badge'; // Import static badge definitions
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Star, CheckCircle, Loader2, AlertCircle } from 'lucide-react'; // Added AlertCircle
+import { Star, CheckCircle, Loader2, AlertCircle, Briefcase } from 'lucide-react';
 import { Badge } from '@/components/ui/badge'; // UI component
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from '@/components/ui/separator';
@@ -82,15 +83,32 @@ export function FreelancerProfile({ freelancerId }: FreelancerProfileProps) {
         <CardTitle>{freelancer.name}</CardTitle>
         <CardDescription>{freelancer.email}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-         {/* XP Section */}
-         <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
-             <div className="flex items-center gap-2">
-                 <Star className="h-5 w-5 text-yellow-500" />
-                 <span className="font-medium">Experience Points</span>
-             </div>
-             <span className="text-lg font-bold text-primary">{freelancer.xp ?? 0} XP</span>
+      <CardContent className="space-y-6">
+         {/* Stats Section */}
+         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="flex items-center justify-center flex-col p-3 bg-muted/50 rounded-md">
+                <div className="flex items-center gap-2 text-yellow-500">
+                    <Star className="h-5 w-5" />
+                    <span className="text-lg font-bold text-primary">{freelancer.xp ?? 0}</span>
+                </div>
+                <span className="text-sm font-medium text-muted-foreground">Experience Points</span>
+            </div>
+             <div className="flex items-center justify-center flex-col p-3 bg-muted/50 rounded-md">
+                <div className="flex items-center gap-2 text-primary">
+                    <Briefcase className="h-5 w-5" />
+                    <span className="text-lg font-bold text-primary">{freelancer.yearsOfExperience ?? 'N/A'}</span>
+                </div>
+                <span className="text-sm font-medium text-muted-foreground">Years of Experience</span>
+            </div>
+             <div className="flex items-center justify-center flex-col p-3 bg-muted/50 rounded-md">
+                <div className="flex items-center gap-2 text-green-600">
+                    <Star className="h-5 w-5 fill-current" />
+                    <span className="text-lg font-bold text-primary">{freelancer.rating?.toFixed(1) ?? 'N/A'}</span>
+                </div>
+                <span className="text-sm font-medium text-muted-foreground">Avg. Rating</span>
+            </div>
          </div>
+
 
           {/* Badges Section */}
          {earnedBadges.length > 0 && (

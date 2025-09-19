@@ -17,6 +17,7 @@ export interface Freelancer {
   skills: string[]; // List of skills identified (potentially updated after assessment)
   hourlyRate?: number; // Added hourly rate
   rating?: number; // Added rating (e.g., 0-5)
+  yearsOfExperience?: number; // Added years of experience
   testScores?: { [skill: string]: number }; // Optional: Scores for each skill test (might be deprecated for adaptive)
   assessmentResultId?: string | null; // Optional: ID linking to the AdaptiveAssessmentResult document
   xp?: number; // Experience points for gamification
