@@ -74,6 +74,7 @@
     "eslint": "9.37.0",
     "eslint-config-next": "15.5.4",
     "postcss": "^8.5.3",
+    "postcss-import": "^16.1.0",
     "stylelint": "^16.25.0",
     "stylelint-config-standard": "^39.0.1",
     "tailwindcss": "^4.1.14",
