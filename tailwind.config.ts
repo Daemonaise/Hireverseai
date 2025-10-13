@@ -1,6 +1,4 @@
-
 import type { Config } from "tailwindcss"
-import defaultTheme from "tailwindcss/defaultTheme"
 
 const config = {
   darkMode: "class",
@@ -54,31 +52,11 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Sidebar specific colors (assuming they are defined in globals.css)
-        sidebar: {
-            DEFAULT: "hsl(var(--sidebar-background))",
-            foreground: "hsl(var(--sidebar-foreground))",
-            border: "hsl(var(--sidebar-border))",
-            ring: "hsl(var(--sidebar-ring))",
-            primary: {
-              DEFAULT: "hsl(var(--sidebar-primary))",
-              foreground: "hsl(var(--sidebar-primary-foreground))",
-            },
-            accent: {
-              DEFAULT: "hsl(var(--sidebar-accent))",
-              foreground: "hsl(var(--sidebar-accent-foreground))",
-            },
-          },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
-      },
-       fontFamily: {
-        // Update sans font family to use Inter via CSS variable
-        sans: ["var(--font-sans)", ...defaultTheme.fontFamily.sans],
-        mono: ["var(--font-geist-mono)", ...defaultTheme.fontFamily.mono], // Keep Geist Mono if desired
       },
       keyframes: {
         "accordion-down": {
