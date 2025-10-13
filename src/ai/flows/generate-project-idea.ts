@@ -13,7 +13,7 @@ import {
   type GenerateProjectIdeaInput,
   type GenerateProjectIdeaOutput,
 } from '@/ai/schemas/generate-project-idea-schema';
-import { googleAI } from '@genkit-ai/google-genai';
+import { MODEL_REGISTRY } from '@/lib/ai-models';
 
 // --- Configuration ---
 const PLATFORM_FEE = 0.15;       // 15%
@@ -58,7 +58,7 @@ const PromptInputSchema = GenerateProjectIdeaInputSchema.extend({ randomNumber: 
 type PromptInputType = z.infer<typeof PromptInputSchema>;
 
 // --- Define the reusable prompt object ---
-const modelId = googleAI.model('gemini-1.5-flash'); 
+const modelId = MODEL_REGISTRY.google.flash; 
 
 const projectIdeaGenPrompt = ai.definePrompt({
   name: 'generateProjectIdeaPrompt', // Unique name for the prompt

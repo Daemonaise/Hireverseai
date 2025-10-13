@@ -3,7 +3,7 @@
  */
 
 import { googleAI } from '@genkit-ai/google-genai';
-import { openAI } from '@genkit-ai/compat-oai/openai';
+import { openAI } from '@genkit-ai/openai';
 import { anthropic, claude35Sonnet, claude3Haiku, claude3Opus } from 'genkitx-anthropic';
 
 // Build model objects from each provider

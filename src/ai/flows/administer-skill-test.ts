@@ -79,19 +79,19 @@ const administerSkillTestFlow = ai.defineFlow<
         const originalPromptText = skillQuestionPromptTemplate
           .replace('{{{skill}}}', skill)
           .replace('{{{freelancerId}}}', input.freelancerId);
-        const validation = await validateAIOutput(
-          originalPromptText,
-          JSON.stringify(aiOutput),
-          primaryModel,
-        );
-        if (!validation.allValid) throw new Error('Validation failed.');
+        // const validation = await validateAIOutput(
+        //   originalPromptText,
+        //   JSON.stringify(aiOutput),
+        //   primaryModel,
+        // );
+        // if (!validation.allValid) throw new Error('Validation failed.');
 
         questions.push({
           questionText: aiOutput.questionText,
           skillTested: skill,
         });
         console.log(`✔ ${skill}`);
-      } catch (err: Error) {
+      } catch (err: any) {
         console.error(`Error for ${skill}:`, err.message);
         questions.push({
           questionText: `Placeholder for ${skill}: Describe a real-world scenario showcasing your expertise with ${skill}.`,

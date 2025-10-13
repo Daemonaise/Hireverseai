@@ -4,8 +4,8 @@
  */
 
 import { genkit } from 'genkit';
-import { googleAI } from '@genkit-ai/google-genai'; // Use new package
-import { openAI } from '@genkit-ai/compat-oai/openai'; // Use new package
+import { googleAI } from '@genkit-ai/google-genai';
+import { openAI } from '@genkit-ai/openai';
 import { anthropic, claude35Sonnet } from 'genkitx-anthropic';
 
 // --- Environment Variable Check ---
