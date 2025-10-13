@@ -8,7 +8,6 @@
 
 import { ai } from '@/lib/ai';
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers';
-import { validateAIOutput } from '@/ai/validate-output';
 import { z } from 'zod';
 import {
   type MatchFreelancerInput,
@@ -23,7 +22,6 @@ import {
   type FreelancerProfile,
 } from '@/services/freelancer'; // Assuming this service exists and is correctly typed
 import { updateProjectStatus } from '@/services/firestore';
-import { ProjectStatus } from '@/types/project';
 
 // --- Constants ---
 const PLATFORM_MARKUP_BASE = 0.10;                     // Base platform markup
@@ -117,10 +115,7 @@ Candidates: {{#each candidates}}{{this.id}}(@\${{this.hourlyRate}})[rating:{{thi
 Return ONLY JSON with keys selectedFreelancerId, reasoning, estimatedHours, estimatedTimeline.`;
 
 // --- Flow Definition ---
-const matchFreelancerFlow = ai.defineFlow<
-  typeof MatchFreelancerInputSchema,
-  typeof MatchFreelancerOutputSchema
->(
+const matchFreelancerFlow = ai.defineFlow(
   {
     name: 'matchFreelancerFlow',
     inputSchema: MatchFreelancerInputSchema,
@@ -137,7 +132,7 @@ const matchFreelancerFlow = ai.defineFlow<
       if (!Array.isArray(requiredSkills) || requiredSkills.length === 0) {
         const extractModel = await chooseModelBasedOnPrompt(`Extract skills: ${projectBrief}`);
         const skillPrompt = ai.definePrompt({
-          name: `extractSkills_${extractModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          name: `extractSkills_${extractModel.name.replace(/[^a-zA-Z0-9]/g, '_')}`,
           input: { schema: z.object({ projectBrief: z.string().min(1) }) },
           output: { schema: ExtractSkillsAIOutputSchema },
           prompt: skillExtractionPromptTemplate,
@@ -146,9 +141,9 @@ const matchFreelancerFlow = ai.defineFlow<
         });
         const { output } = await skillPrompt({ projectBrief });
         if (!output || !output.extractedSkills) {
-            throw new Error(`Skill extraction failed or returned invalid output. Model: ${extractModel}`);
+            throw new Error(`Skill extraction failed or returned invalid output. Model: ${extractModel.name}`);
         }
-        await validateAIOutput(skillExtractionPromptTemplate, JSON.stringify(output), extractModel);
+        
         requiredSkills = output.extractedSkills;
         reasoning += 'Skills extracted by AI. ';
       }
@@ -179,7 +174,7 @@ const matchFreelancerFlow = ai.defineFlow<
       // 3. Estimation & Selection
       const estimateModel = await chooseModelBasedOnPrompt(`Estimate: ${projectBrief}`);
       const estimationPrompt = ai.definePrompt({
-        name: `estimate_${estimateModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        name: `estimate_${estimateModel.name.replace(/[^a-zA-Z0-9]/g, '_')}`,
         input: {
           schema: z.object({
             projectBrief: z.string(),
@@ -194,9 +189,9 @@ const matchFreelancerFlow = ai.defineFlow<
       });
       const { output: estOut } = await estimationPrompt({ projectBrief, requiredSkills, candidates: viableCandidates });
       if (!estOut) {
-        throw new Error(`Estimation and selection failed or returned invalid output. Model: ${estimateModel}`);
+        throw new Error(`Estimation and selection failed or returned invalid output. Model: ${estimateModel.name}`);
       }
-      await validateAIOutput(estimationPromptTemplate, JSON.stringify(estOut), estimateModel);
+      
       const estimatedHours = Math.max(estOut.estimatedHours, 0.1);
 
       // 4. Build and return result

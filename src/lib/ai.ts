@@ -1,12 +1,13 @@
 /**
  * @file Unified Genkit AI configuration
- * Compatible with current Genkit + Genkit-X model syntax.
+ * This file initializes plugins based on available environment variables.
  */
 
-import { genkit } from 'genkit';
+import { genkit, type GenkitPlugin } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
-import { openAI } from '@genkit-ai/openai';
-import { anthropic, claude35Sonnet } from 'genkitx-anthropic';
+import { openAI } from '@genkit-ai/compat-oai/openai';
+import { anthropic } from 'genkitx-anthropic';
+import { ALL_MODELS } from './ai-models'; // Import the centralized models
 
 // --- Environment Variable Check ---
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
@@ -18,61 +19,31 @@ console.log(`[AI Config] OPENAI_API_KEY present: ${!!OPENAI_API_KEY}`);
 console.log(`[AI Config] ANTHROPIC_API_KEY present: ${!!ANTHROPIC_API_KEY}`);
 
 // --- Plugin Configuration ---
-const plugins = [];
+// Initialize an empty array; TypeScript will infer the plugin type.
+const plugins: GenkitPlugin[] = [];
 
 if (GOOGLE_API_KEY) {
   console.log('[AI Config] Adding Google AI Plugin...');
-  plugins.push(googleAI({ apiKey: GOOGLE_API_KEY }));
+  plugins.push(googleAI());
 }
 
 if (OPENAI_API_KEY) {
   console.log('[AI Config] Adding OpenAI Plugin...');
-  plugins.push(openAI({ apiKey: OPENAI_API_KEY }));
+  plugins.push(openAI());
 }
 
 if (ANTHROPIC_API_KEY) {
   console.log('[AI Config] Adding Anthropic Plugin...');
-  plugins.push(anthropic({ apiKey: ANTHROPIC_API_KEY }));
+  plugins.push(anthropic());
 }
 
 if (plugins.length === 0) {
-  console.error('[AI Config] CRITICAL: No AI plugins configured.');
-  // In a real scenario, you might want to throw an error or use a mock plugin.
-  // For this setup, we will proceed, but AI calls may fail.
+  console.error('[AI Config] CRITICAL: No AI plugins configured. AI-dependent features will fail.');
 }
 
 // --- Create Genkit instance ---
+// This central `ai` instance should be used for all model interactions.
 export const ai = genkit({ plugins });
 
-// --- Model identifiers ---
-const geminiFlash = googleAI.model('gemini-1.5-flash');
-const gpt4oMini = openAI.model('gpt-4o-mini');
-
-// --- Chained cross-model orchestration example ---
-export async function crossModelRoute(prompt: string): Promise<string> {
-  try {
-    // Step 1: Anthropic
-    const { output: claudeOutput } = await ai.generate({
-      model: claude35Sonnet,
-      prompt,
-    });
-    const step1 = claudeOutput?.content[0].text ?? '';
-
-    // Step 2: OpenAI
-    const { output: gptOutput } = await ai.generate({
-      model: gpt4oMini,
-      prompt: step1,
-    });
-    const step2 = gptOutput?.content[0].text ?? '';
-
-    // Step 3: Google
-    const { output: geminiOutput } = await ai.generate({
-      model: geminiFlash,
-      prompt: step2,
-    });
-    return geminiOutput?.content[0].text ?? '';
-  } catch (err) {
-    console.error('[AI Flow Error]', err);
-    throw err;
-  }
-}
+// Re-export all models for easy access from the central AI config
+export const models = ALL_MODELS;

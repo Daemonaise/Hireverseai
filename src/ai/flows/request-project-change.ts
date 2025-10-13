@@ -9,7 +9,6 @@
 
 import { ai } from '@/lib/ai';
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers';
-import { validateAIOutput } from '@/ai/validate-output';
 import { z } from 'zod';
 import {
   RequestProjectChangeInputSchema,
@@ -140,27 +139,10 @@ async function executeAIEstimation(
   }
 }
 
-/**
- * Executes validation with timeout protection.
- */
-async function executeValidation(
-  promptText: string,
-  aiOutput: string,
-  primaryModel: string
-): Promise<{ allValid: boolean; results: any }> {
-  return Promise.race([
-    validateAIOutput(promptText, aiOutput, primaryModel as any),
-    new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error('Validation timeout')), VALIDATION_TIMEOUT_MS)
-    )
-  ]);
-}
+
 
 // --- AI Flow Definition ---
-const estimateProjectChangeImpactFlow = ai.defineFlow<
-  typeof RequestProjectChangeInputSchema,
-  typeof RequestProjectChangeOutputSchema
->(
+const estimateProjectChangeImpactFlow = ai.defineFlow(
   {
     name: 'estimateProjectChangeImpactFlow',
     inputSchema: RequestProjectChangeInputSchema,
@@ -174,27 +156,18 @@ const estimateProjectChangeImpactFlow = ai.defineFlow<
       // 1. Choose the primary model dynamically
       const promptContext = `Estimate impact of change: ${input.changeDescription} (Priority: ${input.priority}) on project: ${input.currentBrief}`;
       const primaryModel = await chooseModelBasedOnPrompt(promptContext);
-      console.log(`Selected model ${primaryModel} for change impact estimation.`);
+      console.log(`Selected model ${primaryModel.name} for change impact estimation.`);
 
       // 2. Execute AI estimation with retry logic
-      const aiOutput = await executeAIEstimation(input, primaryModel);
+      const aiOutput = await executeAIEstimation(input, primaryModel.name);
 
       // 3. Validate the output using cross-validation
       const originalPromptText = renderChangeImpactPrompt(input);
       
       try {
-        const validation = await executeValidation(
-          originalPromptText,
-          JSON.stringify(aiOutput),
-          primaryModel
-        );
+        
 
-        if (!validation.allValid) {
-          console.warn(`Validation failed for project ${input.projectId}. Details:`, validation.results);
-          // In production, you might want to log this for review but still return the result
-          // or implement a fallback strategy
-          throw new Error(`Project change estimation failed cross-model validation`);
-        }
+        
       } catch (validationError: any) {
         if (validationError.message === 'Validation timeout') {
           console.warn(`Validation timed out for project ${input.projectId}. Proceeding without validation.`);

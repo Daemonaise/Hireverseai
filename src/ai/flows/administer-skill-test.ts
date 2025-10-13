@@ -7,7 +7,6 @@
  */
 import { ai } from '@/lib/ai';
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers';
-import { validateAIOutput } from '@/ai/validate-output';
 import { z } from 'zod';
 import {
   AdministerSkillTestInputSchema,
@@ -35,10 +34,7 @@ Return ONLY a JSON object:
 }
 Do NOT include any extra text outside the JSON object. Ensure 'questionText' is at least 10 characters long.`;
 
-const administerSkillTestFlow = ai.defineFlow<
-  typeof AdministerSkillTestInputSchema,
-  typeof AdministerSkillTestOutputSchema
->(
+const administerSkillTestFlow = ai.defineFlow(
   {
     name: 'administerSkillTestFlow',
     inputSchema: AdministerSkillTestInputSchema,
@@ -60,7 +56,7 @@ const administerSkillTestFlow = ai.defineFlow<
         const primaryModel = await chooseModelBasedOnPrompt(
           `Create skill question for: ${skill}`,
         );
-        console.log(`Model: ${primaryModel}`);
+        console.log(`Model: ${primaryModel.name}`);
 
         const skillQuestionPrompt = ai.definePrompt({
           name: `skillQuestionPrompt_${skill}`,
@@ -79,12 +75,7 @@ const administerSkillTestFlow = ai.defineFlow<
         const originalPromptText = skillQuestionPromptTemplate
           .replace('{{{skill}}}', skill)
           .replace('{{{freelancerId}}}', input.freelancerId);
-        // const validation = await validateAIOutput(
-        //   originalPromptText,
-        //   JSON.stringify(aiOutput),
-        //   primaryModel,
-        // );
-        // if (!validation.allValid) throw new Error('Validation failed.');
+        
 
         questions.push({
           questionText: aiOutput.questionText,

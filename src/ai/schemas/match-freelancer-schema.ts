@@ -16,7 +16,7 @@ export type MatchFreelancerInput = z.infer<typeof MatchFreelancerInputSchema>;
 
 // --- Skill Extraction AI Output Schema ---
 export const ExtractSkillsAIOutputSchema = z.object({
-  extractedSkills: z.array(z.string()).min(1).max(5).describe('List of 1-5 key skills extracted from project brief.'),
+  extractedSkills: z.array(z.string()).min(1).max(7).describe('List of 1-7 key skills extracted from project brief.'),
 });
 export type ExtractSkillsAIOutput = z.infer<typeof ExtractSkillsAIOutputSchema>;
 
@@ -36,6 +36,9 @@ export const MatchFreelancerOutputSchema = z.object({
   reasoning: z.string().describe('Explanation for the match or estimation outcome.'),
   estimatedBaseCost: z.number().nonnegative().optional().describe('Base cost estimate paid to the freelancer.'),
   platformFee: z.number().nonnegative().optional().describe('Calculated platform fee (markup).'),
+  tax: z.number().nonnegative().optional().describe('Tax amount'),
+  ratingPremium: z.number().nonnegative().optional().describe('Premium for high rating'),
+  complexitySurcharge: z.number().nonnegative().optional().describe('Surcharge for complexity'),
   totalCostToClient: z.number().nonnegative().optional().describe('Total project cost to client including markup.'),
   estimatedTimeline: z.string().optional().describe('Projected project completion timeline.'),
   estimatedHours: z.number().positive().optional().describe('Estimated hours required for project.'),

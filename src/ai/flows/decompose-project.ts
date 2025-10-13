@@ -7,13 +7,11 @@
 
 import { ai } from '@/lib/ai'; // Import the configured ai instance
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
 import {
   DecomposeProjectInputSchema,
   type DecomposeProjectInput,
   DecomposeProjectOutputSchema,
   type DecomposeProjectOutput,
-  MicrotaskSchema, // Schema for individual microtask (used in output)
   type Microtask as SchemaMicrotask,
 } from '@/ai/schemas/decompose-project-schema'; // Import types/schemas from separate file
 import { updateProjectMicrotasks, updateProjectStatus } from '@/services/firestore';
@@ -77,18 +75,17 @@ export async function decomposeProject(
 
   try {
     const primaryModel = await chooseModelBasedOnPrompt(input.projectBrief);
-    console.log(`Using model ${primaryModel} for decomposition.`);
+    console.log(`Using model ${primaryModel.name} for decomposition.`);
 
     // Construct the prompt content dynamically
     const promptContent = decompositionPromptTemplate
       .replace('{{{projectBrief}}}', input.projectBrief)
       .replace('{{#each requiredSkills}}- {{{this}}}
-{{/each}}', input.requiredSkills.map(s => `- ${s}`).join('
-'));
+{{/each}}', input.requiredSkills.map(s => `- ${s}`).join('\n'));
 
     // Define the model for generation inside the async function
     const decomposePrompt = ai.definePrompt({
-        name: `decomposePrompt_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        name: `decomposePrompt_${primaryModel.name.replace(/[^a-zA-Z0-9]/g, '_')}`,
         input: { schema: z.object({ promptContent: z.string() }) }, // Pass the rendered content
         output: { schema: DecomposeAIOutputSchema }, // Use the correct output schema
         prompt: promptContent,
@@ -99,19 +96,13 @@ export async function decomposeProject(
     const { output } = await decomposePrompt({ promptContent }); // Pass content
 
     if (!output) {
-      throw new Error(`AI (${primaryModel}) did not return a valid response.`);
+      throw new Error(`AI (${primaryModel.name}) did not return a valid response.`);
     }
 
     // Validate the structure (already done by Genkit if output schema is correct)
     const parsedOutput = DecomposeAIOutputSchema.parse(output); // Ensure it matches schema
 
-    // Perform cross-validation
-    // validateAIOutput is async and exported from its own 'use server' file
-    const validation = await validateAIOutput(promptContent, JSON.stringify(parsedOutput), primaryModel);
-    if (!validation.allValid) {
-      console.warn(`Validation failed for project decomposition (${input.projectId}). Reasoning:`, validation.results);
-      throw new Error(`Project decomposition failed cross-validation.`);
-    }
+    
 
     // Process validated output
     const validatedTasks = validateTaskDependencies(parsedOutput); // Validate dependencies

@@ -1,6 +1,4 @@
 
-'use server';
-
 import { ALL_MODELS, type ModelId } from '@/lib/ai-models';
 import { LRUCache } from 'lru-cache';
 
@@ -20,7 +18,7 @@ const TOKEN_CHAR_RATIO= Number(process.env.TOKEN_CHAR_RATIO)|| 4;
 
 // Features for semantic matching
 const FEATURES = [
-  { name: 'code',       keywords: ['code','```','debug','script','api','function','typescript'], boosts: [] },
+  { name: 'code',       keywords: ['code','\`\`\`','debug','script','api','function','typescript'], boosts: [] },
   { name: 'design',     keywords: ['design','image','graphic','visual','mockup','ui','ux'], boosts: [] },
   { name: 'analysis',   keywords: ['analysis','data','chart','report','statistics','table'], boosts: [{ threshold:1500, boost:2 }] },
   { name: 'creativity', keywords: ['story','creative','marketing','brand','poem','novel'], boosts: [{ threshold:800, boost:1 }] },
@@ -64,15 +62,24 @@ function extractFeatures(raw: unknown): Record<string, number> {
 
 // Model profiles: proficiency, cost per token, average latency
 interface Profile { proficiency: Record<string, number>; cost: number; latency: number }
-const PROFILES: Record<ModelId, Profile> = {
-  [ALL_MODELS.openaiMini]:     { proficiency:{code:9,design:5,analysis:6,creativity:4,qa:8}, cost:0.001,  latency:150 },
-  [ALL_MODELS.openaiFull]:     { proficiency:{code:8,design:9,analysis:7,creativity:8,qa:7}, cost:0.02,   latency:300 },
-  [ALL_MODELS.googleFast]:     { proficiency:{code:5,design:4,analysis:5,creativity:5,qa:6}, cost:0.0005, latency:50  },
-  [ALL_MODELS.googlePro]:      { proficiency:{code:6,design:6,analysis:8,creativity:6,qa:7}, cost:0.002,  latency:200 },
-  [ALL_MODELS.anthropicHaiku]: { proficiency:{code:4,design:3,analysis:5,creativity:6,qa:5}, cost:0.0015,latency:180 },
-  [ALL_MODELS.anthropicSonnet]:{ proficiency:{code:5,design:5,analysis:7,creativity:8,qa:6}, cost:0.002,  latency:220 },
-  [ALL_MODELS.anthropicOpus]:  { proficiency:{code:7,design:6,analysis:9,creativity:7,qa:8}, cost:0.003,  latency:350 },
+const PROFILES: Record<string, Profile> = {
+    [ALL_MODELS.googleFlash.name]: {
+        proficiency: { code: 6, design: 5, analysis: 7, creativity: 6, qa: 8 },
+        cost: 0.0005,
+        latency: 70,
+    },
+    [ALL_MODELS.openaiMini.name]: {
+        proficiency: { code: 9, design: 7, analysis: 8, creativity: 7, qa: 9 },
+        cost: 0.001,
+        latency: 150,
+    },
+    [ALL_MODELS.anthropicSonnet.name]: {
+        proficiency: { code: 7, design: 6, analysis: 9, creativity: 8, qa: 7 },
+        cost: 0.002,
+        latency: 220,
+    },
 };
+
 
 function estimateTokens(text: string): number {
   return Math.max(1, Math.ceil(text.length / TOKEN_CHAR_RATIO));
@@ -88,14 +95,14 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<M
   const feats = extractFeatures(prompt);
   // determine available models
   const availableModels: ModelId[] = Array.from(new Set([ // Explicitly type here
-    ...(GOOGLE_API_KEY    ? [ALL_MODELS.googleFast, ALL_MODELS.googlePro] : []),
-    ...(OPENAI_API_KEY    ? [ALL_MODELS.openaiMini, ALL_MODELS.openaiFull] : []),
-    ...(ANTHROPIC_API_KEY ? [ALL_MODELS.anthropicHaiku, ALL_MODELS.anthropicSonnet, ALL_MODELS.anthropicOpus] : []),
+    ...(GOOGLE_API_KEY    ? [ALL_MODELS.googleFlash] : []),
+    ...(OPENAI_API_KEY    ? [ALL_MODELS.openaiMini] : []),
+    ...(ANTHROPIC_API_KEY ? [ALL_MODELS.anthropicSonnet] : []),
   ]));
 
   if (availableModels.length === 0) {
-    console.warn("[AI Model Choice] No API keys found. Defaulting to googleFast. AI calls may fail.");
-    return ALL_MODELS.googleFast; // Default if no keys are set
+    console.warn("[AI Model Choice] No API keys found. Defaulting to googleFlash. AI calls may fail.");
+    return ALL_MODELS.googleFlash; // Default if no keys are set
   }
 
   let bestModel: ModelId = availableModels[0]; // Initialize with the first available model
@@ -103,9 +110,9 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<M
 
   // scoring
   for (const model of availableModels) {
-    const profile = PROFILES[model];
+    const profile = PROFILES[model.name];
     if (!profile) {
-        console.warn(`[AI Model Choice] Profile not found for model: ${model}. Skipping.`);
+        console.warn(`[AI Model Choice] Profile not found for model: ${model.name}. Skipping.`);
         continue;
     }
     const { proficiency, cost, latency } = profile;
@@ -120,8 +127,8 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<M
     
     // Tie-breaker: deterministic by model enum order (smaller index in ALL_MODELS is preferred)
     // This requires a way to get the "order" of models. For simplicity, if scores are equal,
-    // the first one encountered that achieves that score (based on `availableModels` order) will be kept.
-    // To make it fully deterministic by ALL_MODELS order, one might sort `availableModels` first by their
+    // the first one encountered that achieves that score (based on \`availableModels\` order) will be kept.
+    // To make it fully deterministic by ALL_MODELS order, one might sort \`availableModels\` first by their
     // original order in ALL_MODELS.
     // For now, simple comparison is fine.
     if (score > bestScore) {
@@ -129,6 +136,6 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<M
       bestModel = model;
     }
   }
-  // console.log(`[AI Model Choice] Prompt (first 50 chars): "${prompt.substring(0,50)}...", Chosen: ${bestModel}, Score: ${bestScore.toFixed(2)}`);
+  // console.log(`[AI Model Choice] Prompt (first 50 chars): "${prompt.substring(0,50)}...", Chosen: ${bestModel.name}, Score: ${bestScore.toFixed(2)}\`);
   return bestModel;
 }

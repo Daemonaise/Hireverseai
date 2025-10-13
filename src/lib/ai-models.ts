@@ -1,36 +1,35 @@
 /**
- * @fileOverview Centralized definitions for Genkit model objects.
+ * @fileoverview Centralized definitions for Genkit model objects using the latest patterns.
  */
 
+import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
-import { openAI } from '@genkit-ai/openai';
-import { anthropic, claude35Sonnet, claude3Haiku, claude3Opus } from 'genkitx-anthropic';
+import { openAI } from '@genkit-ai/compat-oai/openai';
+import { anthropic, claude37Sonnet } from 'genkitx-anthropic';
 
-// Build model objects from each provider
+// Initialize plugins
+genkit({
+  plugins: [googleAI(), openAI(), anthropic()],
+});
+
+// Define model references from the initialized plugins
 export const MODEL_REGISTRY = {
   google: {
-    flash: googleAI.model('gemini-1.5-flash'),
-    pro: googleAI.model('gemini-1.5-pro'),
+    flash: googleAI.model('gemini-flash-latest'),
   },
   openai: {
-    mini: openAI.model('gpt-4o-mini'),
-    full: openAI.model('gpt-4o'),
+    mini: openAI.model('gpt-5-mini-2025-08-07'),
   },
   anthropic: {
-    haiku: claude3Haiku,
-    sonnet: claude35Sonnet,
-    opus: claude3Opus,
+    sonnet: claude37Sonnet,
   },
 } as const;
 
+// Flattened map for direct access to models
 export const ALL_MODELS = {
-  googleFast: MODEL_REGISTRY.google.flash,
-  googlePro: MODEL_REGISTRY.google.pro,
+  googleFlash: MODEL_REGISTRY.google.flash,
   openaiMini: MODEL_REGISTRY.openai.mini,
-  openaiFull: MODEL_REGISTRY.openai.full,
-  anthropicHaiku: MODEL_REGISTRY.anthropic.haiku,
   anthropicSonnet: MODEL_REGISTRY.anthropic.sonnet,
-  anthropicOpus: MODEL_REGISTRY.anthropic.opus,
 };
 
 // ---- TYPE HELPERS ----

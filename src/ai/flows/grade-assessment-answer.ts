@@ -7,7 +7,6 @@
 
 import { ai } from '@/lib/ai'; // Import the configured ai instance
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
 import { z } from 'zod';
 import {
   GradeAssessmentAnswerInputSchema,
@@ -15,7 +14,6 @@ import {
   GradeAssessmentAnswerOutputSchema,
   type GradeAssessmentAnswerOutput,
   AnswerFlagsSchema, // Import enum schema
-  type AnswerFlags,
 } from '@/ai/schemas/grade-assessment-answer-schema'; // Import types/schemas from separate file
 
 
@@ -57,10 +55,7 @@ IMPORTANT: Do NOT include any explanatory text or extra formatting. Only output 
 
 
 // --- Define the Flow (local to this file, not exported) ---
-const gradeAssessmentAnswerFlow = ai.defineFlow<
-  typeof GradeAssessmentAnswerInputSchema,
-  typeof GradeAssessmentAnswerOutputSchema
->(
+const gradeAssessmentAnswerFlow = ai.defineFlow(
   {
     name: 'gradeAssessmentAnswerFlow',
     inputSchema: GradeAssessmentAnswerInputSchema,
@@ -73,11 +68,11 @@ const gradeAssessmentAnswerFlow = ai.defineFlow<
         // 1. Choose the primary model for generation
         const promptContext = `Grade answer for question about ${input.skillTested} (${input.difficulty}). Question: ${input.questionText}. Answer: ${input.answerText}`;
         const primaryModel = await chooseModelBasedOnPrompt(promptContext);
-        console.log(`Using model ${primaryModel} for grading.`);
+        console.log(`Using model ${primaryModel.name} for grading.`);
 
         // 2. Define the prompt using the chosen model and template
         const gradeAnswerPrompt = ai.definePrompt({
-            name: `gradeAnswerPrompt_${input.questionId}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
+            name: `gradeAnswerPrompt_${input.questionId}_${primaryModel.name.replace(/[^a-zA-Z0-9]/g, '_')}`,
             input: { schema: GradeAssessmentAnswerInputSchema },
             output: { schema: AIGradeOutputSchema },
             prompt: gradeAnswerPromptTemplate,
@@ -88,7 +83,7 @@ const gradeAssessmentAnswerFlow = ai.defineFlow<
       const { output: aiOutput } = await gradeAnswerPrompt(input);
 
       if (!aiOutput) {
-        throw new Error(`AI (${primaryModel}) failed to return valid JSON grading output.`);
+        throw new Error(`AI (${primaryModel.name}) failed to return valid JSON grading output.`);
       }
 
       // 4. Validate AI output structure (already done by prompt definition)
@@ -107,14 +102,7 @@ const gradeAssessmentAnswerFlow = ai.defineFlow<
             .replace('{{{questionText}}}', input.questionText)
             .replace('{{{answerText}}}', input.answerText);
 
-       // validateAIOutput is async and exported from its own 'use server' file
-       const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel as any); // Cast primaryModel
-
-       if (!validation.allValid) {
-           console.warn(`Validation failed for grading question ${input.questionId}. Reasoning:`, validation.results);
-           // Do not throw an error, just log a warning and proceed.
-           // throw new Error(`Grading for question ${input.questionId} failed cross-validation.`);
-       }
+       
 
 
       // 6. Construct the full output object, adding the questionId back

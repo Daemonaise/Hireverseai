@@ -2,7 +2,7 @@
  * @fileOverview Schemas and types for the gradeAssessmentAnswer flow.
  */
 import { z } from 'zod';
-import type { DifficultyLevel } from './generate-assessment-question-schema'; // Correct external type import
+import { DifficultyLevelSchema } from './generate-assessment-question-schema'; // Correct external type import
 
 // --- Flags Enum ---
 export const AnswerFlagsSchema = z.enum([
@@ -20,7 +20,7 @@ export const GradeAssessmentAnswerInputSchema = z.object({
   questionId: z.string().describe('Unique ID of the question being answered.'),
   questionText: z.string().describe('Text of the assessment question.'),
   skillTested: z.string().describe('Specific skill the question is designed to test.'),
-  difficulty: z.string().describe('Difficulty level of the question (e.g., "beginner", "intermediate", etc.).'), // Keeping string for flexibility, even if internally we use DifficultyLevel
+  difficulty: DifficultyLevelSchema.describe('Difficulty level of the question (e.g., "beginner", "intermediate", etc.).'),
   answerText: z.string().describe('The freelancer\'s submitted answer.'),
   primarySkill: z.string().describe('Main skill being assessed in the overall test.'),
 });

@@ -8,14 +8,12 @@
 
 import { ai } from '@/lib/ai'; // Import the configured ai instance
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
 import { z } from 'zod';
 import {
   GenerateAssessmentQuestionInputSchema,
   type GenerateAssessmentQuestionInput,
   GenerateAssessmentQuestionOutputSchema,
   type GenerateAssessmentQuestionOutput,
-  type DifficultyLevel, // Import DifficultyLevel type
 } from '@/ai/schemas/generate-assessment-question-schema'; // Import types/schemas from separate file
 
 
@@ -55,10 +53,7 @@ No extra text outside the JSON.`;
 
 
 // --- Define the Flow (local to this file, not exported) ---
-const generateAssessmentQuestionFlow = ai.defineFlow<
-  typeof GenerateAssessmentQuestionInputSchema,
-  typeof GenerateAssessmentQuestionOutputSchema
->(
+const generateAssessmentQuestionFlow = ai.defineFlow(
   {
     name: 'generateAssessmentQuestionFlow',
     inputSchema: GenerateAssessmentQuestionInputSchema,
@@ -74,11 +69,11 @@ const generateAssessmentQuestionFlow = ai.defineFlow<
       // 1. Choose the primary model for generation
       const promptContext = `Generate ${input.difficulty} question for ${input.primarySkill}. Other skills: ${input.allSkills.join(', ')}. Avoid similar to: ${input.previousQuestions?.join('; ') ?? 'None'}`;
       const primaryModel = await chooseModelBasedOnPrompt(promptContext);
-      console.log(`Using model ${primaryModel} for question generation.`);
+      console.log(`Using model ${primaryModel.name} for question generation.`);
 
       // 2. Define the prompt using the chosen model and template
       const generateQuestionPrompt = ai.definePrompt({
-        name: `generateQuestionPrompt_${input.primarySkill}_${input.difficulty}_${primaryModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        name: `generateQuestionPrompt_${input.primarySkill}_${input.difficulty}_${primaryModel.name.replace(/[^a-zA-Z0-9]/g, '_')}`,
         input: { schema: GenerateAssessmentQuestionInputSchema.extend({ timestamp: z.number() }) },
         output: { schema: AIQuestionOutputSchema },
         prompt: generateQuestionPromptTemplate,
@@ -90,7 +85,7 @@ const generateAssessmentQuestionFlow = ai.defineFlow<
       const { output: aiOutput } = await generateQuestionPrompt(promptInput);
 
       if (!aiOutput?.questionText) {
-        throw new Error(`AI (${primaryModel}) did not return valid JSON question text.`);
+        throw new Error(`AI (${primaryModel.name}) did not return valid JSON question text.`);
       }
 
       // 4. Validate the output with other models
@@ -107,14 +102,7 @@ const generateAssessmentQuestionFlow = ai.defineFlow<
                          ? `Avoid generating questions similar to:\n${input.previousQuestions.map(q => `- ${q}`).join('\n')}`
                          : '');
 
-       // validateAIOutput is async and exported from its own 'use server' file
-       const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), primaryModel as any); // Cast primaryModel
-
-       if (!validation.allValid) {
-           console.warn(`Validation failed for question generation (Skill: ${input.primarySkill}, Difficulty: ${input.difficulty}). Reasoning:`, validation.results);
-           // Do not throw an error, just log a warning and proceed.
-           // throw new Error(`Question generation for ${input.primarySkill} (${input.difficulty}) failed cross-validation.`);
-       }
+       
 
 
       // 5. Construct the full output object

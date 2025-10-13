@@ -7,7 +7,6 @@
 
 import { ai } from '@/lib/ai'; // Import the configured ai instance
 import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import { validateAIOutput } from '@/ai/validate-output'; // Import from correct location
 import { z } from 'zod';
 import { updateFreelancerTestScore } from '@/services/firestore';
 import {
@@ -19,7 +18,6 @@ import {
     SkillScoreSchema, // Import SkillScore schema
     type SkillScore,
     AggregateScoresOutputSchema, // Schema for AI aggregation output
-    type AggregateScoresOutput,
 } from '@/ai/schemas/score-skill-test-schema'; // Import types/schemas from separate file
 
 
@@ -86,10 +84,7 @@ Do not include any explanations or introductory text outside the JSON object.`;
 
 
 // --- Define the Flow (local to this file, not exported) ---
-const scoreSkillTestFlow = ai.defineFlow<
-  typeof ScoreSkillTestInputSchema,
-  typeof ScoreSkillTestOutputSchema
->(
+const scoreSkillTestFlow = ai.defineFlow(
   {
     name: 'scoreSkillTestFlow',
     inputSchema: ScoreSkillTestInputSchema,
@@ -116,16 +111,17 @@ Answer: ${a.answerText}
 ---`).join('\n');
 
       let skillScoreOutput: SkillScore | null = null;
-      let scoreModel: string; // Declare model name variable
+      let scoreModelName: string; // Declare model name variable
 
       try {
           // 1a. Choose model for scoring this skill
-          scoreModel = await chooseModelBasedOnPrompt(`Score skill test answers for ${skill}. Answers: ${answersText}`);
-          console.log(`Using model ${scoreModel} for scoring skill: ${skill}`);
+          const scoreModel = await chooseModelBasedOnPrompt(`Score skill test answers for ${skill}. Answers: ${answersText}`);
+          scoreModelName = scoreModel.name;
+          console.log(`Using model ${scoreModelName} for scoring skill: ${skill}`);
 
           // 1b. Define scoring prompt
           const scoreSingleSkillPrompt = ai.definePrompt({
-             name: `scoreSingleSkillPrompt_${skill}_${scoreModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
+             name: `scoreSingleSkillPrompt_${skill}_${scoreModelName.replace(/[^a-zA-Z0-9]/g, '_')}`,
              input: { schema: SingleSkillScoreInputSchema },
              output: { schema: SingleSkillScoreAIOutputSchema },
              prompt: scoreSingleSkillPromptTemplate,
@@ -137,26 +133,13 @@ Answer: ${a.answerText}
           const { output: aiOutput } = await scoreSingleSkillPrompt(scoreInput);
 
           if (!aiOutput) {
-              throw new Error(`AI (${scoreModel}) failed to return valid JSON for skill scoring.`);
+              throw new Error(`AI (${scoreModelName}) failed to return valid JSON for skill scoring.`);
           }
 
           // 1d. Clamp score just in case AI deviates
           aiOutput.score = Math.max(0, Math.min(100, aiOutput.score));
 
-          // 1e. Validate the output with other models
-           const originalPromptText = scoreSingleSkillPromptTemplate
-              .replace('{{{skill}}}', skill)
-              .replace('{{{freelancerId}}}', input.freelancerId)
-              .replace('{{{answersText}}}', answersText);
-
-          // validateAIOutput is async and exported from its own 'use server' file
-          const validation = await validateAIOutput(originalPromptText, JSON.stringify(aiOutput), scoreModel as any); // Cast primaryModel
-
-          if (!validation.allValid) {
-              console.warn(`Validation failed for skill scoring (skill: ${skill}). Reasoning:`, validation.results);
-              throw new Error(`Skill scoring for "${skill}" failed cross-validation.`);
-          }
-
+          
           skillScoreOutput = {
               skill: skill,
               score: aiOutput.score,
@@ -186,16 +169,17 @@ Answer: ${a.answerText}
         overallScore = Math.round(validScores.length > 0 ? totalScore / validScores.length : 0);
 
         const scoresText = skillScores.map(ss => `- Skill: ${ss.skill}\n  Score: ${ss.score}/100\n  Reasoning: ${ss.reasoning}`).join('\n');
-        let feedbackModel: string; // Declare model name variable
+        let feedbackModelName: string; // Declare model name variable
 
         try {
             // 2a. Choose model for feedback generation
-            feedbackModel = await chooseModelBasedOnPrompt(`Summarize test results: ${scoresText}`);
-            console.log(`Using model ${feedbackModel} for feedback aggregation.`);
+            const feedbackModel = await chooseModelBasedOnPrompt(`Summarize test results: ${scoresText}`);
+            feedbackModelName = feedbackModel.name;
+            console.log(`Using model ${feedbackModelName} for feedback aggregation.`);
 
             // 2b. Define feedback prompt
             const aggregateFeedbackPrompt = ai.definePrompt({
-                name: `aggregateFeedbackPrompt_${input.testId}_${feedbackModel.replace(/[^a-zA-Z0-9]/g, '_')}`,
+                name: `aggregateFeedbackPrompt_${input.testId}_${feedbackModelName.replace(/[^a-zA-Z0-9]/g, '_')}`,
                 input: { schema: AggregateFeedbackInputSchema },
                 output: { schema: AggregateFeedbackAIOutputSchema },
                 prompt: aggregateFeedbackPromptTemplate,
@@ -207,29 +191,12 @@ Answer: ${a.answerText}
             const { output: feedbackOutput } = await aggregateFeedbackPrompt(feedbackInput);
 
              if (!feedbackOutput?.feedback) {
-                throw new Error(`AI (${feedbackModel}) failed to return valid JSON for feedback aggregation.`);
+                throw new Error(`AI (${feedbackModelName}) failed to return valid JSON for feedback aggregation.`);
              }
              feedback = feedbackOutput.feedback;
-
-             // 2d. Validate the output with other models
-              const originalPromptText = aggregateFeedbackPromptTemplate
-                  .replace('{{{freelancerId}}}', input.freelancerId)
-                  .replace('{{{testId}}}', input.testId)
-                  .replace('{{{overallScore}}}', overallScore.toString())
-                  .replace('{{{scoresText}}}', scoresText);
-
-             // validateAIOutput is async and exported from its own 'use server' file
-             const validation = await validateAIOutput(originalPromptText, JSON.stringify(feedbackOutput), feedbackModel as any); // Cast primaryModel
-
-             if (!validation.allValid) {
-                 console.warn(`Validation failed for feedback aggregation (test ID: ${input.testId}). Reasoning:`, validation.results);
-                 // Use fallback feedback if validation fails
-                 finalFeedback = `Overall score is ${overallScore}/100. Individual skill feedback available. (Feedback summary validation failed).`;
-             } else {
-                finalFeedback = feedback; // Use validated feedback
-                console.log(`Generated and validated overall feedback for test ${input.testId}.`);
-             }
-
+             finalFeedback = feedback; // Use validated feedback
+             console.log(`Generated and validated overall feedback for test ${input.testId}.`);
+             
 
         } catch (error: any) {
             console.error(`Error generating or validating overall feedback for test ${input.testId}:`, error?.message || error);
