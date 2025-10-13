@@ -5,7 +5,6 @@
  */
 
 import { ai } from '@/lib/ai';
-import { validateAIOutput } from '@/ai/validate-output';
 import { z } from 'zod';
 import {
   GenerateProjectIdeaInputSchema,
@@ -14,6 +13,7 @@ import {
   type GenerateProjectIdeaInput,
   type GenerateProjectIdeaOutput,
 } from '@/ai/schemas/generate-project-idea-schema';
+import { googleAI } from '@genkit-ai/google-genai';
 
 // --- Configuration ---
 const PLATFORM_FEE = 0.15;       // 15%
@@ -58,7 +58,7 @@ const PromptInputSchema = GenerateProjectIdeaInputSchema.extend({ randomNumber: 
 type PromptInputType = z.infer<typeof PromptInputSchema>;
 
 // --- Define the reusable prompt object ---
-const modelId = 'googleai/gemini-1.5-flash'; // Changed from googleai/gemini-1.5-flash-latest
+const modelId = googleAI.model('gemini-1.5-flash'); 
 
 const projectIdeaGenPrompt = ai.definePrompt({
   name: 'generateProjectIdeaPrompt', // Unique name for the prompt
@@ -129,7 +129,7 @@ const generateProjectIdeaFlow = ai.defineFlow<
       platformFee: +platformFee.toFixed(2),
       totalCostToClient: +totalCost.toFixed(2),
       monthlySubscriptionCost: +monthlyCost.toFixed(2),
-      reasoning: `Generated with ${modelId} structured output; ${estimatedHours}h @ $${HOURLY_RATE}/h + ${PLATFORM_FEE * 100}% fee.`,
+      reasoning: `Generated with ${modelId.name} structured output; ${estimatedHours}h @ $${HOURLY_RATE}/h + ${PLATFORM_FEE * 100}% fee.`,
     };
 
     // Final validation
