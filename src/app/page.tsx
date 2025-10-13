@@ -1,13 +1,18 @@
 
-'use client'; // This page uses client-side hooks (useRef, useState)
+'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
-import React, { useRef } from 'react'; // Added useRef
-import { AiMatcher, type AiMatcherRef } from '@/components/ai-matcher'; // Import AiMatcher and its Ref type
+import React, { useRef } from 'react';
+import { AiMatcher, type AiMatcherRef } from '@/components/ai-matcher';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge'; // Import Badge
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   BrainCircuit,
   Users,
@@ -28,13 +33,12 @@ import {
   Briefcase,
   Sparkles,
   UsersRound,
-  GanttChart, // For workflow
-  Award, // For badges/leaderboard
-  TrendingUp, // For XP/growth
+  GanttChart,
+  Award,
+  TrendingUp,
 } from 'lucide-react';
 import { HeaderNavigationClient } from '@/components/header-navigation-client';
 
-// Data for "Core Features" Section
 const keyFeaturesData = [
   {
     icon: BrainCircuit,
@@ -67,20 +71,8 @@ const keyFeaturesData = [
     title: 'Dynamic Workflow Engine',
     description: 'Manages dependencies and reroutes work in real time based on performance metrics.',
   },
-  {
-    icon: LayoutDashboard,
-    title: 'Unified Project Dashboard',
-    description: 'Manage briefs, monitor progress, communicate and approve work in a single, intuitive interface.',
-  },
-  {
-    icon: Lock,
-    title: 'Secure & Compliant Platform',
-    description: 'Enterprise-grade security, data protection and compliance with industry standards.',
-  }
 ];
 
-
-// Data for "Hireverse AI Workflow" Section (Vertical Timeline)
 const hireverseWorkflowData = [
   {
     icon: FileText,
@@ -114,7 +106,6 @@ const hireverseWorkflowData = [
   },
 ];
 
-
 export default function Home() {
   const aiMatcherRef = useRef<AiMatcherRef>(null);
 
@@ -122,37 +113,34 @@ export default function Home() {
     aiMatcherRef.current?.triggerSubmit();
   };
 
-
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
-      {/* Header */}
-      <header className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6 sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
+      <header className="container mx-auto flex h-20 items-center justify-between px-4 md:px-6 sticky top-0 z-50 bg-background/80 backdrop-blur-sm">
         <Link href="/" aria-label="Hireverse AI Home" className="flex items-center gap-2">
-           <span className="text-xl font-bold">Hireverse AI</span>
+           <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">Hireverse AI</span>
         </Link>
         <HeaderNavigationClient />
       </header>
 
       <main className="flex-1">
-        {/* Hero Section */}
         <section className="py-20 md:py-28">
-          <div className="container mx-auto px-4 md:px-6 flex flex-col md:flex-row items-center gap-12 text-center md:text-left">
-            <div className="md:w-1/2 space-y-6">
-              <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
+          <div className="container mx-auto px-4 md:px-6 grid md:grid-cols-2 gap-12 items-center">
+            <div className="space-y-6 text-center md:text-left">
+              <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl md:text-6xl">
                 Harness AI Precision with Expert Oversight
               </h1>
               <p className="max-w-2xl text-lg text-muted-foreground md:text-xl">
-                Combine cutting-edge AI decision-making with human expertise. hireverse.ai is the go-to platform for streamlined project execution, connecting clients to perfectly matched freelancers through AI-driven task breakdowns and rigorous talent vetting.
+                Combine cutting-edge AI decision-making with human expertise. Hireverse is the platform for streamlined project execution.
               </p>
               <Button
                 size="lg"
                 onClick={handleStartProjectClick}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 transition-transform duration-300"
+                className="bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity duration-300 shadow-lg"
               >
                 Start a Project <Rocket className="ml-2 h-5 w-5" />
               </Button>
             </div>
-            <div className="md:w-1/2 mt-10 md:mt-0 flex justify-center md:justify-end">
+            <div className="flex justify-center">
                <div className="w-full max-w-xl">
                 <AiMatcher ref={aiMatcherRef} />
               </div>
@@ -160,106 +148,69 @@ export default function Home() {
           </div>
         </section>
 
-        <div className="py-8 md:py-10"> <Separator /> </div>
+        <Separator className="my-12" />
 
-        {/* Core Features Section */}
-         <section className="container mx-auto px-4 py-12 md:px-6 md:py-16 bg-muted/50 rounded-lg">
+         <section className="container mx-auto px-4 py-16 md:px-6">
            <h2 className="mb-12 text-center text-3xl font-bold tracking-tight sm:text-4xl">
             Core Features
            </h2>
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
-              {keyFeaturesData.map((feature) => (
-                  <div key={feature.title} className="flex items-start gap-4 p-1 hover:scale-[1.02] transition-transform duration-300">
-                      <div className="flex-shrink-0 mt-1">
-                        <feature.icon className="h-8 w-8 text-primary stroke-2" />
+           <Accordion type="single" collapsible className="w-full max-w-4xl mx-auto" defaultValue="item-0">
+              {keyFeaturesData.map((feature, index) => (
+                  <AccordionItem value={`item-${index}`} key={feature.title} className="border-b">
+                    <AccordionTrigger className="text-lg font-semibold hover:no-underline">
+                      <div className="flex items-center gap-4">
+                        <feature.icon className="h-6 w-6 text-primary" />
+                        {feature.title}
                       </div>
-                      <div>
-                        <h3 className="text-xl font-semibold mb-1 flex items-center gap-2">
-                            {feature.title}
-                            {feature.isNew && (
-                                <Badge variant="default" className="text-xs whitespace-nowrap bg-green-500 text-white border-green-600">
-                                    NEW
-                                </Badge>
-                            )}
-                        </h3>
-                        <p className="text-muted-foreground">{feature.description}</p>
-                      </div>
-                  </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-2 text-base text-muted-foreground pl-14">
+                      {feature.description}
+                    </AccordionContent>
+                  </AccordionItem>
               ))}
-           </div>
+           </Accordion>
         </section>
 
-        <div className="py-8 md:py-10"> <Separator /> </div>
+        <Separator className="my-12" />
 
-        {/* Hireverse AI Workflow Section (Vertical Timeline) */}
-        <section id="hireverse-ai-workflow" className="container mx-auto px-4 py-12 md:px-6 md:py-16">
-          <h2 className="mb-10 text-center text-3xl font-bold tracking-tight sm:text-4xl">
-            Hireverse AI Workflow
+        <section id="hireverse-ai-workflow" className="container mx-auto px-4 py-16 md:px-6">
+          <h2 className="mb-16 text-center text-3xl font-bold tracking-tight sm:text-4xl">
+            Our Workflow, Simplified
           </h2>
-          <div className="max-w-3xl mx-auto text-lg text-muted-foreground text-center leading-relaxed mb-16">
-            <p>
-              Describe your project in simple, plain English. Our AI instantly translates your request into clear milestones, specifications, and role requirements. It then matches you with top-tier freelancers based on skills, availability, and fit. Collaborate seamlessly in one intuitive dashboard, with AI dynamically refining project scope, team composition, and deliverables as needed.
-            </p>
-          </div>
-          <div className="relative max-w-4xl mx-auto">
-            <div className="space-y-12 md:space-y-16">
-              {hireverseWorkflowData.map((step, index) => (
-                <div key={step.title} className={`flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-10 ${index % 2 !== 0 ? 'md:flex-row-reverse' : ''}`}>
-                  <div className="flex-shrink-0 flex md:flex-col items-center relative z-10">
-                    <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xl font-bold border-2 border-primary/30 shadow-md mb-2 md:mb-0 md:mr-0">
-                      {index + 1}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              {hireverseWorkflowData.map((step) => (
+                <Card key={step.title} className="text-center hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                  <CardHeader className="items-center">
+                    <div className="p-4 bg-primary/10 rounded-full mb-4">
+                      <step.icon className="h-8 w-8 text-primary" />
                     </div>
-                    <div className="md:mt-3 p-3 bg-card rounded-full shadow-lg border">
-                      <step.icon className="h-8 w-8 text-primary stroke-2" />
-                    </div>
-                  </div>
-                  <div className={`p-6 rounded-lg shadow-xl w-full md:w-2/3 bg-card hover:shadow-2xl transition-shadow duration-300 border ${index % 2 !== 0 ? 'md:text-right' : 'md:text-left'}`}>
-                    <h3 className="text-xl font-semibold mb-2">{step.title}</h3>
+                    <CardTitle>{step.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
                     <p className="text-muted-foreground">{step.description}</p>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
               ))}
-            </div>
           </div>
         </section>
 
-        <div className="py-8 md:py-10"> <Separator /> </div>
+        <Separator className="my-12" />
 
-        {/* Community & Gamification Section */}
         <section className="py-16 bg-muted/50">
             <div className="container mx-auto px-4 md:px-6 text-center">
                 <h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-6">
                     Join Our Thriving Freelancer Community
                 </h2>
-                <p className="max-w-2xl mx-auto text-lg text-muted-foreground md:text-xl mb-10">
-                    Connect with peers, earn XP by completing projects and participating in challenges,
-                    unlock badges to showcase your expertise, and climb the leaderboard.
-                    At Hireverse AI, your growth is recognized and rewarded.
+                <p className="max-w-3xl mx-auto text-lg text-muted-foreground md:text-xl mb-10">
+                    Connect with peers, earn XP by completing projects, unlock badges to showcase your expertise, and climb the leaderboard. At Hireverse AI, your growth is recognized and rewarded.
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-                    <div className="flex flex-col items-center p-6 bg-card rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                        <UsersRound className="h-12 w-12 text-primary mb-4" />
-                        <h3 className="text-xl font-semibold mb-2">Connect & Collaborate</h3>
-                        <p className="text-muted-foreground text-sm">Share knowledge, find support, and build your network.</p>
-                    </div>
-                    <div className="flex flex-col items-center p-6 bg-card rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                        <TrendingUp className="h-12 w-12 text-green-500 mb-4" />
-                        <h3 className="text-xl font-semibold mb-2">Earn XP & Level Up</h3>
-                        <p className="text-muted-foreground text-sm">Gain experience points for every task and achievement.</p>
-                    </div>
-                    <div className="flex flex-col items-center p-6 bg-card rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                        <Award className="h-12 w-12 text-yellow-500 mb-4" />
-                        <h3 className="text-xl font-semibold mb-2">Unlock Badges</h3>
-                        <p className="text-muted-foreground text-sm">Showcase your skills and milestones with unique badges.</p>
-                    </div>
-                </div>
-                <div className="flex flex-col sm:flex-row justify-center gap-4">
-                    <Button size="lg" variant="outline" asChild className="hover:scale-105 transition-transform duration-300">
+                 <div className="flex flex-col sm:flex-row justify-center gap-4">
+                    <Button size="lg" variant="outline" asChild className="hover:bg-accent/10 transition-colors">
                         <Link href="/community">
                             Explore Community <ChevronRight className="ml-2 h-5 w-5" />
                         </Link>
                     </Button>
-                    <Button size="lg" asChild className="bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 transition-transform duration-300">
+                    <Button size="lg" asChild className="bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity shadow-lg">
                         <Link href="/freelancer/signup">
                             Become a Freelancer <UserPlus className="ml-2 h-5 w-5" />
                         </Link>
@@ -268,9 +219,8 @@ export default function Home() {
             </div>
         </section>
 
-        <div className="py-8 md:py-10"> <Separator /> </div>
+        <Separator className="my-12" />
 
-        {/* Call to Action Section */}
         <section className="container mx-auto px-4 py-16 text-center md:px-6">
           <div className="max-w-2xl mx-auto">
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
@@ -283,13 +233,13 @@ export default function Home() {
               <Button
                 size="lg"
                 onClick={handleStartProjectClick}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 transition-transform duration-300"
+                className="bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity shadow-lg"
               >
                 Start a Project <Rocket className="ml-2 h-5 w-5" />
               </Button>
-              <Button size="lg" variant="outline" asChild className="hover:scale-105 transition-transform duration-300">
+              <Button size="lg" variant="outline" asChild>
                 <Link href="#hireverse-ai-workflow">
-                  See How It Works <ChevronRight className="ml-2 h-5 w-5" />
+                  See How It Works
                 </Link>
               </Button>
             </div>
@@ -298,7 +248,6 @@ export default function Home() {
 
       </main>
 
-      {/* Footer */}
       <footer className="border-t bg-muted/50 py-8 mt-12">
         <div className="container mx-auto flex flex-col items-center justify-between px-4 text-center text-sm text-muted-foreground md:flex-row md:px-6">
           <p>&copy; {new Date().getFullYear()} Hireverse AI. All rights reserved.</p>
