@@ -24,7 +24,7 @@ import {
 import { updateProjectStatus } from '@/services/firestore';
 
 // --- Constants ---
-const PLATFORM_MARKUP_BASE = 0.10;                     // Base platform markup
+const PLATFORM_MARKUP_BASE = 0.15;                     // Base platform markup
 const RATING_PREMIUM_INCREMENT = 0.02;                // Premium per rating point above threshold
 const COMPLEXITY_SURCHARGE_PERCENT = 0.05;            // Surcharge based on number of skills
 const TAX_RATE = 0.07;                                // Example tax rate
