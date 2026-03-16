@@ -15,6 +15,8 @@ import { ConnectionSetupDialog } from '@/components/hub/connection-setup-dialog'
 import { NoteEditor } from '@/components/hub/note-editor';
 import { AccessPermissions } from '@/components/hub/access-permissions';
 import { ActivityTimeline } from '@/components/hub/activity-timeline';
+import { AIBriefingPanel } from '@/components/hub/ai-briefing-panel';
+import { WorkspaceChat } from '@/components/hub/workspace-chat';
 
 interface WorkspaceDetailProps {
   freelancerId: string;
@@ -127,6 +129,7 @@ export function WorkspaceDetail({ freelancerId, workspaceId }: WorkspaceDetailPr
           <TabsTrigger value="messages">Messages</TabsTrigger>
           <TabsTrigger value="files">Files</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
+          <TabsTrigger value="ai-briefing">AI Briefing</TabsTrigger>
           <TabsTrigger value="access">Access &amp; Permissions</TabsTrigger>
         </TabsList>
 
@@ -228,6 +231,14 @@ export function WorkspaceDetail({ freelancerId, workspaceId }: WorkspaceDetailPr
         {/* Timeline Tab */}
         <TabsContent value="timeline">
           <ActivityTimeline freelancerId={freelancerId} workspaceId={workspaceId} />
+        </TabsContent>
+
+        {/* AI Briefing Tab */}
+        <TabsContent value="ai-briefing">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <AIBriefingPanel freelancerId={freelancerId} workspaceId={workspaceId} />
+            <WorkspaceChat freelancerId={freelancerId} workspaceId={workspaceId} />
+          </div>
         </TabsContent>
 
         {/* Access & Permissions Tab */}
