@@ -14,7 +14,7 @@ The Client Systems Hub is a workspace layer that replaces the existing freelance
 
 - **Approach:** Modular service architecture (Approach B) — each phase maps to independent modules with clear boundaries
 - **Replaces:** Existing freelancer dashboard (`/freelancer/dashboard` redirects to `/freelancer/hub`)
-- **Integrations:** Real OAuth flows (not stubs) for the 5 highest-usage tools: Slack, GitHub, Google Drive, Trello, Notion
+- **Integrations:** Real OAuth flows via Nango (not stubs) for the 5 highest-usage tools: Slack, GitHub, Google Drive, Trello, Notion
 - **AI assistant:** Both background summarization and conversational chat, scoped per workspace
 - **All 4 phases** are in scope, built incrementally
 - **Existing stubs:** `src/services/monday.ts` and `src/services/microsoft-teams.ts` are deprecated and left in place. They are not migrated into the new `src/services/integrations/` directory — Monday.com and Teams can be added as new provider files later following the same convention.
@@ -22,7 +22,8 @@ The Client Systems Hub is a workspace layer that replaces the existing freelance
 - **Engagement type** is a free-text string (not an enum) — freelancers describe the engagement in their own terms (e.g., "retainer", "contract", "project-based", "consulting")
 - **Daily activity digests** (listed as Phase 2 in the source doc) are implemented in Phase 3 as AI briefings, since digest generation requires the AI summarization layer
 - **Time tracking and deliverables** (mentioned in source doc as workspace contents) are deferred — not in scope for any current phase
-- **Token isolation:** OAuth tokens are never reused across workspaces — enforced by the data model (tokens live on per-workspace connection documents)
+- **Token isolation:** OAuth tokens are never reused across workspaces — enforced by unique Nango connection IDs per workspace+provider
+- **Nango as OAuth layer:** All OAuth flows, token storage, token refresh, and authenticated API proxying are handled by Nango (`@nangohq/node` + `@nangohq/frontend`). If costs become prohibitive, the team will take Nango's patterns and build a custom equivalent — the service layer is abstracted so swapping is straightforward
 
 ---
 
@@ -34,7 +35,7 @@ The Client Systems Hub is a workspace layer that replaces the existing freelance
 |-------|---------|
 | `/freelancer/hub` | Hub dashboard — all workspaces overview |
 | `/freelancer/hub/[workspaceId]` | Workspace detail — tabbed view |
-| `/api/integrations/[provider]/callback` | OAuth callback handler per provider |
+| `/api/hub/nango-session` | Creates Nango connect session for frontend OAuth |
 | `/api/hub/chat` | Workspace AI chat endpoint |
 
 ### Layout
@@ -64,12 +65,10 @@ freelancers/{freelancerId}/
     │
     connections/{connectionId}/
     │   ├── provider: 'slack' | 'github' | 'google-drive' | 'trello' | 'notion'
+    │   ├── nangoConnectionId: string    (Nango-managed connection ID)
+    │   ├── nangoIntegrationId: string   (Nango integration key)
     │   ├── label: string
     │   ├── launchUrl: string
-    │   ├── scopes: string[]
-    │   ├── accessToken: string          (encrypted at rest)
-    │   ├── refreshToken: string         (encrypted at rest)
-    │   ├── tokenExpiresAt: Timestamp
     │   ├── status: 'connected' | 'disconnected' | 'error'
     │   ├── lastSyncAt: Timestamp
     │   └── createdAt: Timestamp
@@ -115,26 +114,37 @@ freelancers/{freelancerId}/
 
 ### Key decisions
 
-- OAuth tokens stored on connection documents; Firestore security rules restrict access to the owning freelancer only
+- **Nango manages all OAuth tokens** — connection documents store only a `nangoConnectionId` reference, not raw tokens. Nango handles token storage, encryption, and automatic refresh.
+- Firestore security rules restrict workspace data access to the owning freelancer only
 - Activity events use the normalized `WorkspaceItem` schema from the source doc
 - AI briefings are persisted for historical viewing, not regenerated each time
 - AI context document is a single doc regenerated whenever connections, projects, or notes change
 
 ---
 
-## 3. Integration Services
+## 3. Integration Services (Nango-backed)
+
+### OAuth & Token Management
+
+All OAuth flows are handled by **Nango** (`@nangohq/node` + `@nangohq/frontend`):
+
+- OAuth client IDs, secrets, scopes, and callback URLs are configured in the **Nango dashboard** — not in our codebase
+- Frontend uses Nango's Connect UI (`openConnectUI()`) to trigger OAuth flows via popup
+- Nango stores and auto-refreshes all tokens — we never handle raw tokens
+- API calls to external providers use `nango.get()` / `nango.post()` which inject auth headers automatically
+- If Nango costs become prohibitive, the team will take Nango's patterns and build a custom equivalent. The service layer is abstracted so swapping is straightforward.
 
 ### File structure
 
 ```
+src/lib/nango.ts                → Server-side Nango client singleton
 src/services/integrations/
-  ├── types.ts              → Shared interfaces (OAuthTokens, NormalizedActivity, ProviderConfig)
-  ├── oauth.ts              → Generic OAuth helpers (buildAuthUrl, exchangeCode, refreshIfExpired)
-  ├── slack.ts              → Slack: OAuth config, channels, messages, presence
-  ├── github.ts             → GitHub: OAuth config, repos, issues, PRs, commits
-  ├── google-drive.ts       → Google: OAuth config, files, activity, sharing
-  ├── trello.ts             → Trello: OAuth config, boards, cards, lists
-  └── notion.ts             → Notion: OAuth config, pages, databases, search
+  ├── types.ts              → Provider display configs (name, icon, category, Nango integration ID)
+  ├── slack.ts              → Slack: activity fetch, write actions (via Nango proxy)
+  ├── github.ts             → GitHub: activity fetch, write actions (via Nango proxy)
+  ├── google-drive.ts       → Google Drive: activity fetch, write actions (via Nango proxy)
+  ├── trello.ts             → Trello: activity fetch, write actions (via Nango proxy)
+  └── notion.ts             → Notion: activity fetch, write actions (via Nango proxy)
 ```
 
 ### Provider service convention
@@ -143,28 +153,24 @@ Each provider service exports the same shape (not a formal interface — a consi
 
 ```typescript
 // Config
-export const config: ProviderConfig;
-
-// Phase 1 — Auth
-export function getAuthUrl(redirectUri: string, state: string): string;
-export function exchangeCode(code: string, redirectUri: string): Promise<OAuthTokens>;
-export function refreshToken(tokens: OAuthTokens): Promise<OAuthTokens>;
+export const config: ProviderDisplayConfig;
 
 // Phase 1 — Launch
-export function getLaunchUrl(connection: WorkspaceConnection): string;
+export function getLaunchUrl(launchUrl: string): string;
 
-// Phase 2 — Activity
-export function fetchActivity(tokens: OAuthTokens, since: Date): Promise<NormalizedActivity[]>;
+// Phase 2 — Activity (uses Nango proxy internally)
+export function fetchActivity(nangoConnectionId: string, since: Date): Promise<NormalizedActivity[]>;
 
-// Phase 4 — Write actions
-export function createItem(tokens: OAuthTokens, payload: CreateItemPayload): Promise<void>;
+// Phase 4 — Write actions (uses Nango proxy internally)
+export function createItem(nangoConnectionId: string, payload: CreateItemPayload): Promise<void>;
+export function updateItem(nangoConnectionId: string, payload: UpdateItemPayload): Promise<void>;
 ```
 
-Adding a 6th integration means adding one file that follows this convention.
+Adding a 6th integration means adding one file that follows this convention and configuring the integration in the Nango dashboard.
 
-### OAuth callback
+### Nango session endpoint
 
-A single dynamic API route `/api/integrations/[provider]/callback` handles all providers. It reads the `provider` param, looks up the correct service, exchanges the authorization code for tokens, and stores the connection in Firestore.
+`POST /api/hub/nango-session` creates a Nango connect session for the frontend. The frontend uses the session token to open the Nango Connect UI popup, which handles the full OAuth flow.
 
 ---
 
@@ -312,9 +318,9 @@ Replaces the current random pass/fail placeholder in the freelancer dashboard.
 ## 7. Security
 
 - **Workspace isolation:** Firestore security rules restrict workspace data to the owning freelancer. AI context never crosses workspace boundaries.
-- **OAuth tokens:** Stored encrypted on connection documents. Least-privilege scopes requested per provider.
-- **Token refresh:** `refreshIfExpired()` called before every API request. Expired/revoked tokens set connection status to `error`.
-- **Client revocation:** Freelancers can disconnect any integration, which revokes the token and deletes connection data.
+- **OAuth tokens:** Managed entirely by Nango — tokens are never stored in Firestore. Connection documents only store a `nangoConnectionId` reference. Nango handles encryption, least-privilege scopes, and automatic token refresh.
+- **Token refresh:** Handled automatically by Nango before every proxy API call. If a token is revoked or expired beyond recovery, the connection status is set to `error`.
+- **Client revocation:** Freelancers can disconnect any integration, which deletes the connection record in Firestore. Token revocation at the provider level is handled via Nango.
 - **Audit:** Connection changes (connect, disconnect, error) logged as activity events.
 
 ---
@@ -322,26 +328,12 @@ Replaces the current random pass/fail placeholder in the freelancer dashboard.
 ## 8. New Environment Variables
 
 ```bash
-# Slack OAuth
-SLACK_CLIENT_ID=
-SLACK_CLIENT_SECRET=
-
-# GitHub OAuth
-GITHUB_CLIENT_ID=
-GITHUB_CLIENT_SECRET=
-
-# Google OAuth (Drive)
-GOOGLE_OAUTH_CLIENT_ID=
-GOOGLE_OAUTH_CLIENT_SECRET=
-
-# Trello OAuth
-TRELLO_API_KEY=
-TRELLO_API_SECRET=
-
-# Notion OAuth
-NOTION_CLIENT_ID=
-NOTION_CLIENT_SECRET=
+# Nango — manages all OAuth for hub integrations
+NANGO_SECRET_KEY=                    # Server-side: @nangohq/node
+NEXT_PUBLIC_NANGO_PUBLIC_KEY=        # Client-side: @nangohq/frontend
 ```
+
+Per-provider OAuth credentials (Slack client ID/secret, GitHub client ID/secret, etc.) are configured directly in the **Nango dashboard**, not in our application environment variables.
 
 ---
 
@@ -352,11 +344,10 @@ New file: `src/types/hub.ts`
 Core types:
 
 - `Workspace` — id, name, clientName, engagementType, status, timestamps
-- `WorkspaceConnection` — id, provider, label, launchUrl, scopes, tokens, status, timestamps
+- `WorkspaceConnection` — id, provider, nangoConnectionId, nangoIntegrationId, label, launchUrl, status, timestamps
 - `Bookmark` — id, title, url, description, timestamp
 - `Note` — id, title, content (markdown), timestamps
 - `NormalizedActivity` — id, sourceProvider, sourceType, sourceExternalId, title, bodyExcerpt, status, assignee, dueDate, url, timestamps
 - `AIBriefing` — id, generatedAt, periodStart, periodEnd, summary, actionItems, blockers, model
-- `OAuthTokens` — accessToken, refreshToken, tokenExpiresAt, scopes
-- `ProviderConfig` — id, name, icon, category, clientIdEnvVar, clientSecretEnvVar, authUrl, tokenUrl, scopes
+- `ProviderDisplayConfig` — id, name, icon, category, nangoIntegrationId, defaultLaunchUrl
 - `QAReviewResult` — passed, score, feedback, issues[]
