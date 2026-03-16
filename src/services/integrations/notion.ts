@@ -50,9 +50,46 @@ export async function fetchActivity(
 export async function createItem(
   nangoConnectionId: string,
   payload: CreateItemPayload
-): Promise<void> {}
+): Promise<void> {
+  if (payload.type !== 'page') {
+    throw new Error(`Unsupported Notion action type: ${payload.type}`);
+  }
+  if (!payload.metadata?.databaseId) {
+    throw new Error('Database ID is required for Notion pages');
+  }
+
+  await nango.post({
+    endpoint: '/v1/pages',
+    providerConfigKey: config.nangoIntegrationId,
+    connectionId: nangoConnectionId,
+    data: {
+      parent: { database_id: payload.metadata.databaseId },
+      properties: {
+        title: { title: [{ text: { content: payload.title } }] },
+      },
+      children: payload.body
+        ? [{ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ text: { content: payload.body } }] } }]
+        : [],
+    },
+    headers: { 'Notion-Version': '2022-06-28' },
+    retries: 2,
+  });
+}
 
 export async function updateItem(
   nangoConnectionId: string,
   payload: UpdateItemPayload
-): Promise<void> {}
+): Promise<void> {
+  if (payload.type !== 'page') {
+    throw new Error(`Unsupported Notion update type: ${payload.type}`);
+  }
+
+  await nango.patch({
+    endpoint: `/v1/pages/${payload.externalId}`,
+    providerConfigKey: config.nangoIntegrationId,
+    connectionId: nangoConnectionId,
+    data: { properties: payload.updates },
+    headers: { 'Notion-Version': '2022-06-28' },
+    retries: 2,
+  });
+}

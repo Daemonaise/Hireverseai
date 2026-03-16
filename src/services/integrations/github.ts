@@ -61,10 +61,40 @@ export async function fetchActivity(
 export async function createItem(
   nangoConnectionId: string,
   payload: CreateItemPayload
-): Promise<void> {}
+): Promise<void> {
+  if (payload.type !== 'issue') {
+    throw new Error(`Unsupported GitHub action type: ${payload.type}`);
+  }
+  if (!payload.metadata?.repo) {
+    throw new Error('Repo (owner/repo format) is required for GitHub issues');
+  }
+
+  await nango.post({
+    endpoint: `/repos/${payload.metadata.repo}/issues`,
+    providerConfigKey: config.nangoIntegrationId,
+    connectionId: nangoConnectionId,
+    data: { title: payload.title, body: payload.body || '' },
+    retries: 2,
+  });
+}
 
 // Phase 4 — update existing items (close/reopen issues, etc.)
 export async function updateItem(
   nangoConnectionId: string,
   payload: UpdateItemPayload
-): Promise<void> {}
+): Promise<void> {
+  if (payload.type !== 'issue') {
+    throw new Error(`Unsupported GitHub update type: ${payload.type}`);
+  }
+  if (!payload.updates.repo) {
+    throw new Error('Repo is required for updating GitHub issues');
+  }
+
+  await nango.patch({
+    endpoint: `/repos/${payload.updates.repo}/issues/${payload.externalId}`,
+    providerConfigKey: config.nangoIntegrationId,
+    connectionId: nangoConnectionId,
+    data: payload.updates,
+    retries: 2,
+  });
+}

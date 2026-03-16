@@ -68,9 +68,40 @@ export async function fetchActivity(
 export async function createItem(
   nangoConnectionId: string,
   payload: CreateItemPayload
-): Promise<void> {}
+): Promise<void> {
+  if (payload.type !== 'card') {
+    throw new Error(`Unsupported Trello action type: ${payload.type}`);
+  }
+  if (!payload.metadata?.listId) {
+    throw new Error('List ID is required for Trello cards');
+  }
+
+  await nango.post({
+    endpoint: '/1/cards',
+    providerConfigKey: config.nangoIntegrationId,
+    connectionId: nangoConnectionId,
+    data: {
+      name: payload.title,
+      desc: payload.body || '',
+      idList: payload.metadata.listId,
+    },
+    retries: 2,
+  });
+}
 
 export async function updateItem(
   nangoConnectionId: string,
   payload: UpdateItemPayload
-): Promise<void> {}
+): Promise<void> {
+  if (payload.type !== 'card') {
+    throw new Error(`Unsupported Trello update type: ${payload.type}`);
+  }
+
+  await nango.put({
+    endpoint: `/1/cards/${payload.externalId}`,
+    providerConfigKey: config.nangoIntegrationId,
+    connectionId: nangoConnectionId,
+    data: payload.updates,
+    retries: 2,
+  });
+}

@@ -67,7 +67,25 @@ export async function fetchActivity(
 export async function createItem(
   nangoConnectionId: string,
   payload: CreateItemPayload
-): Promise<void> {}
+): Promise<void> {
+  if (payload.type !== 'message') {
+    throw new Error(`Unsupported Slack action type: ${payload.type}`);
+  }
+  if (!payload.metadata?.channel) {
+    throw new Error('Channel is required for Slack messages');
+  }
+
+  await nango.post({
+    endpoint: '/api/chat.postMessage',
+    providerConfigKey: config.nangoIntegrationId,
+    connectionId: nangoConnectionId,
+    data: {
+      channel: payload.metadata.channel,
+      text: payload.body || payload.title,
+    },
+    retries: 2,
+  });
+}
 
 // Phase 4 — Slack doesn't support generic item updates
 export async function updateItem(

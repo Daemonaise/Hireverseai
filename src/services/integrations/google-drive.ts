@@ -49,7 +49,22 @@ export async function fetchActivity(
 export async function createItem(
   nangoConnectionId: string,
   payload: CreateItemPayload
-): Promise<void> {}
+): Promise<void> {
+  if (payload.type !== 'file') {
+    throw new Error(`Unsupported Google Drive action type: ${payload.type}`);
+  }
+
+  await nango.post({
+    endpoint: '/drive/v3/files',
+    providerConfigKey: config.nangoIntegrationId,
+    connectionId: nangoConnectionId,
+    data: {
+      name: payload.title,
+      mimeType: 'application/vnd.google-apps.document',
+    },
+    retries: 2,
+  });
+}
 
 // Google Drive doesn't support generic item updates through this interface
 export async function updateItem(
