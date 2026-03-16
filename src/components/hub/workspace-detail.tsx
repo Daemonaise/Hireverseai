@@ -14,6 +14,7 @@ import { ConnectionTile } from '@/components/hub/connection-tile';
 import { ConnectionSetupDialog } from '@/components/hub/connection-setup-dialog';
 import { NoteEditor } from '@/components/hub/note-editor';
 import { AccessPermissions } from '@/components/hub/access-permissions';
+import { ActivityTimeline } from '@/components/hub/activity-timeline';
 
 interface WorkspaceDetailProps {
   freelancerId: string;
@@ -122,6 +123,10 @@ export function WorkspaceDetail({ freelancerId, workspaceId }: WorkspaceDetailPr
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="apps">Apps</TabsTrigger>
           <TabsTrigger value="notes">Notes</TabsTrigger>
+          <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          <TabsTrigger value="messages">Messages</TabsTrigger>
+          <TabsTrigger value="files">Files</TabsTrigger>
+          <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="access">Access &amp; Permissions</TabsTrigger>
         </TabsList>
 
@@ -203,6 +208,26 @@ export function WorkspaceDetail({ freelancerId, workspaceId }: WorkspaceDetailPr
         {/* Notes Tab */}
         <TabsContent value="notes">
           <NoteEditor freelancerId={freelancerId} workspaceId={workspaceId} />
+        </TabsContent>
+
+        {/* Tasks Tab */}
+        <TabsContent value="tasks">
+          <ActivityTimeline freelancerId={freelancerId} workspaceId={workspaceId} filterSourceType={['task', 'ticket']} />
+        </TabsContent>
+
+        {/* Messages Tab */}
+        <TabsContent value="messages">
+          <ActivityTimeline freelancerId={freelancerId} workspaceId={workspaceId} filterSourceType="message" />
+        </TabsContent>
+
+        {/* Files Tab */}
+        <TabsContent value="files">
+          <ActivityTimeline freelancerId={freelancerId} workspaceId={workspaceId} filterSourceType="document" />
+        </TabsContent>
+
+        {/* Timeline Tab */}
+        <TabsContent value="timeline">
+          <ActivityTimeline freelancerId={freelancerId} workspaceId={workspaceId} />
         </TabsContent>
 
         {/* Access & Permissions Tab */}
