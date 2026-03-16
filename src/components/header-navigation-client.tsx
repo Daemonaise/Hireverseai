@@ -23,6 +23,9 @@ export function HeaderNavigationClient() {
         <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
           <Link href="/community">Community</Link>
         </Button>
+        <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
+          <Link href="/freelancer/hub">Hub</Link>
+        </Button>
         <Button
           variant="ghost"
           size="sm"
