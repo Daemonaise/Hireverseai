@@ -1,14 +1,14 @@
 'use server';
 
-import { nango } from '@/lib/nango';
+import { getNango } from '@/lib/nango';
 import { Timestamp } from 'firebase/firestore';
 import type { NormalizedActivity } from '@/types/hub';
 import type { CreateItemPayload, UpdateItemPayload } from '@/types/hub';
 import { PROVIDER_CONFIGS } from './types';
 
-export const config = PROVIDER_CONFIGS['google-drive'];
+const config = PROVIDER_CONFIGS['google-drive'];
 
-export function getLaunchUrl(launchUrl: string): string {
+function getLaunchUrl(launchUrl: string): string {
   return launchUrl || config.defaultLaunchUrl;
 }
 
@@ -16,7 +16,7 @@ export async function fetchActivity(
   nangoConnectionId: string,
   since: Date
 ): Promise<Omit<NormalizedActivity, 'id'>[]> {
-  const res = await nango.get({
+  const res = await getNango().get({
     endpoint: '/drive/v3/files',
     providerConfigKey: config.nangoIntegrationId,
     connectionId: nangoConnectionId,
@@ -54,7 +54,7 @@ export async function createItem(
     throw new Error(`Unsupported Google Drive action type: ${payload.type}`);
   }
 
-  await nango.post({
+  await getNango().post({
     endpoint: '/drive/v3/files',
     providerConfigKey: config.nangoIntegrationId,
     connectionId: nangoConnectionId,

@@ -15,7 +15,7 @@ import { ConnectionSetupDialog } from '@/components/hub/connection-setup-dialog'
 import { NoteEditor } from '@/components/hub/note-editor';
 import { AccessPermissions } from '@/components/hub/access-permissions';
 import { ActivityTimeline } from '@/components/hub/activity-timeline';
-import { AIBriefingPanel } from '@/components/hub/ai-briefing-panel';
+import { AiBriefingPanel } from '@/components/hub/ai-briefing-panel';
 import { WorkspaceChat } from '@/components/hub/workspace-chat';
 
 interface WorkspaceDetailProps {
@@ -237,7 +237,7 @@ export function WorkspaceDetail({ freelancerId, workspaceId }: WorkspaceDetailPr
         {/* AI Briefing Tab */}
         <TabsContent value="ai-briefing">
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <AIBriefingPanel freelancerId={freelancerId} workspaceId={workspaceId} />
+            <AiBriefingPanel freelancerId={freelancerId} workspaceId={workspaceId} />
             <WorkspaceChat freelancerId={freelancerId} workspaceId={workspaceId} />
           </div>
         </TabsContent>

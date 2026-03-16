@@ -1,14 +1,14 @@
 'use server';
 
-import { nango } from '@/lib/nango';
+import { getNango } from '@/lib/nango';
 import { Timestamp } from 'firebase/firestore';
 import type { NormalizedActivity } from '@/types/hub';
 import type { CreateItemPayload, UpdateItemPayload } from '@/types/hub';
 import { PROVIDER_CONFIGS } from './types';
 
-export const config = PROVIDER_CONFIGS.slack;
+const config = PROVIDER_CONFIGS.slack;
 
-export function getLaunchUrl(launchUrl: string): string {
+function getLaunchUrl(launchUrl: string): string {
   return launchUrl || config.defaultLaunchUrl;
 }
 
@@ -19,7 +19,7 @@ export async function fetchActivity(
 ): Promise<Omit<NormalizedActivity, 'id'>[]> {
   const activities: Omit<NormalizedActivity, 'id'>[] = [];
 
-  const channelsRes = await nango.get({
+  const channelsRes = await getNango().get({
     endpoint: '/api/conversations.list',
     providerConfigKey: config.nangoIntegrationId,
     connectionId: nangoConnectionId,
@@ -30,7 +30,7 @@ export async function fetchActivity(
   const channels = channelsRes.data?.channels ?? [];
 
   for (const channel of channels.slice(0, 5)) {
-    const historyRes = await nango.get({
+    const historyRes = await getNango().get({
       endpoint: '/api/conversations.history',
       providerConfigKey: config.nangoIntegrationId,
       connectionId: nangoConnectionId,
@@ -75,7 +75,7 @@ export async function createItem(
     throw new Error('Channel is required for Slack messages');
   }
 
-  await nango.post({
+  await getNango().post({
     endpoint: '/api/chat.postMessage',
     providerConfigKey: config.nangoIntegrationId,
     connectionId: nangoConnectionId,

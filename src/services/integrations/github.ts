@@ -1,14 +1,14 @@
 'use server';
 
-import { nango } from '@/lib/nango';
+import { getNango } from '@/lib/nango';
 import { Timestamp } from 'firebase/firestore';
 import type { NormalizedActivity, ActivitySourceType } from '@/types/hub';
 import type { CreateItemPayload, UpdateItemPayload } from '@/types/hub';
 import { PROVIDER_CONFIGS } from './types';
 
-export const config = PROVIDER_CONFIGS.github;
+const config = PROVIDER_CONFIGS.github;
 
-export function getLaunchUrl(launchUrl: string): string {
+function getLaunchUrl(launchUrl: string): string {
   return launchUrl || config.defaultLaunchUrl;
 }
 
@@ -16,7 +16,7 @@ export async function fetchActivity(
   nangoConnectionId: string,
   since: Date
 ): Promise<Omit<NormalizedActivity, 'id'>[]> {
-  const res = await nango.get({
+  const res = await getNango().get({
     endpoint: '/user/received_events',
     providerConfigKey: config.nangoIntegrationId,
     connectionId: nangoConnectionId,
@@ -69,7 +69,7 @@ export async function createItem(
     throw new Error('Repo (owner/repo format) is required for GitHub issues');
   }
 
-  await nango.post({
+  await getNango().post({
     endpoint: `/repos/${payload.metadata.repo}/issues`,
     providerConfigKey: config.nangoIntegrationId,
     connectionId: nangoConnectionId,
@@ -90,7 +90,7 @@ export async function updateItem(
     throw new Error('Repo is required for updating GitHub issues');
   }
 
-  await nango.patch({
+  await getNango().patch({
     endpoint: `/repos/${payload.updates.repo}/issues/${payload.externalId}`,
     providerConfigKey: config.nangoIntegrationId,
     connectionId: nangoConnectionId,

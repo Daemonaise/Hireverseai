@@ -1,3 +1,5 @@
+'use server';
+
 import type { ProviderId } from '@/types/hub';
 import { listConnections, updateConnectionStatus, updateLastSyncAt } from './connections';
 import { storeActivityEvents } from './activity';

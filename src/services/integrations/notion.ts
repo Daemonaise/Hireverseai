@@ -1,14 +1,14 @@
 'use server';
 
-import { nango } from '@/lib/nango';
+import { getNango } from '@/lib/nango';
 import { Timestamp } from 'firebase/firestore';
 import type { NormalizedActivity, ActivitySourceType } from '@/types/hub';
 import type { CreateItemPayload, UpdateItemPayload } from '@/types/hub';
 import { PROVIDER_CONFIGS } from './types';
 
-export const config = PROVIDER_CONFIGS.notion;
+const config = PROVIDER_CONFIGS.notion;
 
-export function getLaunchUrl(launchUrl: string): string {
+function getLaunchUrl(launchUrl: string): string {
   return launchUrl || config.defaultLaunchUrl;
 }
 
@@ -16,7 +16,7 @@ export async function fetchActivity(
   nangoConnectionId: string,
   since: Date
 ): Promise<Omit<NormalizedActivity, 'id'>[]> {
-  const res = await nango.post({
+  const res = await getNango().post({
     endpoint: '/v1/search',
     providerConfigKey: config.nangoIntegrationId,
     connectionId: nangoConnectionId,
@@ -58,7 +58,7 @@ export async function createItem(
     throw new Error('Database ID is required for Notion pages');
   }
 
-  await nango.post({
+  await getNango().post({
     endpoint: '/v1/pages',
     providerConfigKey: config.nangoIntegrationId,
     connectionId: nangoConnectionId,
@@ -84,7 +84,7 @@ export async function updateItem(
     throw new Error(`Unsupported Notion update type: ${payload.type}`);
   }
 
-  await nango.patch({
+  await getNango().patch({
     endpoint: `/v1/pages/${payload.externalId}`,
     providerConfigKey: config.nangoIntegrationId,
     connectionId: nangoConnectionId,

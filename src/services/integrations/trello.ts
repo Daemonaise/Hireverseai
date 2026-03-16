@@ -1,14 +1,14 @@
 'use server';
 
-import { nango } from '@/lib/nango';
+import { getNango } from '@/lib/nango';
 import { Timestamp } from 'firebase/firestore';
 import type { NormalizedActivity, ActivitySourceType } from '@/types/hub';
 import type { CreateItemPayload, UpdateItemPayload } from '@/types/hub';
 import { PROVIDER_CONFIGS } from './types';
 
-export const config = PROVIDER_CONFIGS.trello;
+const config = PROVIDER_CONFIGS.trello;
 
-export function getLaunchUrl(launchUrl: string): string {
+function getLaunchUrl(launchUrl: string): string {
   return launchUrl || config.defaultLaunchUrl;
 }
 
@@ -16,7 +16,7 @@ export async function fetchActivity(
   nangoConnectionId: string,
   since: Date
 ): Promise<Omit<NormalizedActivity, 'id'>[]> {
-  const boardsRes = await nango.get({
+  const boardsRes = await getNango().get({
     endpoint: '/1/members/me/boards',
     providerConfigKey: config.nangoIntegrationId,
     connectionId: nangoConnectionId,
@@ -28,7 +28,7 @@ export async function fetchActivity(
   const activities: Omit<NormalizedActivity, 'id'>[] = [];
 
   for (const board of boards.slice(0, 5)) {
-    const actionsRes = await nango.get({
+    const actionsRes = await getNango().get({
       endpoint: `/1/boards/${board.id}/actions`,
       providerConfigKey: config.nangoIntegrationId,
       connectionId: nangoConnectionId,
@@ -76,7 +76,7 @@ export async function createItem(
     throw new Error('List ID is required for Trello cards');
   }
 
-  await nango.post({
+  await getNango().post({
     endpoint: '/1/cards',
     providerConfigKey: config.nangoIntegrationId,
     connectionId: nangoConnectionId,
@@ -97,7 +97,7 @@ export async function updateItem(
     throw new Error(`Unsupported Trello update type: ${payload.type}`);
   }
 
-  await nango.put({
+  await getNango().put({
     endpoint: `/1/cards/${payload.externalId}`,
     providerConfigKey: config.nangoIntegrationId,
     connectionId: nangoConnectionId,

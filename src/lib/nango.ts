@@ -1,9 +1,14 @@
 import { Nango } from '@nangohq/node';
 
-const secretKey = process.env.NANGO_SECRET_KEY;
+let _nango: Nango | null = null;
 
-if (!secretKey && process.env.NODE_ENV === 'production') {
-  throw new Error('NANGO_SECRET_KEY is required for hub integrations');
+export function getNango(): Nango {
+  if (!_nango) {
+    const secretKey = process.env.NANGO_SECRET_KEY;
+    if (!secretKey) {
+      throw new Error('NANGO_SECRET_KEY is required for hub integrations');
+    }
+    _nango = new Nango({ secretKey });
+  }
+  return _nango;
 }
-
-export const nango = new Nango({ secretKey: secretKey || '' });

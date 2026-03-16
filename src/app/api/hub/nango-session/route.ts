@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { nango } from '@/lib/nango';
+import { getNango } from '@/lib/nango';
 import { verifyAuthToken } from '@/lib/api-auth';
 
 export async function POST(req: NextRequest) {
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data } = await nango.createConnectSession({
+    const { data } = await getNango().createConnectSession({
       tags: {
         end_user_id: freelancerId,
         workspace_id: workspaceId,
