@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MessageSquare, Github, HardDrive, LayoutGrid, BookOpen, Loader2, ShieldOff } from 'lucide-react';
+import { MessageSquare, Github, HardDrive, LayoutGrid, BookOpen, Loader2, ShieldOff, Clock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,8 +18,9 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { listConnections, deleteConnection } from '@/services/hub/connections';
+import { listActivityEvents } from '@/services/hub/activity';
 import { getProviderConfig } from '@/services/integrations/types';
-import type { WorkspaceConnection } from '@/types/hub';
+import type { WorkspaceConnection, NormalizedActivity } from '@/types/hub';
 import { Timestamp } from 'firebase/firestore';
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -45,21 +47,29 @@ interface AccessPermissionsProps {
 
 export function AccessPermissions({ freelancerId, workspaceId }: AccessPermissionsProps) {
   const [connections, setConnections] = useState<WorkspaceConnection[]>([]);
+  const [auditEvents, setAuditEvents] = useState<NormalizedActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
   useEffect(() => {
-    listConnections(freelancerId, workspaceId).then((data) => {
-      setConnections(data);
+    Promise.all([
+      listConnections(freelancerId, workspaceId),
+      listActivityEvents(freelancerId, workspaceId, { sourceType: 'connection_event' }),
+    ]).then(([conns, events]) => {
+      setConnections(conns);
+      setAuditEvents(events);
       setLoading(false);
     });
   }, [freelancerId, workspaceId]);
 
-  async function handleRevoke(connectionId: string) {
-    setRevokingId(connectionId);
+  async function handleRevoke(connection: WorkspaceConnection) {
+    setRevokingId(connection.id);
     try {
-      await deleteConnection(freelancerId, workspaceId, connectionId);
-      setConnections((prev) => prev.filter((c) => c.id !== connectionId));
+      await deleteConnection(freelancerId, workspaceId, connection.id, connection.provider, connection.label);
+      setConnections((prev) => prev.filter((c) => c.id !== connection.id));
+      // Refresh audit log
+      const events = await listActivityEvents(freelancerId, workspaceId, { sourceType: 'connection_event' });
+      setAuditEvents(events);
     } finally {
       setRevokingId(null);
     }
@@ -159,7 +169,7 @@ export function AccessPermissions({ freelancerId, workspaceId }: AccessPermissio
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      onClick={() => handleRevoke(connection.id)}
+                      onClick={() => handleRevoke(connection)}
                     >
                       Revoke Access
                     </AlertDialogAction>
@@ -170,6 +180,30 @@ export function AccessPermissions({ freelancerId, workspaceId }: AccessPermissio
           </Card>
         );
       })}
+
+      {/* Connection Audit Log */}
+      {auditEvents.length > 0 && (
+        <div className="mt-6 space-y-2">
+          <h3 className="text-sm font-semibold text-gray-700">Connection Audit Log</h3>
+          <Card>
+            <CardContent className="p-0">
+              <ScrollArea className="max-h-64">
+                <ul className="divide-y divide-gray-100">
+                  {auditEvents.map((event) => (
+                    <li key={event.id} className="flex items-center gap-3 px-4 py-3">
+                      <Clock className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                      <span className="flex-1 text-sm text-gray-700">{event.title}</span>
+                      <time className="text-xs text-gray-400 shrink-0">
+                        {formatDate(event.createdAt)}
+                      </time>
+                    </li>
+                  ))}
+                </ul>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

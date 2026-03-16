@@ -11,7 +11,9 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { Timestamp } from 'firebase/firestore';
 import type { WorkspaceConnection, ProviderId, ConnectionStatus } from '@/types/hub';
+import { storeActivityEvents } from './activity';
 
 function connectionsCol(freelancerId: string, workspaceId: string) {
   return collection(
@@ -44,6 +46,8 @@ export async function createConnection(
     lastSyncAt: null,
     createdAt: serverTimestamp(),
   });
+  // Log audit event
+  await logConnectionEvent(freelancerId, workspaceId, provider, `Connected ${label}`);
   return ref.id;
 }
 
@@ -99,7 +103,37 @@ export async function updateLastSyncAt(
 export async function deleteConnection(
   freelancerId: string,
   workspaceId: string,
-  connectionId: string
+  connectionId: string,
+  provider?: ProviderId,
+  label?: string
 ): Promise<void> {
   await deleteDoc(connectionDoc(freelancerId, workspaceId, connectionId));
+  if (provider) {
+    await logConnectionEvent(freelancerId, workspaceId, provider, `Disconnected ${label || provider}`);
+  }
+}
+
+async function logConnectionEvent(
+  freelancerId: string,
+  workspaceId: string,
+  provider: ProviderId,
+  title: string
+): Promise<void> {
+  try {
+    await storeActivityEvents(freelancerId, workspaceId, [{
+      sourceProvider: provider,
+      sourceType: 'connection_event',
+      sourceExternalId: `conn-${Date.now()}`,
+      title,
+      bodyExcerpt: '',
+      status: '',
+      assignee: '',
+      dueDate: null,
+      url: '',
+      rawPayloadRef: '',
+      createdAt: Timestamp.now(),
+    }]);
+  } catch {
+    // Don't fail the main operation if audit logging fails
+  }
 }
