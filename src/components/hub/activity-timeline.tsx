@@ -10,12 +10,16 @@ import {
   HardDrive,
   LayoutGrid,
   BookOpen,
+  Plus,
 } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -24,11 +28,34 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { listActivityEvents } from '@/services/hub/activity';
 import { syncWorkspaceActivity } from '@/services/hub/sync';
 import { getProviderConfig, PROVIDER_CONFIGS } from '@/services/integrations/types';
-import type { ProviderId, ActivitySourceType, NormalizedActivity } from '@/types/hub';
+import type {
+  ProviderId,
+  ActivitySourceType,
+  NormalizedActivity,
+  WorkspaceConnection,
+  CreateItemPayload,
+} from '@/types/hub';
 import type { Timestamp } from 'firebase/firestore';
 
 // Map Lucide icon names from PROVIDER_CONFIGS to actual components
@@ -83,16 +110,134 @@ function ProviderIcon({ provider }: { provider: ProviderId }) {
   return <Icon className="h-4 w-4 shrink-0 text-gray-500" />;
 }
 
+// --- Write action types ---
+
+interface ActionDef {
+  label: string;
+  provider: ProviderId;
+  payloadType: CreateItemPayload['type'];
+  /** Extra fields beyond title + body */
+  extraFields: ExtraField[];
+}
+
+interface ExtraField {
+  key: string;
+  label: string;
+  placeholder: string;
+  required: boolean;
+}
+
+const ACTION_DEFS: ActionDef[] = [
+  {
+    label: 'Create Issue',
+    provider: 'github',
+    payloadType: 'issue',
+    extraFields: [
+      { key: 'repo', label: 'Repository (owner/repo)', placeholder: 'e.g. acme/my-repo', required: true },
+    ],
+  },
+  {
+    label: 'Create Card',
+    provider: 'trello',
+    payloadType: 'card',
+    extraFields: [
+      { key: 'listId', label: 'List ID', placeholder: 'Trello list ID', required: true },
+    ],
+  },
+  {
+    label: 'Send Message',
+    provider: 'slack',
+    payloadType: 'message',
+    extraFields: [
+      { key: 'channel', label: 'Channel', placeholder: '#general or channel ID', required: true },
+    ],
+  },
+  {
+    label: 'Create Document',
+    provider: 'google-drive',
+    payloadType: 'file',
+    extraFields: [],
+  },
+  {
+    label: 'Create Page',
+    provider: 'notion',
+    payloadType: 'page',
+    extraFields: [
+      { key: 'databaseId', label: 'Database ID', placeholder: 'Notion database ID', required: true },
+    ],
+  },
+];
+
+/** Determine which action buttons to show based on filterSourceType and connected providers */
+function getVisibleActions(
+  filterSourceType: string | string[] | undefined,
+  connections: WorkspaceConnection[]
+): ActionDef[] {
+  const connectedProviders = new Set(
+    connections.filter((c) => c.status === 'connected').map((c) => c.provider)
+  );
+
+  const types = Array.isArray(filterSourceType)
+    ? filterSourceType
+    : filterSourceType
+    ? [filterSourceType]
+    : [];
+
+  const isTaskOrTicket = types.length === 0 || types.some((t) => t === 'task' || t === 'ticket');
+  const isMessage = types.length === 0 || types.includes('message');
+  const isDocument = types.length === 0 || types.includes('document');
+
+  return ACTION_DEFS.filter((action) => {
+    if (!connectedProviders.has(action.provider)) return false;
+    if (action.provider === 'github' || action.provider === 'trello') return isTaskOrTicket;
+    if (action.provider === 'slack') return isMessage;
+    if (action.provider === 'google-drive' || action.provider === 'notion') return isDocument;
+    return false;
+  });
+}
+
+/** Dynamically import the createItem function for a given provider */
+async function getCreateItemFn(
+  provider: ProviderId
+): Promise<(nangoConnectionId: string, payload: CreateItemPayload) => Promise<void>> {
+  switch (provider) {
+    case 'github': {
+      const mod = await import('@/services/integrations/github');
+      return mod.createItem;
+    }
+    case 'slack': {
+      const mod = await import('@/services/integrations/slack');
+      return mod.createItem;
+    }
+    case 'trello': {
+      const mod = await import('@/services/integrations/trello');
+      return mod.createItem;
+    }
+    case 'google-drive': {
+      const mod = await import('@/services/integrations/google-drive');
+      return mod.createItem;
+    }
+    case 'notion': {
+      const mod = await import('@/services/integrations/notion');
+      return mod.createItem;
+    }
+  }
+}
+
+// --- Component ---
+
 interface ActivityTimelineProps {
   freelancerId: string;
   workspaceId: string;
   filterSourceType?: string | string[];
+  connections?: WorkspaceConnection[];
 }
 
 export function ActivityTimeline({
   freelancerId,
   workspaceId,
   filterSourceType,
+  connections = [],
 }: ActivityTimelineProps) {
   const { toast } = useToast();
 
@@ -101,6 +246,15 @@ export function ActivityTimeline({
   const [syncing, setSyncing] = useState(false);
   const [providerFilter, setProviderFilter] = useState<'all' | ProviderId>('all');
   const [sourceTypeFilter, setSourceTypeFilter] = useState<'all' | ActivitySourceType>('all');
+
+  // Write action state
+  const [activeAction, setActiveAction] = useState<ActionDef | null>(null);
+  const [formTitle, setFormTitle] = useState('');
+  const [formBody, setFormBody] = useState('');
+  const [formExtras, setFormExtras] = useState<Record<string, string>>({});
+  const [pendingSubmit, setPendingSubmit] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Resolve the prop-driven source type filter (use first value if array)
   const propSourceType: ActivitySourceType | undefined = Array.isArray(filterSourceType)
@@ -152,27 +306,121 @@ export function ActivityTimeline({
     }
   }, [freelancerId, workspaceId, fetchEvents, toast]);
 
+  // Open create dialog for a given action
+  const openActionDialog = useCallback((action: ActionDef) => {
+    setActiveAction(action);
+    setFormTitle('');
+    setFormBody('');
+    setFormExtras({});
+  }, []);
+
+  const closeActionDialog = useCallback(() => {
+    setActiveAction(null);
+    setPendingSubmit(false);
+  }, []);
+
+  // Called when user submits the form — show confirmation first
+  const handleFormSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!activeAction) return;
+      setPendingSubmit(true);
+      setShowConfirm(true);
+    },
+    [activeAction]
+  );
+
+  // Called when user confirms in the alert dialog
+  const handleConfirmedSubmit = useCallback(async () => {
+    if (!activeAction) return;
+    setShowConfirm(false);
+    setSubmitting(true);
+
+    // Find the connection for the provider
+    const connection = connections.find(
+      (c) => c.provider === activeAction.provider && c.status === 'connected'
+    );
+    if (!connection) {
+      toast({
+        title: 'No active connection',
+        description: `No connected ${activeAction.provider} account found.`,
+        variant: 'destructive',
+      });
+      setSubmitting(false);
+      setPendingSubmit(false);
+      return;
+    }
+
+    const payload: CreateItemPayload = {
+      type: activeAction.payloadType,
+      title: formTitle,
+      body: formBody || undefined,
+      metadata: Object.keys(formExtras).length > 0 ? { ...formExtras } : undefined,
+    };
+
+    try {
+      const createItem = await getCreateItemFn(activeAction.provider);
+      await createItem(connection.nangoConnectionId, payload);
+      toast({
+        title: 'Created successfully',
+        description: `${activeAction.label} was created in ${getProviderConfig(activeAction.provider).name}.`,
+      });
+      closeActionDialog();
+    } catch (err) {
+      toast({
+        title: 'Create failed',
+        description: err instanceof Error ? err.message : 'An unexpected error occurred.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
+      setPendingSubmit(false);
+    }
+  }, [activeAction, connections, formTitle, formBody, formExtras, toast, closeActionDialog]);
+
   const showSourceTypeDropdown = !propSourceType;
+  const visibleActions = getVisibleActions(filterSourceType, connections);
+
+  // Provider display name for confirm dialog
+  const confirmProviderName = activeAction
+    ? getProviderConfig(activeAction.provider).name
+    : '';
 
   return (
     <Card className="border border-gray-200 bg-white">
       <CardHeader className="pb-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base font-semibold text-gray-900">Activity Timeline</CardTitle>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleSync}
-            disabled={syncing}
-            className="w-full sm:w-auto"
-          >
-            {syncing ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 h-4 w-4" />
-            )}
-            {syncing ? 'Syncing…' : 'Sync Now'}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Write action buttons */}
+            {visibleActions.map((action) => (
+              <Button
+                key={`${action.provider}-${action.payloadType}`}
+                size="sm"
+                variant="outline"
+                onClick={() => openActionDialog(action)}
+                className="w-full sm:w-auto"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                {action.label}
+              </Button>
+            ))}
+            {/* Sync button */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleSync}
+              disabled={syncing}
+              className="w-full sm:w-auto"
+            >
+              {syncing ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              {syncing ? 'Syncing…' : 'Sync Now'}
+            </Button>
+          </div>
         </div>
 
         {/* Filter controls */}
@@ -277,6 +525,88 @@ export function ActivityTimeline({
           </ScrollArea>
         )}
       </CardContent>
+
+      {/* Create item dialog */}
+      <Dialog open={!!activeAction} onOpenChange={(open) => { if (!open) closeActionDialog(); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{activeAction?.label}</DialogTitle>
+          </DialogHeader>
+          {activeAction && (
+            <form onSubmit={handleFormSubmit} className="flex flex-col gap-4 pt-2">
+              {/* Title */}
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="action-title">Title</Label>
+                <Input
+                  id="action-title"
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
+                  placeholder="Enter title"
+                  required
+                />
+              </div>
+
+              {/* Body */}
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="action-body">Body (optional)</Label>
+                <Textarea
+                  id="action-body"
+                  value={formBody}
+                  onChange={(e) => setFormBody(e.target.value)}
+                  placeholder="Enter description or message body"
+                  rows={3}
+                />
+              </div>
+
+              {/* Extra provider-specific fields */}
+              {activeAction.extraFields.map((field) => (
+                <div key={field.key} className="flex flex-col gap-1.5">
+                  <Label htmlFor={`action-${field.key}`}>{field.label}</Label>
+                  <Input
+                    id={`action-${field.key}`}
+                    value={formExtras[field.key] ?? ''}
+                    onChange={(e) =>
+                      setFormExtras((prev) => ({ ...prev, [field.key]: e.target.value }))
+                    }
+                    placeholder={field.placeholder}
+                    required={field.required}
+                  />
+                </div>
+              ))}
+
+              <DialogFooter className="pt-2">
+                <Button type="button" variant="outline" onClick={closeActionDialog}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={pendingSubmit || submitting}>
+                  {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {submitting ? 'Creating…' : 'Create'}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation alert dialog */}
+      <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Action</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will create a {activeAction?.payloadType} in {confirmProviderName}. Continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setShowConfirm(false); setPendingSubmit(false); }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmedSubmit}>
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
