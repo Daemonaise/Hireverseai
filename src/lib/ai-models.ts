@@ -5,7 +5,7 @@
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { openAI } from '@genkit-ai/compat-oai/openai';
-import { anthropic, claude37Sonnet } from 'genkitx-anthropic';
+import { anthropic, claude46Sonnet } from 'genkitx-anthropic';
 
 // Initialize plugins
 genkit({
@@ -21,7 +21,7 @@ export const MODEL_REGISTRY = {
     mini: openAI.model('gpt-5-mini-2025-08-07'),
   },
   anthropic: {
-    sonnet: claude37Sonnet,
+    sonnet: claude46Sonnet,
   },
 } as const;
 

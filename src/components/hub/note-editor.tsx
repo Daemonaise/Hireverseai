@@ -32,6 +32,7 @@ export function NoteEditor({ freelancerId, workspaceId }: NoteEditorProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const selectedNote = notes.find((n) => n.id === selectedId) ?? null;
+  const initialized = useRef(false);
 
   const refreshNotes = useCallback(async () => {
     const data = await listNotes(freelancerId, workspaceId);
@@ -42,11 +43,12 @@ export function NoteEditor({ freelancerId, workspaceId }: NoteEditorProps) {
   useEffect(() => {
     refreshNotes().then((data) => {
       setLoading(false);
-      if (data.length > 0 && !selectedId) {
+      if (!initialized.current && data.length > 0) {
         setSelectedId(data[0].id);
+        initialized.current = true;
       }
     });
-  }, [refreshNotes, selectedId]);
+  }, [refreshNotes]);
 
   async function handleNewNote() {
     setCreating(true);
@@ -55,7 +57,7 @@ export function NoteEditor({ freelancerId, workspaceId }: NoteEditorProps) {
         title: 'Untitled Note',
         content: '',
       });
-      const data = await refreshNotes();
+      await refreshNotes();
       setSelectedId(id);
     } finally {
       setCreating(false);
@@ -66,9 +68,9 @@ export function NoteEditor({ freelancerId, workspaceId }: NoteEditorProps) {
     setDeletingId(noteId);
     try {
       await deleteNote(freelancerId, workspaceId, noteId);
-      const data = await refreshNotes();
+      const remaining = await refreshNotes();
       if (selectedId === noteId) {
-        setSelectedId(data.length > 0 ? data[0].id : null);
+        setSelectedId(remaining.length > 0 ? remaining[0].id : null);
       }
     } finally {
       setDeletingId(null);

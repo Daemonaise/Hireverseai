@@ -34,7 +34,7 @@ export function BookmarkList({ freelancerId, workspaceId }: BookmarkListProps) {
     if (!form.title.trim() || !form.url.trim()) return;
     setSaving(true);
     try {
-      const id = await addBookmark(freelancerId, workspaceId, {
+      await addBookmark(freelancerId, workspaceId, {
         title: form.title.trim(),
         url: form.url.trim(),
         description: form.description.trim(),

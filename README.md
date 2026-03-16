@@ -50,7 +50,7 @@ Freelancers are onboarded through an adaptive skill assessment and earn XP and b
 | Auth | Firebase Auth (email/password + TOTP MFA via `otplib`) |
 | Database | Cloud Firestore |
 | AI Orchestration | Genkit 1.x |
-| AI Models | Google Gemini 2.5 Flash, OpenAI GPT-5 Mini, Anthropic Claude 4.5 Sonnet |
+| AI Models | Google Gemini Flash (latest), OpenAI GPT-5 Mini, Anthropic Claude 4.6 Sonnet |
 | Payments | Stripe (PaymentIntents + Subscriptions + Webhooks) |
 | Forms | React Hook Form + Zod |
 | Data Fetching | TanStack Query + `@tanstack-query-firebase` |
@@ -79,6 +79,7 @@ src/
 │   ├── (payment)/
 │   │   └── checkout/           # Stripe payment checkout
 │   └── api/
+│       ├── chat/                  # Client chat agent endpoint
 │       ├── stripe/
 │       │   ├── create-payment-intent/
 │       │   ├── create-subscription/
@@ -94,10 +95,17 @@ src/
 │   ├── ui/                     # shadcn/ui base components
 │   ├── header-navigation-client.tsx
 │   ├── site-logo.tsx
+│   ├── splash-screen.tsx
+│   ├── feature-card.tsx
+│   ├── workflow-grid.tsx
+│   ├── auth-prompt-dialog.tsx
 │   ├── login-form.tsx
+│   ├── client-login-form.tsx
 │   ├── client-signup-form.tsx
+│   ├── freelancer-login-form.tsx
 │   ├── freelancer-signup-form.tsx
 │   ├── client-dashboard.tsx
+│   ├── client-dashboard-loader.tsx
 │   ├── freelancer-dashboard.tsx
 │   ├── freelancer-profile.tsx
 │   ├── ai-matcher.tsx
@@ -245,11 +253,13 @@ useAuth() hook consumed by pages/components
 
 | Key | Model | Provider |
 |---|---|---|
-| `googleFlash` | `gemini-2.5-flash` | Google AI |
+| `googleFlash` | `gemini-flash-latest` | Google AI |
 | `openaiMini` | `gpt-5-mini-2025-08-07` | OpenAI |
-| `anthropicSonnet` | `claude-sonnet-4-5` | Anthropic |
+| `anthropicSonnet` | `claude46Sonnet` | Anthropic |
 
 All AI interactions go through a single Genkit `ai` instance (`src/lib/ai.ts`) that activates only the plugins for which API keys are present.
+
+> For detailed provider documentation, model catalogs, and SDK examples, see [docs/ai-provider-reference.md](docs/ai-provider-reference.md).
 
 ---
 
@@ -271,7 +281,7 @@ Matches a client's project brief to the best available freelancer and produces a
    - Base cost = `hours * hourlyRate`
    - Rating premium: +2% per rating point above 4.0
    - Complexity surcharge: +5% per skill beyond 3
-   - Platform markup: 10%
+   - Platform markup: 15%
    - Tax: 7%
 
 **Output**: `matchedFreelancerId`, `estimatedHours`, `estimatedTimeline`, full cost breakdown, `status`.
@@ -471,6 +481,23 @@ Stores the full result of a freelancer's adaptive skill assessment including que
 
 ## API Routes
 
+### `POST /api/chat`
+
+Handles client chat agent conversations. Accepts a message history and client ID, runs the `chatWithClientAgent` Genkit flow, and returns the AI response as a text stream.
+
+**Request body**:
+```json
+{ "messages": [{ "id": "...", "role": "user", "content": "..." }], "clientId": "..." }
+```
+
+**Logic**:
+- Validates `clientId` and `messages` array
+- Passes full message history to the `chatWithClientAgent` flow (which has tools for listing projects, getting details, and initiating new projects)
+- Caches conversation history per client (in-memory)
+- Returns AI response as a `text/plain` readable stream
+
+---
+
 ### `POST /api/stripe/create-payment-intent`
 
 Creates a Stripe PaymentIntent for a one-time project payment.
@@ -579,12 +606,12 @@ Used when a client pays for a specific project after freelancer matching. The fl
 5. Webhook handler updates Firestore project status
 
 **Pricing calculation** (server-side, in the `matchFreelancer` flow):
-- Platform markup: 10% of base
+- Platform markup: 15% of base
 - Rating premium: 2% per rating point above 4.0
 - Complexity surcharge: 5% per required skill beyond 3
 - Tax: 7% on subtotal
 
-**API route platform fee**: An additional 15% is added at the PaymentIntent level on top of the matched estimate.
+**API route platform fee**: The 15% platform markup is included in the matched estimate's total cost, then passed to the PaymentIntent.
 
 ### Subscriptions (Checkout Sessions)
 
@@ -615,6 +642,20 @@ Stub integration for sending notifications or receiving project creation request
 
 ---
 
+## Client Systems Hub
+
+Freelancers can connect and authenticate with external systems (CRM, project management, communication tools) via OAuth using Nango.
+
+**Routes**:
+- `GET /freelancer/hub` — Freelancer hub dashboard (list connected integrations)
+- `GET /freelancer/hub/[workspaceId]` — Workspace detail and integration configuration
+- `POST /api/hub/nango-session` — Initiates Nango OAuth session for a specific integration
+- `POST /api/hub/chat` — AI-powered chat for hub workspace configuration and automation setup
+
+**Environment variables**: `NANGO_SECRET_KEY` (server-side), `NEXT_PUBLIC_NANGO_PUBLIC_KEY` (client-side).
+
+---
+
 ## Gamification
 
 Freelancers earn **XP** (experience points) and **Badges** as they work. These are stored on the `freelancer` Firestore document and drive the community leaderboard.
@@ -640,7 +681,7 @@ Additional badges can be awarded via `awardBadge(freelancerId, badgeId)` at any 
 
 ## Environment Variables
 
-Create a `.env.local` file in the project root:
+Create a `.env` or `.env.local` file in the project root:
 
 ```bash
 # Firebase
@@ -661,6 +702,10 @@ STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 STRIPE_PRICE_ID=                     # Subscription price ID
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
+
+# Nango — manages OAuth for all hub integrations
+NANGO_SECRET_KEY=
+NEXT_PUBLIC_NANGO_PUBLIC_KEY=
 ```
 
 The Genkit AI instance (`src/lib/ai.ts`) only loads plugins for providers whose API key is present, so all three providers are optional — at least one must be configured for AI features to function.
@@ -717,4 +762,4 @@ npm run dev
 
 **Known non-blocking TypeScript errors**:
 - Genkit/Zod version mismatch producing `ZodObject` type errors in AI flow files
-- `pages/api/chat.ts`: `Message` type renamed to `UIMessage` in the `ai` package
+- `src/app/api/chat/route.ts`: `Message` type from the `ai` package may show warnings (renamed to `UIMessage` in newer versions)
