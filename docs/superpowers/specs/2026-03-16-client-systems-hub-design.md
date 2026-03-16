@@ -17,6 +17,12 @@ The Client Systems Hub is a workspace layer that replaces the existing freelance
 - **Integrations:** Real OAuth flows (not stubs) for the 5 highest-usage tools: Slack, GitHub, Google Drive, Trello, Notion
 - **AI assistant:** Both background summarization and conversational chat, scoped per workspace
 - **All 4 phases** are in scope, built incrementally
+- **Existing stubs:** `src/services/monday.ts` and `src/services/microsoft-teams.ts` are deprecated and left in place. They are not migrated into the new `src/services/integrations/` directory — Monday.com and Teams can be added as new provider files later following the same convention.
+- **Workspace Templates** (from source doc) are deferred — not in scope for any phase. The architecture supports adding templates later as preset workspace configurations.
+- **Engagement type** is a free-text string (not an enum) — freelancers describe the engagement in their own terms (e.g., "retainer", "contract", "project-based", "consulting")
+- **Daily activity digests** (listed as Phase 2 in the source doc) are implemented in Phase 3 as AI briefings, since digest generation requires the AI summarization layer
+- **Time tracking and deliverables** (mentioned in source doc as workspace contents) are deferred — not in scope for any current phase
+- **Token isolation:** OAuth tokens are never reused across workspaces — enforced by the data model (tokens live on per-workspace connection documents)
 
 ---
 
@@ -177,6 +183,7 @@ src/components/hub/
   ├── bookmark-list.tsx            → CRUD for workspace bookmarks
   ├── note-editor.tsx              → Markdown notes with create/edit/delete
   ├── activity-timeline.tsx        → (Phase 2) Normalized event feed, filterable by provider/type
+  ├── access-permissions.tsx        → Connection scopes, revocation, audit log
   ├── ai-briefing-panel.tsx        → (Phase 3) Summary + action items + blockers
   └── workspace-chat.tsx           → (Phase 3) Conversational AI scoped to workspace
 ```
@@ -185,10 +192,12 @@ src/components/hub/
 
 | Phase | Tabs |
 |-------|------|
-| Phase 1 | Overview (includes bookmarks), Apps, Notes |
+| Phase 1 | Overview (includes bookmarks), Apps, Notes, Access & Permissions |
 | Phase 2 | Tasks, Messages, Files, Timeline |
 | Phase 3 | AI Briefing (summarizer + chat) |
 | Phase 4 | Write action buttons within Tasks/Messages tabs |
+
+The **Access & Permissions** tab (Phase 1) shows connected integrations with their scopes, allows revoking individual connections, and displays an audit log of connection changes (connect/disconnect/error events).
 
 ### Dashboard migration
 
@@ -238,6 +247,8 @@ Follows the existing `chatWithClientAgent` pattern, scoped to a single workspace
 | `listNotes` | Read workspace notes |
 | `listBookmarks` | Read workspace bookmarks |
 | `runQACheck` | Review a work submission (delegates to QA flow) |
+| `draftStatusUpdate` | Compose a client-facing status update from workspace activity |
+| `searchActivity` | Semantic search across activity events, notes, and bookmarks |
 
 **System prompt** establishes the agent as "Hireverse Workspace Assistant" with strict instruction to never leak data across workspaces. AI context doc is injected as system context.
 
@@ -284,6 +295,9 @@ Replaces the current random pass/fail placeholder in the freelancer dashboard.
 - `workspace-briefing` flow: activity summarization, action item extraction, blocker detection
 - `workspace-chat-agent` flow: conversational agent with workspace-scoped tools
 - `workspace-qa-review` flow: replaces placeholder QA with real AI review
+- Semantic search across workspace activity via chat agent `searchActivity` tool
+- Status update drafting via chat agent `draftStatusUpdate` tool
+- Task prioritization recommendations within AI briefings (actionItems sorted by urgency)
 - AI Briefing tab in workspace detail
 
 ### Phase 4 — Write Actions
