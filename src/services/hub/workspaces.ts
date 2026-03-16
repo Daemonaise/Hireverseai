@@ -71,3 +71,12 @@ export async function archiveWorkspace(
 ): Promise<void> {
   await updateWorkspace(freelancerId, workspaceId, { status: 'archived' });
 }
+
+export async function updateLastVisitedAt(
+  freelancerId: string,
+  workspaceId: string
+): Promise<void> {
+  await updateDoc(workspaceDoc(freelancerId, workspaceId), {
+    lastVisitedAt: serverTimestamp(),
+  });
+}

@@ -91,7 +91,7 @@ export function HubDashboard({ freelancerId }: HubDashboardProps) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {workspaces.map((workspace) => (
-            <WorkspaceCard key={workspace.id} workspace={workspace} />
+            <WorkspaceCard key={workspace.id} workspace={workspace} freelancerId={freelancerId} />
           ))}
         </div>
       )}

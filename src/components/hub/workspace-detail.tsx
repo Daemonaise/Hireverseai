@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { getWorkspace } from '@/services/hub/workspaces';
+import { getWorkspace, updateLastVisitedAt } from '@/services/hub/workspaces';
 import { listConnections, deleteConnection } from '@/services/hub/connections';
 import type { Workspace, WorkspaceConnection } from '@/types/hub';
 import { BookmarkList } from '@/components/hub/bookmark-list';
@@ -65,7 +65,8 @@ export function WorkspaceDetail({ freelancerId, workspaceId }: WorkspaceDetailPr
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    updateLastVisitedAt(freelancerId, workspaceId).catch(() => {});
+  }, [fetchData, freelancerId, workspaceId]);
 
   const handleDeleteConnection = useCallback(
     async (connectionId: string) => {

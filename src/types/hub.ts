@@ -28,6 +28,7 @@ export interface Workspace {
   status: WorkspaceStatus;
   createdAt: Timestamp;
   updatedAt: Timestamp | FieldValue;
+  lastVisitedAt?: Timestamp | null;
 }
 
 export type CreateWorkspaceInput = Omit<Workspace, 'id' | 'createdAt' | 'updatedAt'>;
