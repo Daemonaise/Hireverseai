@@ -18,6 +18,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (uid !== freelancerId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { data } = await getNango().createConnectSession({
       tags: {
         end_user_id: freelancerId,

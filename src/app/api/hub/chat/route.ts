@@ -17,6 +17,10 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    if (uid !== freelancerId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json({ error: 'Invalid messages format' }, { status: 400 });
     }
