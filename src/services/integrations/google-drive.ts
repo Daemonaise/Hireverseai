@@ -1,6 +1,7 @@
 'use server';
 
 import { nango } from '@/lib/nango';
+import { Timestamp } from 'firebase/firestore';
 import type { NormalizedActivity } from '@/types/hub';
 import type { CreateItemPayload, UpdateItemPayload } from '@/types/hub';
 import { PROVIDER_CONFIGS } from './types';
@@ -15,7 +16,34 @@ export async function fetchActivity(
   nangoConnectionId: string,
   since: Date
 ): Promise<Omit<NormalizedActivity, 'id'>[]> {
-  return [];
+  const res = await nango.get({
+    endpoint: '/drive/v3/files',
+    providerConfigKey: config.nangoIntegrationId,
+    connectionId: nangoConnectionId,
+    params: {
+      q: `modifiedTime > '${since.toISOString()}'`,
+      fields: 'files(id,name,mimeType,modifiedTime,webViewLink,lastModifyingUser)',
+      pageSize: '50',
+      orderBy: 'modifiedTime desc',
+    },
+    retries: 2,
+  });
+
+  const files = (res.data?.files ?? []) as Array<Record<string, any>>;
+
+  return files.map((file) => ({
+    sourceProvider: 'google-drive' as const,
+    sourceType: 'document' as const,
+    sourceExternalId: file.id,
+    title: file.name,
+    bodyExcerpt: `Type: ${file.mimeType}`,
+    status: '',
+    assignee: file.lastModifyingUser?.displayName ?? '',
+    dueDate: null,
+    url: file.webViewLink || '',
+    rawPayloadRef: '',
+    createdAt: Timestamp.fromDate(new Date(file.modifiedTime)),
+  }));
 }
 
 export async function createItem(

@@ -1,7 +1,8 @@
 'use server';
 
 import { nango } from '@/lib/nango';
-import type { NormalizedActivity } from '@/types/hub';
+import { Timestamp } from 'firebase/firestore';
+import type { NormalizedActivity, ActivitySourceType } from '@/types/hub';
 import type { CreateItemPayload, UpdateItemPayload } from '@/types/hub';
 import { PROVIDER_CONFIGS } from './types';
 
@@ -15,7 +16,53 @@ export async function fetchActivity(
   nangoConnectionId: string,
   since: Date
 ): Promise<Omit<NormalizedActivity, 'id'>[]> {
-  return [];
+  const boardsRes = await nango.get({
+    endpoint: '/1/members/me/boards',
+    providerConfigKey: config.nangoIntegrationId,
+    connectionId: nangoConnectionId,
+    params: { fields: 'id,name', filter: 'open' },
+    retries: 2,
+  });
+
+  const boards = (boardsRes.data ?? []) as Array<Record<string, any>>;
+  const activities: Omit<NormalizedActivity, 'id'>[] = [];
+
+  for (const board of boards.slice(0, 5)) {
+    const actionsRes = await nango.get({
+      endpoint: `/1/boards/${board.id}/actions`,
+      providerConfigKey: config.nangoIntegrationId,
+      connectionId: nangoConnectionId,
+      params: { since: since.toISOString(), limit: '50' },
+      retries: 1,
+    });
+
+    const actions = (actionsRes.data ?? []) as Array<Record<string, any>>;
+    const typeMap: Record<string, ActivitySourceType> = {
+      createCard: 'task',
+      updateCard: 'task',
+      commentCard: 'message',
+      addAttachmentToCard: 'document',
+    };
+
+    for (const action of actions) {
+      const sourceType = typeMap[action.type] ?? 'task';
+      activities.push({
+        sourceProvider: 'trello',
+        sourceType,
+        sourceExternalId: action.id,
+        title: `${action.type} on ${board.name}`,
+        bodyExcerpt: (action.data?.text || action.data?.card?.name || '').substring(0, 200),
+        status: '',
+        assignee: action.memberCreator?.fullName ?? '',
+        dueDate: null,
+        url: action.data?.card ? `https://trello.com/c/${action.data.card.shortLink}` : '',
+        rawPayloadRef: '',
+        createdAt: Timestamp.fromDate(new Date(action.date)),
+      });
+    }
+  }
+
+  return activities;
 }
 
 export async function createItem(

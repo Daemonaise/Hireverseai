@@ -1,7 +1,8 @@
 'use server';
 
 import { nango } from '@/lib/nango';
-import type { NormalizedActivity } from '@/types/hub';
+import { Timestamp } from 'firebase/firestore';
+import type { NormalizedActivity, ActivitySourceType } from '@/types/hub';
 import type { CreateItemPayload, UpdateItemPayload } from '@/types/hub';
 import { PROVIDER_CONFIGS } from './types';
 
@@ -15,7 +16,35 @@ export async function fetchActivity(
   nangoConnectionId: string,
   since: Date
 ): Promise<Omit<NormalizedActivity, 'id'>[]> {
-  return [];
+  const res = await nango.post({
+    endpoint: '/v1/search',
+    providerConfigKey: config.nangoIntegrationId,
+    connectionId: nangoConnectionId,
+    data: {
+      sort: { direction: 'descending', timestamp: 'last_edited_time' },
+      page_size: 50,
+    },
+    headers: { 'Notion-Version': '2022-06-28' },
+    retries: 2,
+  });
+
+  const results = (res.data?.results ?? []) as Array<Record<string, any>>;
+
+  return results
+    .filter((item) => new Date(item.last_edited_time) >= since)
+    .map((item) => ({
+      sourceProvider: 'notion' as const,
+      sourceType: (item.object === 'database' ? 'task' : 'document') as ActivitySourceType,
+      sourceExternalId: item.id,
+      title: item.properties?.title?.title?.[0]?.plain_text || item.properties?.Name?.title?.[0]?.plain_text || 'Untitled',
+      bodyExcerpt: `${item.object} — last edited ${item.last_edited_time}`,
+      status: '',
+      assignee: '',
+      dueDate: null,
+      url: item.url || '',
+      rawPayloadRef: '',
+      createdAt: Timestamp.fromDate(new Date(item.last_edited_time)),
+    }));
 }
 
 export async function createItem(
