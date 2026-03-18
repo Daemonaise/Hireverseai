@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
+import { useAuth } from '@/contexts/auth-context';
 import { StripeElementsOptions, loadStripe, Stripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { Button } from '@/components/ui/button';
@@ -78,6 +79,7 @@ function CheckoutPageInner() {
   const [stripeKeyMissing, setStripeKeyMissing] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user } = useAuth();
   const projectId = searchParams?.get('projectId');
   const baseCost = Number(searchParams?.get('cost'));
 
@@ -103,7 +105,7 @@ function CheckoutPageInner() {
     fetch('/api/stripe/create-payment-intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectId, baseCost, clientId: 'test-client-001' }), // TODO: Replace test-client-001 with actual client ID
+      body: JSON.stringify({ projectId, baseCost, clientId: user?.uid }),
     })
       .then((res) => {
          if (!res.ok) throw new Error(`Failed to fetch payment intent (${res.status})`);

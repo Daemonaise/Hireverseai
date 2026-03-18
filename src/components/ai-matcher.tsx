@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Info, Clock, DollarSign, Layers, Check, X, ChevronDown, ChevronUp, AlertCircle, Loader2, Wand2, Bot, Calendar, Tag, Hourglass, Rocket } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/auth-context';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -29,10 +30,7 @@ const formSchema = z.object({
 
 type FormSchema = z.infer<typeof formSchema>;
 
-// Placeholder: Replace with actual authentication check from context or session
-const checkAuthentication = (): { isAuthenticated: boolean; userId: string | null } => {
-   return { isAuthenticated: true, userId: 'test-client-001' };
-};
+// Auth is now handled via useAuth() hook inside the component
 
 export interface AiMatcherRef {
   triggerSubmit: () => void;
@@ -49,6 +47,7 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
   const freelancerIdInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const router = useRouter();
+  const { user } = useAuth();
   const [isMatching, setIsMatching] = useState(false);
   const [isIdeaChatOpen, setIsIdeaChatOpen] = useState(false);
   const [generatedIdea, setGeneratedIdea] = useState<GenerateProjectIdeaOutput | null>(null);
@@ -106,7 +105,8 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
     setError(null);
     setMatchResult(null);
     setIsMatching(true);
-    const { isAuthenticated, userId } = checkAuthentication();
+    const isAuthenticated = !!user;
+    const userId = user?.uid ?? null;
 
     if (!isAuthenticated) {
       toast({ title: "Authentication Required", description: "Please login or sign up to match freelancers.", variant: "destructive" });
