@@ -19,6 +19,7 @@ import { AccessPermissions } from '@/components/hub/access-permissions';
 import { ActivityTimeline } from '@/components/hub/activity-timeline';
 import { AiBriefingPanel } from '@/components/hub/ai-briefing-panel';
 import { WorkspaceChat } from '@/components/hub/workspace-chat';
+import { WorkspaceMessages } from '@/components/hub/workspace-messages';
 
 interface WorkspaceDetailProps {
   freelancerId: string;
@@ -216,7 +217,7 @@ export function WorkspaceDetail({ freelancerId, workspaceId }: WorkspaceDetailPr
 
         {/* Messages Tab */}
         <TabsContent value="messages">
-          <div className="p-4 text-muted-foreground">{t('messagesComingSoon')}</div>
+          <WorkspaceMessages freelancerId={freelancerId} workspaceId={workspaceId} />
         </TabsContent>
 
         {/* Files Tab */}
