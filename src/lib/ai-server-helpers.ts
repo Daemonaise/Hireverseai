@@ -101,7 +101,6 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<M
   ]));
 
   if (availableModels.length === 0) {
-    console.warn("[AI Model Choice] No API keys found. Defaulting to googleFlash. AI calls may fail.");
     return ALL_MODELS.googleFlash; // Default if no keys are set
   }
 
@@ -112,7 +111,6 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<M
   for (const model of availableModels) {
     const profile = PROFILES[model.name];
     if (!profile) {
-        console.warn(`[AI Model Choice] Profile not found for model: ${model.name}. Skipping.`);
         continue;
     }
     const { proficiency, cost, latency } = profile;

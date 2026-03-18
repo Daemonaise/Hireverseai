@@ -26,11 +26,9 @@ export function ClientChatAgent({ clientId }: ClientChatAgentProps) {
     // The `onFinish` callback is called when the stream is complete.
     // Here we can re-enable the UI or perform other actions.
     onFinish(message) {
-      console.log('Chat stream finished.');
     },
     // The `onError` callback is called if an error occurs.
     onError(error) {
-      console.error('Chat error:', error);
     },
   });
 

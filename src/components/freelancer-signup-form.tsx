@@ -85,7 +85,6 @@ export function FreelancerSignupForm() {
         });
         setCurrentStep('assessment');
       } catch (err: any) {
-        console.error('Error during signup process:', err);
         setError(err.message || 'An unexpected error occurred. Please try again.');
       }
     });

@@ -55,7 +55,6 @@ export function MfaVerify({ userId, userType, onVerified, onInvalidCredentials, 
         if (!secret) {
           const setupErrMsg = `MFA is required but not configured for your account. Please contact support or retry login.`;
           setMfaSetupError(setupErrMsg);
-          console.error(`MFA secret not found for ${userType} ${userId} during login verification.`);
           onInvalidCredentials?.(); // Signal that MFA isn't set up correctly
           return;
         }
@@ -85,7 +84,6 @@ export function MfaVerify({ userId, userType, onVerified, onInvalidCredentials, 
         // }
 
       } catch (error: any) {
-        console.error(`Error verifying MFA code for ${userType} ${userId}:`, error);
         let errorMessage = "An unexpected error occurred during verification. Please try again.";
         if (error.message.includes('Failed to fetch MFA secret')) {
             errorMessage = "Could not retrieve MFA setup. Please try logging in again or contact support.";
@@ -104,12 +102,10 @@ export function MfaVerify({ userId, userType, onVerified, onInvalidCredentials, 
       try { // Use try...catch to handle potential errors during the async operation
         const secret = await getUserMfaSecret(userId, userType);
         if (!secret) {
-          console.warn(`MFA verification prompted for user ${userId} (${userType}) but no secret found.`);
           setMfaSetupError("MFA is required but not configured for your account. Please contact support.");
           onInvalidCredentials?.();
         }
       } catch (e) {
-        console.error("Error checking MFA status during load:", e);
         setMfaSetupError("An unexpected error occurred while loading MFA information. Please try again.");
       }
     };

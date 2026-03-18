@@ -82,7 +82,6 @@ export function ClientDashboard({ clientId }: ClientDashboardProps) {
                 setFreelancerCache(prev => ({ ...prev, ...newCache }));
 
             } catch (err) {
-                console.error("Error fetching dashboard data:", err);
                 setError("Failed to load dashboard data. Please try again later.");
             } finally {
                 setIsLoading(false);
@@ -140,7 +139,6 @@ export function ClientDashboard({ clientId }: ClientDashboardProps) {
                  // TODO: Handle file upload if 'changeFile' is set
                  const fileUrl: string | undefined = undefined;
                  if (changeFile) {
-                     console.log("Simulating file upload for:", changeFile.name);
                      // Replace with actual upload logic (e.g., to Firebase Storage)
                      // fileUrl = await uploadFile(changeFile);
                  }
@@ -153,11 +151,9 @@ export function ClientDashboard({ clientId }: ClientDashboardProps) {
                      fileUrl: fileUrl,
                  };
                  const newRequestId = await addChangeRequestToProject(selectedProject.id!, changeRequestData);
-                 console.log("Change request added with ID:", newRequestId);
 
 
                  // 2. Call AI flow to get estimates
-                 console.log("Requesting AI estimation for change...");
                  const estimateInput = {
                      projectId: selectedProject.id!,
                      currentBrief: selectedProject.brief,
@@ -192,7 +188,6 @@ export function ClientDashboard({ clientId }: ClientDashboardProps) {
                  toast({ title: "Estimate Ready", description: "Review the estimated impact of your change." });
 
             } catch (err: any) {
-                console.error("Error submitting change request:", err);
                 toast({ title: "Error", description: `Failed to submit change request: ${err.message}`, variant: "destructive" });
                  // Optionally revert project status if needed
                  if (selectedProject?.id) {
@@ -222,7 +217,6 @@ export function ClientDashboard({ clientId }: ClientDashboardProps) {
                        )
                    );
              } catch (err: any) {
-                  console.error("Error approving change:", err);
                   toast({ title: "Approval Error", description: `Failed to approve change: ${err.message}`, variant: "destructive" });
              }
          });
@@ -247,7 +241,6 @@ export function ClientDashboard({ clientId }: ClientDashboardProps) {
                        )
                    );
              } catch (err: any) {
-                  console.error("Error cancelling change request:", err);
                   toast({ title: "Cancellation Error", description: `Failed to cancel request: ${err.message}`, variant: "destructive" });
              }
          });
@@ -259,7 +252,6 @@ export function ClientDashboard({ clientId }: ClientDashboardProps) {
         try {
              return timestamp.toDate().toLocaleDateString();
         } catch (e) {
-             console.error("Error formatting date:", e);
              return 'Invalid Date';
         }
     };
@@ -272,7 +264,6 @@ export function ClientDashboard({ clientId }: ClientDashboardProps) {
              if (date < now) return 'Past due';
              return formatDistanceToNowStrict(date, { addSuffix: true });
          } catch (e) {
-             console.error("Error formatting relative time:", e);
              return '';
          }
     }

@@ -15,7 +15,6 @@ const useAuthentication = () => {
      const searchParams = useSearchParams();
      // Use query param for demo, replace with real auth context
      const simulatedClientId = searchParams?.get('clientId') ?? 'test-client-001'; // Provide a default for demo
-     console.log("Simulated auth hook: using client ID -", simulatedClientId);
      // Basic check based on presence of ID (adjust as needed)
      const isAuthenticated = !!simulatedClientId;
      return { isAuthenticated, userId: simulatedClientId };

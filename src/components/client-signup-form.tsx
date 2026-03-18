@@ -58,13 +58,11 @@ export function ClientSignupForm() {
   });
 
   const handleSignupSubmit = useCallback(async (values: FormSchema) => {
-    console.log('handleSignupSubmit (client) called with values:', values.email);
     setSignupError(null);
     setClientId(null);
     setClientEmail(null);
     setMfaSecret(null);
     setIsProcessing(true); // Indicate processing starts
-    console.log('Starting client signup transition...');
 
     startTransition(async () => {
       try {
@@ -75,20 +73,14 @@ export function ClientSignupForm() {
           throw new Error("Failed to create authentication account.");
         }
         const newUserId = authResult.userId; // This is the ID from the auth system
-        console.log("Auth user created successfully, User ID:", newUserId);
 
         // 2. Add client to Firestore using the Auth User ID
-        console.log(`Adding client ${newUserId} to Firestore...`);
         // Pass the auth ID to addClient
         const newClientId = await addClient({ id: newUserId, name: values.name, email: values.email });
-        console.log(`Client Firestore document created/verified with ID: ${newClientId}`); // ID should match newUserId
 
         // 3. Generate and store MFA secret in Firestore
-        console.log("Generating MFA secret...");
         const secret = generateMfaSecret(); // Synchronous
-        console.log(`MFA Secret generated. Storing for client ${newClientId}...`);
         await storeUserMfaSecret(newClientId, secret, 'client');
-        console.log("MFA secret stored successfully for client.");
 
         // Set state for the next step (MFA Setup)
         setClientId(newClientId); // Store the confirmed client ID
@@ -96,7 +88,6 @@ export function ClientSignupForm() {
         setMfaSecret(secret);
 
         // Transition to MFA setup step
-        console.log("Client signup successful, transitioning to MFA step.");
         setCurrentStep('mfa');
         toast({
           title: 'Account Created',
@@ -104,24 +95,19 @@ export function ClientSignupForm() {
         });
 
       } catch (err: any) {
-        console.error('Error during client signup transition:', err);
         const errorMessage = err.message || 'An unexpected error occurred during signup.';
         setSignupError(errorMessage);
-        console.log(`Client signup error set: ${errorMessage}`);
         setCurrentStep('signup'); // Stay on signup step on error
       } finally {
         setIsProcessing(false); // End processing
-        console.log('Client signup transition finished.');
       }
     });
   }, [toast]);
 
   // Callback when MFA is successfully verified and enabled (by MfaSetup)
   const handleMfaVerified = useCallback(async () => {
-    console.log('Client MFA verified.');
     if (!clientId) {
         const errorMsg = "Client ID missing after MFA verification. Cannot proceed to payment.";
-        console.error(errorMsg);
         setSignupError(errorMsg);
         toast({ title: 'Error', description: 'Could not proceed to payment setup.', variant: 'destructive'});
         setCurrentStep('signup'); // Go back to signup on critical error
@@ -131,9 +117,7 @@ export function ClientSignupForm() {
     // Directly enable MFA in Firestore upon successful verification in MfaSetup
     try {
        await enableUserMfa(clientId, 'client');
-       console.log(`MFA successfully enabled for client ${clientId} in Firestore.`);
     } catch (enableError: any) {
-        console.error(`Failed to mark MFA as enabled for client ${clientId}:`, enableError);
         // Decide how to handle this - maybe proceed but warn? For now, show error and stop.
         setSignupError(`MFA verified, but failed to save status: ${enableError.message}. Please contact support.`);
         toast({ title: 'MFA Error', description: 'Could not save MFA status.', variant: 'destructive'});
@@ -145,7 +129,6 @@ export function ClientSignupForm() {
     setCurrentStep('processing_payment');
     setIsProcessing(true);
     setSignupError(null);
-    console.log('Starting Stripe subscription session creation for client:', clientId);
 
     try {
         // Fetch the Stripe Checkout Session URL from your API route
@@ -163,14 +146,12 @@ export function ClientSignupForm() {
         const session = await checkoutResponse.json();
         if (session.url) {
           // Redirect user to Stripe Checkout
-          console.log("Redirecting to Stripe Checkout...");
           window.location.href = session.url;
           // Stripe handles the rest; user gets redirected back based on success/cancel URLs
         } else {
           throw new Error('Could not get Stripe Checkout session URL.');
         }
     } catch (err: any) {
-        console.error('Error creating/redirecting to Stripe session:', err);
         const errorMessage = err.message || 'Failed to set up subscription payment.';
         setSignupError(errorMessage);
         toast({ title: 'Payment Setup Error', description: errorMessage, variant: 'destructive' });
@@ -191,7 +172,6 @@ export function ClientSignupForm() {
               mfaSecret={mfaSecret}
               onVerified={handleMfaVerified}
               onCancel={() => {
-                console.log('Client MFA setup cancelled, returning to signup.');
                 setSignupError(null); // Clear errors when cancelling MFA
                 setCurrentStep('signup');
               }}

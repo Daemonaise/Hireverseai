@@ -36,7 +36,6 @@ function CheckoutForm({ clientSecret, projectId }: CheckoutFormProps) {
     e.preventDefault();
 
     if (!stripe || !elements) {
-      console.warn("Stripe.js hasn't loaded yet.");
       return;
     }
 
@@ -87,7 +86,6 @@ function CheckoutPageInner() {
       setError("Stripe configuration is missing. Payment cannot be processed.");
       setStripeKeyMissing(true);
       setIsLoading(false);
-      console.error("CRITICAL: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not set in the environment.");
       return;
     }
     // Ensure stripePromise is initialized if key was found (it should be by this point if stripeKey is truthy)
@@ -119,7 +117,6 @@ function CheckoutPageInner() {
          }
       })
       .catch((err) => {
-          console.error("Error fetching client secret:", err);
           setError(`Failed to initialize payment: ${err.message}`);
       })
       .finally(() => setIsLoading(false));

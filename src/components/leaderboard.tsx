@@ -32,7 +32,6 @@ export function Leaderboard() {
         const data = await getTopFreelancers(10); // Fetch top 10
         setLeaderboardData(data);
       } catch (err) {
-        console.error("Error fetching leaderboard:", err);
         setError("Failed to load leaderboard data. Please try again later.");
       } finally {
         setIsLoading(false);

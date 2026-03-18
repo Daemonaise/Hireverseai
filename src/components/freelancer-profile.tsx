@@ -38,7 +38,6 @@ export function FreelancerProfile({ freelancerId }: FreelancerProfileProps) {
             setError(`Freelancer with ID ${freelancerId} not found.`);
         }
       } catch (err) {
-        console.error("Error fetching freelancer profile:", err);
         setError("Failed to load freelancer profile. Please try again later.");
       } finally {
         setIsLoading(false);

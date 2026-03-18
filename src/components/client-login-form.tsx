@@ -56,7 +56,6 @@ export function ClientLoginForm() {
 
         // 2. Check if MFA is enabled for this client
         const mfaEnabled = await isUserMfaEnabled(userId, 'client');
-        console.log(`MFA enabled check for client ${userId}: ${mfaEnabled}`);
 
         if (mfaEnabled) {
           // Proceed to MFA step
@@ -69,7 +68,6 @@ export function ClientLoginForm() {
         }
 
       } catch (error: any) {
-        console.error('Client Login failed:', error);
         // Use the error message thrown by signInAuthUser or isUserMfaEnabled
         const errorMessage = error.message || 'Login failed. Please check your credentials or contact support.';
         setLoginError(errorMessage);
@@ -94,7 +92,6 @@ export function ClientLoginForm() {
     if (userIdForMfa) {
       completeLogin(userIdForMfa);
     } else {
-      console.error("MFA verified but userIdForMfa is null.");
       setLoginError("An unexpected error occurred after MFA verification.");
       setStep('credentials'); // Go back to credential step on error
     }

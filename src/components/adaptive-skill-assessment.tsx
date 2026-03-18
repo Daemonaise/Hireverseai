@@ -78,7 +78,6 @@ export function AdaptiveSkillAssessment({
         setCurrentDifficulty(nextQuestion.difficulty);
         setCurrentAnswer('');
     } catch (err: any) {
-        console.error("Error fetching next question:", err);
         const message = `Failed to load the next question: ${err.message}.`;
         setFetchError(message); // Set specific fetch error
         toast({ title: "Error Loading Question", description: err.message, variant: "destructive" });
@@ -163,7 +162,6 @@ export function AdaptiveSkillAssessment({
         const nextDifficulty = getNextDifficultyLevel(currentDifficulty, suggestedDirection);
         await fetchNextQuestion(nextDifficulty);
       } catch (err: any) {
-        console.error('Error submitting/grading answer:', err);
         setError(`An error occurred during submission: ${err.message}. You can try submitting again or contact support.`);
         toast({ title: 'Submission Error', description: err.message, variant: 'destructive' });
         setIsLoading(false);
@@ -224,7 +222,6 @@ export function AdaptiveSkillAssessment({
 
       onComplete();
     } catch (err: any) {
-      console.error('Error finalizing assessment:', err);
       setError(`Failed to save assessment results: ${err.message}. Please contact support.`);
       toast({ title: 'Error Saving Results', description: err.message, variant: 'destructive' });
     } finally {

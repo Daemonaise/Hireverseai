@@ -39,10 +39,6 @@ export async function validateAIOutput(
   originalOutput: string,
   primaryModelName: string // Use string for broader compatibility
 ): Promise<{ allValid: boolean; results: ValidationResult[] }> {
-  console.log(`[AI Validation] Starting validation process...`);
-  console.log(`[AI Validation] Primary Model: ${primaryModelName}`);
-  console.log(`[AI Validation] Original Prompt (first 100 chars):`, originalPrompt.substring(0, 100) + '...');
-  console.log(`[AI Validation] Original Output (first 100 chars):`, originalOutput.substring(0, 100) + '...');
 
   const validatorModels: ModelId[] = [];
   
@@ -64,16 +60,13 @@ export async function validateAIOutput(
   const uniqueValidatorModels = Array.from(new Set(validatorModels));
 
   if (uniqueValidatorModels.length === 0) {
-    console.warn(`[AI Validation] No other models available for cross-validation. Skipping.`);
     return { allValid: true, results: [] }; // Assume valid if no validators
   }
 
-  console.log(`[AI Validation] Attempting validation using models: ${uniqueValidatorModels.map(m => m.name).join(', ')}`);
 
   const validationResults: ValidationResult[] = [];
 
   for (const model of uniqueValidatorModels) {
-    console.log(`
 [AI Validation] --- Starting validation with ${model.name} ---`);
     try {
       const validationPrompt = ai.definePrompt({
@@ -84,32 +77,22 @@ export async function validateAIOutput(
         model: model, // Pass the ModelId object here
       });
 
-      console.log(`[AI Validation] Calling ${model.name} for validation...`);
       const { output } = await validationPrompt({ originalPrompt, originalOutput });
-      console.log(`[AI Validation] Raw output from ${model.name}:`, JSON.stringify(output, null, 2));
 
       if (output) {
-        console.log(`[AI Validation] Parsing output from ${model.name}...`);
         const parsedOutput = ValidationSchema.parse(output); // Zod parse will throw if schema mismatch
-        console.log(`[AI Validation] Parsed output from ${model.name}:`, parsedOutput);
         validationResults.push(parsedOutput);
       } else {
-        console.warn(`[AI Validation] Validator ${model.name} returned empty or invalid output.`);
         validationResults.push({ isValid: false, reasoning: `Validator ${model.name} failed to provide valid output.` });
       }
     } catch (error: any) {
-      console.error(`[AI Validation] Error validating with ${model.name}:`, error.message);
-      console.error(`[AI Validation] Full error object:`, error);
       validationResults.push({ isValid: false, reasoning: `Error during validation with ${model.name}: ${error.message}` });
     }
-    console.log(`[AI Validation] --- Finished validation with ${model.name} ---`);
   }
 
   // Compute allValid after collecting all results
   const allValid = validationResults.length > 0 && validationResults.every(r => r.isValid);
 
-  console.log(`[AI Validation] Final overall validation result: allValid=${allValid}`);
-  console.log(`[AI Validation] Detailed results:`, JSON.stringify(validationResults, null, 2));
 
   return { allValid, results: validationResults };
 }

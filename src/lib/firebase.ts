@@ -16,7 +16,6 @@ const firebaseConfig = {
 
 // Defensive check to prevent initializing if config is missing.
 if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-    console.error("CRITICAL: Firebase configuration is missing. Ensure all NEXT_PUBLIC_FIREBASE_* environment variables are set in your .env file.");
 }
 
 

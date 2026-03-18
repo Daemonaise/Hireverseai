@@ -52,7 +52,6 @@ export function MfaSetup({ userId, userEmail, userType, mfaSecret, onVerified, o
           const uri = await generateMfaUri(userEmail, 'Hireverse AI', mfaSecret); // Await the promise
           setQrCodeUri(uri); // Now uri is a string
         } catch (err) {
-          console.error("Error generating MFA URI:", err);
           setError("Could not generate the setup QR code.");
         }
       }
@@ -84,7 +83,6 @@ export function MfaSetup({ userId, userEmail, userType, mfaSecret, onVerified, o
         onVerified(); // Trigger completion callback
 
       } catch (err: any) {
-        console.error("Error verifying MFA code:", err);
         const message = err.message || "Failed to verify code. Please try again.";
         setError(message);
         // toast({ title: "Verification Failed", description: message, variant: "destructive" }); // Toast can be redundant

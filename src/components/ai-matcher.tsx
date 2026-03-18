@@ -89,12 +89,10 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
        if (result.status === 'error') {
          const errorMessage = result.reasoning || `Failed to generate example: Invalid response from AI.`;
          setIdeaError(errorMessage);
-         console.warn("[AI Matcher] Idea generation failed:", result);
        } else {
          setGeneratedIdea(result);
        }
     } catch (err: any) {
-       console.error('Error in handleGenerateIdea:', err);
        const errorDetails = err.errors ? JSON.stringify(err.errors) : '';
        const errorMessage = `${err.message || "An unexpected error occurred while generating the example."} ${errorDetails}`;
        setIdeaError(errorMessage);
@@ -148,7 +146,6 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
             toast({ title: "Match Found!", description: "Redirecting to payment...", variant: "default" });
             return;
         } else {
-             console.warn("Matching status:", result.status, "Cost:", result.totalCostToClient);
              setError(result.reasoning || "Could not finalize match details.");
               toast({
                 title: "Processing Complete",
@@ -157,7 +154,6 @@ export const AiMatcher = forwardRef<AiMatcherRef, AiMatcherProps>((props, ref) =
              });
         }
       } catch (err: any) {
-        console.error('Error during matchFreelancer flow:', err);
         const errorMessage = err.message || "Failed to process project brief due to an unexpected error.";
         setError(errorMessage);
         toast({ title: "Error", description: errorMessage, variant: "destructive" });

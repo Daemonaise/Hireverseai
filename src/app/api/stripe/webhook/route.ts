@@ -18,7 +18,6 @@ export async function POST(req: NextRequest) {
   try {
      body = await req.text();
   } catch (error) {
-     console.error("Error reading webhook request body:", error);
      return NextResponse.json({ error: 'Could not read request body.' }, { status: 400 });
   }
 
@@ -26,11 +25,9 @@ export async function POST(req: NextRequest) {
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
   if (!sig) {
-    console.error('Stripe webhook signature missing.');
     return NextResponse.json({ error: 'Missing Stripe signature.' }, { status: 400 });
   }
   if (!webhookSecret) {
-    console.error('Stripe webhook secret not configured.');
     return NextResponse.json({ error: 'Webhook secret not configured.' }, { status: 400 });
   }
 
@@ -40,19 +37,16 @@ export async function POST(req: NextRequest) {
     // Verify the webhook signature and construct the event
     event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
   } catch (err: any) {
-    console.error(`❌ Error verifying webhook signature: ${err.message}`);
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
   // Handle only relevant event types
   if (relevantEvents.has(event.type)) {
-    console.log(`🔔 Handling relevant Stripe event: ${event.type}`, event.id);
     try {
       switch (event.type) {
         // --- Subscription Events ---
         case 'checkout.session.completed':
           const checkoutSession = event.data.object as Stripe.Checkout.Session;
-          console.log(`Checkout Session Completed: ${checkoutSession.id}, Mode: ${checkoutSession.mode}`);
           if (checkoutSession.mode === 'subscription' && checkoutSession.client_reference_id && checkoutSession.subscription) {
             // Retrieve the full subscription object to get the status
             const subscription = await stripe.subscriptions.retrieve(checkoutSession.subscription as string);
@@ -72,7 +66,6 @@ export async function POST(req: NextRequest) {
                     // PaymentIntent succeeded via Checkout
                     await handleProjectPaymentUpdate(projectId, 'paid');
                  } else {
-                     console.warn(`Checkout session ${checkoutSession.id} (payment mode) succeeded but missing projectId in PaymentIntent metadata.`);
                  }
              }
           }
@@ -81,7 +74,6 @@ export async function POST(req: NextRequest) {
         case 'customer.subscription.updated':
         case 'customer.subscription.deleted':
           const subscription = event.data.object as Stripe.Subscription;
-          console.log(`Subscription ${event.type}: ${subscription.id}, Status: ${subscription.status}`);
           // Find client associated with this subscription
           // This relies on having stored the Stripe Customer ID linked to your client ID
           // or using metadata on the subscription/customer object.
@@ -96,7 +88,6 @@ export async function POST(req: NextRequest) {
                subscription.id
              );
           } else {
-             console.warn(`Received subscription update for ${subscription.id} but could not find associated client ID.`);
              // Maybe try looking up client by Stripe Customer ID here as a fallback
           }
           break;
@@ -104,41 +95,32 @@ export async function POST(req: NextRequest) {
         // --- Payment Intent Events ---
         case 'payment_intent.succeeded':
           const paymentIntentSucceeded = event.data.object as Stripe.PaymentIntent;
-          console.log(`PaymentIntent Succeeded: ${paymentIntentSucceeded.id}`);
           const projectIdSucceeded = paymentIntentSucceeded.metadata.projectId;
           if (projectIdSucceeded) {
              // Update project status to indicate payment received
              await handleProjectPaymentUpdate(projectIdSucceeded, 'paid');
-             console.log(`Project ${projectIdSucceeded} marked as paid.`);
           } else {
-              console.warn(`PaymentIntent ${paymentIntentSucceeded.id} succeeded but missing projectId in metadata.`);
           }
           break;
 
         case 'payment_intent.payment_failed':
           const paymentIntentFailed = event.data.object as Stripe.PaymentIntent;
-          console.warn(`PaymentIntent Failed: ${paymentIntentFailed.id}, Reason: ${paymentIntentFailed.last_payment_error?.message}`);
           const projectIdFailed = paymentIntentFailed.metadata.projectId;
           if (projectIdFailed) {
             // Update project status or notify client about payment failure
             await handleProjectPaymentUpdate(projectIdFailed, 'payment_failed');
-            console.log(`Payment failed for project ${projectIdFailed}.`);
              // TODO: Potentially notify the client about the failure
           } else {
-             console.warn(`PaymentIntent ${paymentIntentFailed.id} failed but missing projectId in metadata.`);
           }
           break;
 
         default:
-          console.warn(`🤔 Unhandled relevant event type: ${event.type}`);
       }
     } catch (error) {
-      console.error(`Webhook handler error for event ${event.id} (${event.type}):`, error);
       // Return 500 to indicate failure, Stripe will retry
       return NextResponse.json({ error: 'Webhook handler failed.' }, { status: 500 });
     }
   } else {
-    console.log(`ℹ️ Ignoring irrelevant Stripe event type: ${event.type}`);
   }
 
   // Acknowledge receipt of the event

@@ -21,7 +21,6 @@ export async function POST(request: NextRequest) {
   // 1. Authenticate the request
   const apiKey = request.headers.get('X-API-Key');
   if (!HIREVERSE_INGESTION_API_KEY) {
-    console.error('CRITICAL: HIREVERSE_INGESTION_API_KEY is not configured on the server.');
     return NextResponse.json({ error: 'API endpoint not configured.' }, { status: 503 }); // Service Unavailable
   }
   if (!apiKey || apiKey !== HIREVERSE_INGESTION_API_KEY) {
@@ -67,7 +66,6 @@ export async function POST(request: NextRequest) {
     );
 
   } catch (error: any) {
-    console.error('Error processing external project creation request:', error);
     // Differentiate between known errors (e.g., client not found handled above) and unexpected server errors
     return NextResponse.json({ error: `Internal Server Error: ${error.message || 'Could not create project.'}` }, { status: 500 });
   }

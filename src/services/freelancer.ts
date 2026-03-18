@@ -23,10 +23,8 @@ export type FreelancerProfile = Freelancer;
  * @returns A promise that resolves to an array of FreelancerProfile objects.
  */
 export async function fetchFreelancersBySkills(skills: string[], limit: number = 10): Promise<FreelancerProfile[]> {
-  console.log('[MOCK] Using dummy data for freelancer matching.');
 
   if (!skills || skills.length === 0) {
-    console.warn('[fetchFreelancersBySkills] No skills provided, returning empty array.');
     return [];
   }
 
@@ -50,7 +48,6 @@ export async function fetchFreelancersBySkills(skills: string[], limit: number =
     return matchedFreelancers.slice(0, limit);
 
   } catch (error) {
-    console.error(`[fetchFreelancersBySkills] Error filtering dummy data for skills (${skills.join(', ')}):`, error);
     throw new Error(`Failed to fetch freelancers: ${(error as Error).message}`);
   }
 }

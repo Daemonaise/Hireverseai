@@ -63,7 +63,6 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
             await updateFreelancerStatus(freelancerId, 'available', true);
             setFreelancer(prev => prev ? { ...prev, isLoggedIn: true, status: 'available' } : null);
           } catch (statusErr) {
-            console.error("Failed to simulate login status update:", statusErr);
           }
         }
 
@@ -98,7 +97,6 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
         setAssessmentComplete(true); // Prevent assessment modal if profile not found
       }
     } catch (err) {
-      console.error("Error fetching dashboard data:", err);
       setError("An unexpected error occurred while loading the dashboard.");
       setAssessmentComplete(true); // Prevent assessment modal on generic error
     } finally {
@@ -123,7 +121,6 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
         toast({ title: "Status Updated", description: `Your status is now ${newStatus}.` });
       } catch (err) {
         toast({ title: "Error", description: "Failed to update status.", variant: "destructive" });
-        console.error("Status update error:", err);
       }
     });
   }, [freelancer, toast]);
@@ -139,10 +136,8 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
         toast({ title: "Logged Out", description: "You have been logged out." });
         // TODO: Implement proper redirection using Next Router
         // router.push('/freelancer/login');
-        console.log("Logout successful, redirect to login page.");
       } catch (err) {
         toast({ title: "Error", description: "Failed to logout.", variant: "destructive" });
-        console.error("Logout error:", err);
       }
     });
   }, [freelancer, toast]);
@@ -179,7 +174,6 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
       setProjectState(projectId, { isQAPending: true });
 
       try {
-          console.log(`Requesting QA check for project ${projectId}...`);
           await new Promise(resolve => setTimeout(resolve, 1500));
           const qaResult = { feedback: "AI QA Placeholder: Looks plausible. Consider adding more examples.", passed: Math.random() > 0.3 };
 
@@ -190,7 +184,6 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
               toast({ title: "AI QA Issues Found", description: "Please review feedback and revise your work.", variant: "destructive"});
           }
       } catch (err) {
-          console.error("Error during AI QA:", err);
           toast({ title: "QA Error", description: "Could not perform quality check.", variant: "destructive" });
           setProjectState(projectId, { qaFeedback: "Error performing QA check." });
       } finally {
@@ -210,7 +203,6 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
     setProjectState(projectId, { isSubmitting: true });
 
     try {
-      console.log(`Submitting work for project ${projectId}...`);
       await updateProjectStatus(projectId, 'review');
       await unassignProjectFromFreelancer(freelancerId, projectId);
 
@@ -223,7 +215,6 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
       toast({ title: "Work Submitted", description: `Work for project ${projectId} submitted for review.`, variant: "default" }); // Changed to default
 
     } catch (err) {
-      console.error("Error submitting work:", err);
       toast({ title: "Submission Error", description: "Could not submit work.", variant: "destructive" });
     } finally {
       setProjectState(projectId, { isSubmitting: false });
@@ -272,7 +263,7 @@ export function FreelancerDashboard({ freelancerId }: FreelancerDashboardProps) 
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>Could not load your freelancer profile. Please try logging out and back in.</AlertDescription>
             {/* Avoid calling handleLogout directly in render if it sets state */}
-            <Button variant="outline" size="sm" onClick={() => console.log("Attempting manual logout trigger")} className="mt-4">Logout (Placeholder)</Button>
+            <Button variant="outline" size="sm" onClick={() => window.location.href = '/freelancer/login'} className="mt-4">Return to Login</Button>
         </Alert>
     );
   }

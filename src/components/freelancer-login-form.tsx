@@ -57,7 +57,6 @@ export function FreelancerLoginForm() {
 
         // 2. Check if MFA is enabled for this freelancer
         const mfaEnabled = await isUserMfaEnabled(userId, 'freelancer');
-        console.log(`MFA enabled check for freelancer ${userId}: ${mfaEnabled}`);
 
         if (mfaEnabled) {
           // Proceed to MFA step
@@ -70,7 +69,6 @@ export function FreelancerLoginForm() {
         }
 
       } catch (error: any) {
-        console.error('Freelancer Login failed:', error);
         // Use error message from signInAuthUser or isUserMfaEnabled
         const errorMessage = error.message || 'Login failed. Please check your credentials or contact support.';
         setLoginError(errorMessage);
@@ -84,7 +82,6 @@ export function FreelancerLoginForm() {
     try {
         // Update freelancer status to 'available' and isLoggedIn to true
         await updateFreelancerStatus(userId, 'available', true);
-        console.log(`Freelancer ${userId} logged in and status updated to available.`);
 
         toast({
           title: 'Login Successful',
@@ -95,7 +92,6 @@ export function FreelancerLoginForm() {
         router.push(`/freelancer/dashboard?id=${userId}`);
 
     } catch (statusError: any) {
-         console.error('Error updating freelancer status after login:', statusError);
          toast({
              title: 'Login Warning',
              description: 'Logged in, but failed to update your status. Please update manually in dashboard.',
@@ -112,7 +108,6 @@ export function FreelancerLoginForm() {
     if (userIdForMfa) {
       completeLogin(userIdForMfa);
     } else {
-        console.error("MFA verified but userIdForMfa is null.");
         setLoginError("An unexpected error occurred after MFA verification.");
         setStep('credentials'); // Go back to credential step on error
     }
