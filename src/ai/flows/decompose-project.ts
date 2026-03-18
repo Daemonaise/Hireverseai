@@ -1,127 +1,119 @@
 'use server';
+
 /**
- * @fileOverview Decomposes a project brief into a list of actionable microtasks.
- * Exports:
- * - decomposeProject (async function)
+ * Project Decomposition Pipeline — 3-Stage Orchestrator
+ *
+ * Stage 1: analyzeProject — Identify categories, roles, complexity
+ * Stage 2: generateProjectPlan — Create milestones + microtasks
+ * Stage 3: freelancerMatcher — Match freelancers, calculate costs
  */
 
-import { ai } from '@/lib/ai'; // Import the configured ai instance
-import { chooseModelBasedOnPrompt } from '@/lib/ai-server-helpers'; // Import from correct location
-import {
-  DecomposeProjectInputSchema,
-  type DecomposeProjectInput,
-  DecomposeProjectOutputSchema,
-  type DecomposeProjectOutput,
-  type Microtask as SchemaMicrotask,
-} from '@/ai/schemas/decompose-project-schema'; // Import types/schemas from separate file
-import { updateProjectMicrotasks, updateProjectStatus } from '@/services/firestore';
-import { z } from 'zod';
-import type { Microtask as ServiceMicrotask } from '@/types/project';
+import { analyzeProject } from './analyze-project';
+import { generateProjectPlan } from './generate-project-plan';
+import type { AnalyzeProjectOutput } from '@/ai/schemas/analyze-project-schema';
+import type { GenerateProjectPlanOutput, PlanTask } from '@/ai/schemas/generate-project-plan-schema';
+import { matchFreelancersToTasks, type FreelancerCandidate, type MatchResult } from '@/lib/matching/freelancer-matcher';
+import { calculateTotalProjectCost, shouldAutoAssign } from '@/lib/matching/cost-calculator';
+import { updateProjectStatus } from '@/services/firestore';
+import { createMilestone } from '@/services/milestones';
+import { storeAssignments } from '@/services/assignments';
+import type { ServiceCategory, ClientPriority, Milestone, Microtask } from '@/types/project';
 import { Timestamp } from 'firebase/firestore';
 
-// Define internal schemas (not exported)
-const DecomposeAIOutputSchema = z.array(z.object({
-  id: z.string().min(1),
-  description: z.string().min(10),
-  estimatedHours: z.number().min(0.1).optional(),
-  requiredSkill: z.string().optional(),
-  dependencies: z.array(z.string()).optional(),
-})).min(1); // Ensure at least one task
-
-// Define prompt template (local constant)
-const decompositionPromptTemplate = `You are an expert AI Project Manager. Break this project into clear microtasks.
-
-=== Project Brief ===
-{{{projectBrief}}}
-
-=== Required Skills ===
-{{#each requiredSkills}}- {{{this}}}
-{{/each}}
-
-=== Microtask Format ===
-{
-  "id": "Unique short ID like 'task-001'",
-  "description": "Clear task description, min 10 characters",
-  "estimatedHours": "Optional, positive number (e.g., 1.5)",
-  "requiredSkill": "Optional, must match skills above",
-  "dependencies": "Optional array of prerequisite task IDs"
+export interface DecomposeInput {
+  projectId: string;
+  clientId: string;
+  brief: string;
+  category: ServiceCategory;
+  clientPriority: ClientPriority;
+  availableFreelancers: FreelancerCandidate[];
 }
 
-Return ONLY a JSON array of microtasks. Ensure the response contains only the valid JSON array and nothing else.`;
-
-
-// --- Helper: Validate task dependencies (local function) ---
-function validateTaskDependencies(tasks: SchemaMicrotask[]): SchemaMicrotask[] {
-  const ids = new Set(tasks.map(t => t.id));
-  return tasks.map(task => ({
-    ...task,
-    dependencies: (task.dependencies ?? []).filter(dep => {
-      if (!ids.has(dep)) console.warn(`Invalid dependency ${dep} for task ${task.id}`);
-      return ids.has(dep);
-    }),
-  }));
+export interface DecomposeOutput {
+  analysis: AnalyzeProjectOutput;
+  plan: GenerateProjectPlanOutput;
+  matching: MatchResult;
+  autoAssigned: boolean;
+  estimatedTotalCost: number;
 }
 
-
-// --- Main Exported Function (Wrapper - Async) ---
-// This is the only export from this file.
-export async function decomposeProject(
-  input: DecomposeProjectInput
-): Promise<DecomposeProjectOutput> {
-  // Validate input before proceeding
-  DecomposeProjectInputSchema.parse(input);
-
-  await updateProjectStatus(input.projectId, 'decomposing');
+export async function decomposeProject(input: DecomposeInput): Promise<DecomposeOutput> {
+  await updateProjectStatus(input.projectId, 'planning');
 
   try {
-    const primaryModel = await chooseModelBasedOnPrompt(input.projectBrief);
-    console.log(`Using model ${primaryModel.name} for decomposition.`);
-
-    // Construct the prompt content dynamically
-    const promptContent = decompositionPromptTemplate
-      .replace('{{{projectBrief}}}', input.projectBrief)
-      .replace('{{#each requiredSkills}}- {{{this}}}
-{{/each}}', input.requiredSkills.map(s => `- ${s}`).join('\n'));
-
-    // Define the model for generation inside the async function
-    const decomposePrompt = ai.definePrompt({
-        name: `decomposePrompt_${primaryModel.name.replace(/[^a-zA-Z0-9]/g, '_')}`,
-        input: { schema: z.object({ promptContent: z.string() }) }, // Pass the rendered content
-        output: { schema: DecomposeAIOutputSchema }, // Use the correct output schema
-        prompt: promptContent,
-        model: primaryModel,
+    // Stage 1: Analyze
+    const analysis = await analyzeProject({
+      projectId: input.projectId,
+      brief: input.brief,
+      category: input.category,
+      clientPriority: input.clientPriority,
     });
 
-    // Generate microtasks
-    const { output } = await decomposePrompt({ promptContent }); // Pass content
+    // Stage 2: Generate plan
+    const plan = await generateProjectPlan({
+      projectId: input.projectId,
+      brief: input.brief,
+      projectTypes: analysis.projectTypes,
+      requiredRoles: analysis.requiredRoles,
+      complexity: analysis.complexity,
+      estimatedTotalHours: analysis.estimatedTotalHours,
+      suggestedMilestoneCount: analysis.suggestedMilestoneCount,
+      clientPriority: input.clientPriority,
+    });
 
-    if (!output) {
-      throw new Error(`AI (${primaryModel.name}) did not return a valid response.`);
+    // Flatten tasks with milestoneId for matching
+    const allTasks: Array<PlanTask & { milestoneId: string }> = [];
+    for (const milestone of plan.milestones) {
+      for (const task of milestone.tasks) {
+        allTasks.push({ ...task, milestoneId: milestone.id });
+      }
     }
 
-    // Validate the structure (already done by Genkit if output schema is correct)
-    const parsedOutput = DecomposeAIOutputSchema.parse(output); // Ensure it matches schema
+    // Stage 3: Match freelancers
+    const matching = matchFreelancersToTasks(
+      allTasks,
+      input.availableFreelancers,
+      input.clientId,
+      input.projectId,
+      input.clientPriority
+    );
 
-    
+    const autoAssigned = shouldAutoAssign(matching.totalCost);
 
-    // Process validated output
-    const validatedTasks = validateTaskDependencies(parsedOutput); // Validate dependencies
-    const nowTimestamp = Date.now();
+    // Store milestones in Firestore
+    for (const milestone of plan.milestones) {
+      await createMilestone(input.projectId, {
+        id: milestone.id,
+        projectId: input.projectId,
+        name: milestone.name,
+        order: milestone.order,
+        status: 'pending',
+        dependencies: milestone.dependencies,
+        qaGateEnabled: milestone.qaGateEnabled,
+      });
+    }
 
-    const microtasks: ServiceMicrotask[] = validatedTasks.map(task => ({
-      ...task,
-      status: 'pending',
-      createdAt: Timestamp.fromMillis(nowTimestamp),
-    }));
+    // Store assignments
+    if (matching.assignments.length > 0) {
+      await storeAssignments(input.projectId, matching.assignments);
+    }
 
-    await updateProjectMicrotasks(input.projectId, microtasks);
-    console.log(`Decomposition successful for ${input.projectId}`);
+    // Update project status
+    if (autoAssigned) {
+      await updateProjectStatus(input.projectId, 'assigned');
+    } else {
+      await updateProjectStatus(input.projectId, 'awaiting_approval');
+    }
 
-    return { microtasks }; // Return the decomposed microtasks
-
+    return {
+      analysis,
+      plan,
+      matching,
+      autoAssigned,
+      estimatedTotalCost: matching.totalCost,
+    };
   } catch (error) {
-    console.error(`Decompose error for ${input.projectId}:`, error);
-    await updateProjectStatus(input.projectId, 'pending'); // Revert status on error
-    return { microtasks: [] }; // Return empty on error
+    await updateProjectStatus(input.projectId, 'pending');
+    throw error;
   }
 }
