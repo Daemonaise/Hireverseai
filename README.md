@@ -53,7 +53,9 @@ Freelancers are onboarded through an adaptive skill assessment and earn XP and b
 | AI Models | Google Gemini Flash (latest), OpenAI GPT-5 Mini, Anthropic Claude 4.6 Sonnet |
 | Payments | Stripe (PaymentIntents + Subscriptions + Webhooks) |
 | Forms | React Hook Form + Zod |
-| Data Fetching | TanStack Query + `@tanstack-query-firebase` |
+| State Management | Zustand (client/UI state) |
+| Data Fetching | TanStack React Query |
+| i18n | next-intl (cookie-based locale, en/es/ru) |
 | Charts | Recharts |
 | Date Utilities | date-fns |
 | Dev Server Port | 9002 |
@@ -74,7 +76,9 @@ src/
 │   ├── freelancer/
 │   │   ├── login/              # Freelancer login
 │   │   ├── signup/             # Freelancer signup + skill onboarding
-│   │   ├── dashboard/          # Freelancer work dashboard
+│   │   ├── dashboard/          # Redirects to /freelancer/hub
+│   │   ├── hub/                # Client Systems Hub dashboard
+│   │   │   └── [workspaceId]/  # Workspace detail (tabbed view)
 │   │   └── [id]/               # Public freelancer profile
 │   ├── (payment)/
 │   │   └── checkout/           # Stripe payment checkout
@@ -84,6 +88,9 @@ src/
 │       │   ├── create-payment-intent/
 │       │   ├── create-subscription/
 │       │   └── webhook/
+│       ├── hub/
+│       │   ├── nango-session/     # Nango OAuth session creation
+│       │   └── chat/              # Workspace AI chat agent
 │       └── projects/
 │           └── create-from-external/
 ├── ai/
@@ -93,19 +100,29 @@ src/
 │   └── dev.ts                  # Genkit dev server entry point
 ├── components/
 │   ├── ui/                     # shadcn/ui base components
+│   ├── hub/                    # Client Systems Hub components
+│   │   ├── hub-sidebar.tsx
+│   │   ├── hub-dashboard.tsx
+│   │   ├── workspace-card.tsx
+│   │   ├── workspace-detail.tsx
+│   │   ├── workspace-messages.tsx
+│   │   ├── workspace-chat.tsx
+│   │   ├── activity-timeline.tsx
+│   │   ├── ai-briefing-panel.tsx
+│   │   ├── bookmark-list.tsx
+│   │   ├── note-editor.tsx
+│   │   ├── access-permissions.tsx
+│   │   ├── connection-tile.tsx
+│   │   └── connection-setup-dialog.tsx
+│   ├── messaging/              # Shared messaging components
+│   │   ├── message-bubble.tsx
+│   │   ├── thread-list.tsx
+│   │   └── thread-view.tsx
+│   ├── providers.tsx           # QueryClient + NextIntl + Auth wrapper
 │   ├── header-navigation-client.tsx
 │   ├── site-logo.tsx
-│   ├── splash-screen.tsx
-│   ├── feature-card.tsx
-│   ├── workflow-grid.tsx
-│   ├── auth-prompt-dialog.tsx
-│   ├── login-form.tsx
-│   ├── client-login-form.tsx
-│   ├── client-signup-form.tsx
-│   ├── freelancer-login-form.tsx
-│   ├── freelancer-signup-form.tsx
 │   ├── client-dashboard.tsx
-│   ├── client-dashboard-loader.tsx
+│   ├── client-messages.tsx
 │   ├── freelancer-dashboard.tsx
 │   ├── freelancer-profile.tsx
 │   ├── ai-matcher.tsx
@@ -117,12 +134,30 @@ src/
 ├── contexts/
 │   └── auth-context.tsx        # Firebase Auth React context + useAuth hook
 ├── hooks/
+│   ├── hub/                    # React Query hooks for hub data
+│   │   ├── use-workspace.ts
+│   │   ├── use-connections.ts
+│   │   ├── use-activity.ts
+│   │   ├── use-bookmarks.ts
+│   │   ├── use-notes.ts
+│   │   ├── use-briefings.ts
+│   │   └── use-messages.ts
 │   ├── use-toast.ts
 │   ├── use-mobile.tsx
 │   └── use-freelancer-id.tsx
+├── i18n/
+│   └── request.ts              # next-intl config (cookie-based locale)
+├── messages/                   # i18n locale files
+│   ├── en.json
+│   ├── es.json
+│   └── ru.json
+├── stores/
+│   └── hub-store.ts            # Zustand store (sidebar, filters, locale)
 ├── lib/
 │   ├── firebase.ts             # Firebase app + auth + db initialization
 │   ├── ai.ts                   # Genkit instance (multi-provider)
+│   ├── nango.ts                # Nango server client (OAuth proxy)
+│   ├── api-auth.ts             # Firebase token verification for API routes
 │   ├── ai-models.ts            # Centralized model registry
 │   ├── ai-server-helpers.ts    # Model selection logic
 │   ├── stripe.ts               # Stripe SDK initialization
@@ -131,9 +166,27 @@ src/
 ├── services/
 │   ├── firestore.ts            # All Firestore reads/writes + Firebase Auth wrappers
 │   ├── freelancer.ts           # Freelancer-specific query helpers
+│   ├── hub/                    # Hub Firestore services
+│   │   ├── workspaces.ts
+│   │   ├── connections.ts
+│   │   ├── activity.ts
+│   │   ├── bookmarks.ts
+│   │   ├── notes.ts
+│   │   ├── briefings.ts
+│   │   ├── messages.ts
+│   │   ├── ai-context.ts
+│   │   └── sync.ts
+│   ├── integrations/           # Provider services (Nango proxy)
+│   │   ├── types.ts
+│   │   ├── slack.ts
+│   │   ├── github.ts
+│   │   ├── google-drive.ts
+│   │   ├── trello.ts
+│   │   └── notion.ts
 │   ├── monday.ts               # Monday.com integration stub
 │   └── microsoft-teams.ts      # Microsoft Teams integration stub
 └── types/
+    ├── hub.ts                  # Hub types (Workspace, Connection, Activity, Thread, etc.)
     ├── project.ts
     ├── freelancer.ts
     ├── client.ts
@@ -184,7 +237,9 @@ The `<SiteLogo>` component (`src/components/site-logo.tsx`) renders `/public/hir
 | `/client/dashboard` | `src/app/client/dashboard/page.tsx` | Project list, change requests, AI chat agent |
 | `/freelancer/login` | `src/app/freelancer/login/page.tsx` | Freelancer email/password login |
 | `/freelancer/signup` | `src/app/freelancer/signup/page.tsx` | Freelancer registration + adaptive skill assessment |
-| `/freelancer/dashboard` | `src/app/freelancer/dashboard/page.tsx` | Assigned projects, work submission, status management |
+| `/freelancer/dashboard` | `src/app/freelancer/dashboard/page.tsx` | Redirects to `/freelancer/hub` |
+| `/freelancer/hub` | `src/app/freelancer/hub/page.tsx` | Client Systems Hub — workspace list + create |
+| `/freelancer/hub/[workspaceId]` | `src/app/freelancer/hub/[workspaceId]/page.tsx` | Workspace detail with 9 tabs (Overview, Apps, Notes, Tasks, App Messages, Messages, Files, Timeline, AI Briefing, Access & Permissions) |
 | `/freelancer/[id]` | `src/app/freelancer/[id]/page.tsx` | Public freelancer profile (skills, XP, badges, ratings) |
 | `/(payment)/checkout` | `src/app/(payment)/checkout/page.tsx` | Stripe Elements payment form for one-time project payments |
 
@@ -644,13 +699,56 @@ Stub integration for sending notifications or receiving project creation request
 
 ## Client Systems Hub
 
-Freelancers can connect and authenticate with external systems (CRM, project management, communication tools) via OAuth using Nango.
+A Wavebox-inspired workspace layer where freelancers manage client engagements, connect external tools, sync activity, and communicate with clients.
 
-**Routes**:
-- `GET /freelancer/hub` — Freelancer hub dashboard (list connected integrations)
-- `GET /freelancer/hub/[workspaceId]` — Workspace detail and integration configuration
-- `POST /api/hub/nango-session` — Initiates Nango OAuth session for a specific integration
-- `POST /api/hub/chat` — AI-powered chat for hub workspace configuration and automation setup
+### Architecture
+
+- **Workspaces** — Each client engagement gets a workspace with connected apps, notes, bookmarks, activity timeline, and AI briefings
+- **Nango OAuth** — External tool connections (Slack, GitHub, Google Drive, Trello, Notion) managed via Nango proxy. Connection ID convention: `{workspaceId}-{provider}`
+- **State management** — React Query for server state (all hub data), Zustand for UI state (filters, sidebar, locale)
+- **i18n** — next-intl with cookie-based locale (`NEXT_LOCALE`), 3 locales: English, Spanish, Russian. Locale switcher in header. AI-generated translations in `src/messages/`.
+
+### Workspace Tabs
+
+| Tab | Component | Description |
+|---|---|---|
+| Overview | `workspace-detail.tsx` | Workspace info + bookmarks |
+| Apps | `connection-tile.tsx` + `connection-setup-dialog.tsx` | Connected integrations, add/remove via Nango |
+| Notes | `note-editor.tsx` | Two-panel note editor with auto-save |
+| Tasks | `activity-timeline.tsx` (filtered) | Task-type activity events |
+| App Messages | `activity-timeline.tsx` (filtered) | Message-type activity from connected apps |
+| Messages | `workspace-messages.tsx` | Threaded messaging with AI translation |
+| Files | `activity-timeline.tsx` (filtered) | Document-type activity events |
+| Timeline | `activity-timeline.tsx` | Full activity feed with sync + write actions |
+| AI Briefing | `ai-briefing-panel.tsx` + `workspace-chat.tsx` | AI-generated briefings + conversational agent |
+| Access & Permissions | `access-permissions.tsx` | Connection management + audit log |
+
+### Message Board
+
+Threaded messaging between freelancers and clients with AI translation on post.
+
+- **Data**: Top-level `workspaceThreads` collection with `messages` subcollection
+- **Translation**: `translateMessage` Genkit flow translates on send, stores in `translations` map on each message
+- **Freelancer view**: `workspace-messages.tsx` in the Messages tab — can create threads and reply
+- **Client view**: `client-messages.tsx` in the client dashboard — can reply to threads
+- **UI**: Shared components in `src/components/messaging/` (message-bubble, thread-list, thread-view)
+
+### AI Flows (Hub)
+
+| Flow | File | Description |
+|---|---|---|
+| `workspaceBriefing` | `src/ai/flows/workspace-briefing.ts` | Generates structured briefing (summary, action items, blockers) from workspace activity |
+| `workspaceChatAgent` | `src/ai/flows/workspace-chat-agent.ts` | Conversational agent with 5 tools (activity, connections, briefings, notes, bookmarks) |
+| `workspaceQaReview` | `src/ai/flows/workspace-qa-review.ts` | Scores submitted work 0-100 against project brief |
+| `translateMessage` | `src/ai/flows/translate-message.ts` | Translates a message between locales |
+| `translateUiStrings` | `src/ai/flows/translate-ui-strings.ts` | Batch-translates UI string JSON for locale generation |
+
+### API Routes (Hub)
+
+| Route | Method | Description |
+|---|---|---|
+| `/api/hub/nango-session` | POST | Creates Nango Connect session (requires auth) |
+| `/api/hub/chat` | POST | Workspace AI chat agent (requires auth, validates `uid === freelancerId`) |
 
 **Environment variables**: `NANGO_SECRET_KEY` (server-side), `NEXT_PUBLIC_NANGO_PUBLIC_KEY` (client-side).
 
