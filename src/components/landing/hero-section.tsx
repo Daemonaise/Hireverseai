@@ -25,13 +25,13 @@ export function HeroSection() {
 
       <div className="container mx-auto px-4 md:px-6 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          {/* Left — Copy */}
+          {/* Left  - Copy */}
           <motion.div
             variants={stagger}
             initial="hidden"
             animate="visible"
           >
-            {/* Animated logo — smaller */}
+            {/* Animated logo  - smaller */}
             <div className="relative mb-6 flex h-20 w-20 items-center justify-center">
               <motion.div
                 className="absolute inset-0 rounded-full bg-primary/10 blur-2xl"
@@ -79,7 +79,7 @@ export function HeroSection() {
               variants={fadeUp}
               className="max-w-lg text-lg text-muted-foreground md:text-xl mb-6"
             >
-              Describe your project. AI handles the rest — matching, decomposition,
+              Describe your project. AI handles the rest: matching, decomposition,
               quality assurance, delivery.
             </motion.p>
 
@@ -94,7 +94,7 @@ export function HeroSection() {
             </motion.div>
           </motion.div>
 
-          {/* Right — Project Builder */}
+          {/* Right  - Project Builder */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}

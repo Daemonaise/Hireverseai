@@ -11,8 +11,39 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Hireverse AI',
-  description: 'AI Hiring Solutions Built for Speed and Precision',
+  title: {
+    default: 'Hireverse AI - Expert Freelance Work, Delivered Faster',
+    template: '%s | Hireverse AI',
+  },
+  description:
+    'AI-powered freelancer marketplace. Describe your project, get matched with vetted talent instantly. Parallel microtasks, built-in quality assurance, transparent pricing.',
+  keywords: [
+    'freelancer marketplace',
+    'AI matching',
+    'hire freelancers',
+    'microtasks',
+    'project management',
+    'quality assurance',
+    'remote work',
+  ],
+  openGraph: {
+    title: 'Hireverse AI - Expert Freelance Work, Delivered Faster',
+    description:
+      'Describe your project in plain English. AI matches you with vetted freelancers, decomposes work into parallel tasks, and delivers quality-assured results.',
+    url: 'https://hireverse.ai',
+    siteName: 'Hireverse AI',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Hireverse AI - Expert Freelance Work, Delivered Faster',
+    description:
+      'AI-powered freelancer marketplace. Post a project, get matched instantly, receive quality-checked deliverables.',
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default async function RootLayout({

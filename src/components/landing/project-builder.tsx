@@ -31,12 +31,12 @@ const CATEGORIES = [
 type Category = (typeof CATEGORIES)[number];
 
 const PLACEHOLDERS: Record<string, string> = {
-  design: 'Describe the design work you need — logos, UI mockups, illustrations...',
-  development: 'Describe the software you want built — web app, API, mobile...',
-  writing: 'Describe the content you need — blog posts, copy, documentation...',
-  video: 'Describe the video project — explainer, promo, editing...',
-  marketing: 'Describe the marketing work — campaigns, SEO, social media...',
-  data: 'Describe the data work — analysis, dashboards, scraping...',
+  design: 'Describe the design work you need: logos, UI mockups, illustrations...',
+  development: 'Describe the software you want built: web app, API, mobile...',
+  writing: 'Describe the content you need: blog posts, copy, documentation...',
+  video: 'Describe the video project: explainer, promo, editing...',
+  marketing: 'Describe the marketing work: campaigns, SEO, social media...',
+  data: 'Describe the data work: analysis, dashboards, scraping...',
   other: 'Describe your project in detail...',
 };
 
@@ -143,7 +143,7 @@ export function ProjectBuilder() {
       const result = await generateProjectIdea(
         category?.hint ? { industryHint: category.hint } : undefined
       );
-      // The generateProjectIdea flow gives cost estimates — use it for preview
+      // The generateProjectIdea flow gives cost estimates - use it for preview
       setPreview(result.status === 'success' ? result : null);
       if (result.status === 'error') {
         toast({ title: 'Analysis failed', description: result.reasoning || 'Try again.', variant: 'destructive' });
@@ -231,7 +231,7 @@ export function ProjectBuilder() {
               Describe your project
               {category && <span className="text-primary ml-1 text-sm font-normal">({category.label})</span>}
             </h3>
-            <p className="text-sm text-muted-foreground mb-3">Be specific — the more detail, the better our AI can match.</p>
+            <p className="text-sm text-muted-foreground mb-3">Be specific. The more detail, the better our AI can match.</p>
             <Textarea
               value={brief}
               onChange={(e) => setBrief(e.target.value)}

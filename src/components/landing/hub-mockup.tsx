@@ -23,7 +23,7 @@ export function HubMockup() {
             </div>
             <div className="flex items-center gap-2 rounded border border-primary/30 bg-primary/5 px-2 py-1.5">
               <div className="h-3.5 w-3.5 rounded-full border-2 border-primary" />
-              <span className="text-[10px] text-gray-600">Icon set — In Progress</span>
+              <span className="text-[10px] text-gray-600">Icon set - In Progress</span>
             </div>
           </div>
 
