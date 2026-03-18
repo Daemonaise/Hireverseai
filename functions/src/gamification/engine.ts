@@ -7,6 +7,7 @@ import { DEFAULT_STATS, type FreelancerStats, type GamificationEvent, type Rewar
 import { getProjectRules } from './rules/project-rules';
 import { getStreakRules } from './rules/streak-rules';
 import { getMilestoneRules } from './rules/milestone-rules';
+import { getReviewRules } from './rules/review-rules';
 import { FieldValue } from 'firebase-admin/firestore';
 
 export async function processEvent(event: GamificationEvent): Promise<Reward[]> {
@@ -26,6 +27,7 @@ export async function processEvent(event: GamificationEvent): Promise<Reward[]> 
     ...getProjectRules(event, stats),
     ...getStreakRules(event, stats),
     ...getMilestoneRules(event, stats),
+    ...getReviewRules(event, stats),
   ];
 
   rewards.push(...allRules);
