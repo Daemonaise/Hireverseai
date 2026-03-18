@@ -122,7 +122,9 @@
     "retryTranslation": "Повторить перевод",
     "you": "Вы",
     "client": "Клиент",
-    "freelancer": "Фрилансер"
+    "freelancer": "Фрилансер",
+    "showTranslation": "Показать перевод",
+    "messagesTitle": "Сообщения"
   },
   "locale": {
     "switchLanguage": "Язык",
