@@ -21,11 +21,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No Stripe account found. Complete onboarding first.' }, { status: 400 });
     }
 
-    const validComponents = components ?? ['account_onboarding'];
+    // Allowlist: only permit these embedded components
+    const ALLOWED_COMPONENTS = ['account_onboarding', 'account_management'];
+    const requested = components ?? ['account_onboarding'];
+    const validComponents = (Array.isArray(requested) ? requested : [requested])
+      .filter((c: string) => ALLOWED_COMPONENTS.includes(c));
+
+    if (validComponents.length === 0) {
+      return NextResponse.json({ error: 'Invalid components requested' }, { status: 400 });
+    }
+
     const clientSecret = await createAccountSession(freelancer.stripeAccountId, validComponents);
 
     return NextResponse.json({ clientSecret });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'Session creation failed' }, { status: 500 });
   }
 }

@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       status: result.status,
       score: result.score,
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'Presence update failed' }, { status: 500 });
   }
 }

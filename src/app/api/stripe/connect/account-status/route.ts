@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
       hasAccount: true,
       ...status,
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'Failed to fetch account status' }, { status: 500 });
   }
 }

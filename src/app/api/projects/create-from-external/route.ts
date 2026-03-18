@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     // 3. Verify the hireverseClientId exists
     const clientExists = await getClientById(payload.hireverseClientId);
     if (!clientExists) {
-      return NextResponse.json({ error: `Client with ID '${payload.hireverseClientId}' not found in Hireverse.` }, { status: 404 });
+      return NextResponse.json({ error: 'Invalid client or configuration.' }, { status: 404 });
     }
 
     // 4. Create the project in Firestore
@@ -67,6 +67,6 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     // Differentiate between known errors (e.g., client not found handled above) and unexpected server errors
-    return NextResponse.json({ error: `Internal Server Error: ${error.message || 'Could not create project.'}` }, { status: 500 });
+    return NextResponse.json({ error: 'Could not create project.' }, { status: 500 });
   }
 }

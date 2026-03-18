@@ -30,9 +30,9 @@ export async function POST(req: NextRequest) {
       throw new Error('Stripe Price ID is not configured.');
     }
 
-    const origin = req.headers.get('origin') || 'http://localhost:9002';
-    const successUrl = `${origin}/client/dashboard?subscription=success`;
-    const cancelUrl = `${origin}/client/signup?subscription=cancelled`;
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
+    const successUrl = `${baseUrl}/client/dashboard?subscription=success`;
+    const cancelUrl = `${baseUrl}/client/signup?subscription=cancelled`;
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -49,6 +49,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url });
   } catch (error: any) {
-    return NextResponse.json({ error: `Internal Server Error: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: 'Subscription setup failed. Please try again.' }, { status: 500 });
   }
 }

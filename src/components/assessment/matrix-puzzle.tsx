@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MotionDiv } from '@/components/motion/motion-div';
 import { motion } from 'framer-motion';
+import DOMPurify from 'dompurify';
 
 interface MatrixPuzzleProps {
   svgGrid: string;
@@ -48,7 +49,7 @@ export function MatrixPuzzle({
       <div className="flex justify-center">
         <div
           className="bg-card rounded-lg border border-border p-4"
-          dangerouslySetInnerHTML={{ __html: svgGrid }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svgGrid, { USE_PROFILES: { svg: true, svgFilters: true } }) }}
         />
       </div>
 
@@ -68,7 +69,7 @@ export function MatrixPuzzle({
                   : 'border-border hover:border-primary/50'
               }`}
             >
-              <div dangerouslySetInnerHTML={{ __html: svg }} />
+              <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } }) }} />
               <span className="text-xs text-muted-foreground mt-1 block">
                 {String.fromCharCode(65 + idx)}
               </span>

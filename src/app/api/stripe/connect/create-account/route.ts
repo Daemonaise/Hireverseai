@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ accountId });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'Account creation failed' }, { status: 500 });
   }
 }

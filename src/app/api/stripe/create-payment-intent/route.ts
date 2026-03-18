@@ -11,10 +11,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { projectId, freelancerCost, clientId } = await req.json();
+    const { projectId, clientId } = await req.json();
 
-    if (!projectId || typeof freelancerCost !== 'number' || freelancerCost <= 0) {
-      return NextResponse.json({ error: 'Project ID and a valid freelancer cost are required.' }, { status: 400 });
+    if (!projectId) {
+      return NextResponse.json({ error: 'Project ID is required.' }, { status: 400 });
     }
 
     if (!clientId || uid !== clientId) {
@@ -26,7 +26,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Project not found or access denied.' }, { status: 404 });
     }
 
-    // Calculate fees: freelancer cost + 15% platform fee + stripe processing + tax
+    // Use server-side project cost, never trust client-supplied amount
+    const freelancerCost = (project as any).estimatedBaseCost ?? (project as any).baseCost ?? 0;
+    if (typeof freelancerCost !== 'number' || freelancerCost <= 0) {
+      return NextResponse.json({ error: 'Project cost not set.' }, { status: 400 });
+    }
+
     const fees = calculateFees(freelancerCost);
 
     const paymentIntent = await stripe.paymentIntents.create({
@@ -50,6 +55,6 @@ export async function POST(req: NextRequest) {
       fees,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: `Internal Server Error: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: 'Payment processing failed. Please try again.' }, { status: 500 });
   }
 }
