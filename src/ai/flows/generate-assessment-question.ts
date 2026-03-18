@@ -1,5 +1,7 @@
 'use server';
 /**
+
+/** @deprecated Superseded by the new 3-phase assessment system. Use generate-skill-question.ts and grade-skill-answer.ts instead. */
  * @fileOverview Generates a single adaptive assessment question.
  *
  * Exports:

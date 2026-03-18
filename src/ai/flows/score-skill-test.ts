@@ -1,5 +1,7 @@
 'use server';
 /**
+
+/** @deprecated Superseded by the new 3-phase assessment system. Use generate-skill-question.ts and grade-skill-answer.ts instead. */
  * @fileOverview Scores a freelancer's submitted answers for a skill test.
  * Exports:
  * - scoreSkillTest (async function)
