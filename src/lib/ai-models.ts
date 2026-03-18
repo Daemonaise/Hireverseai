@@ -2,17 +2,11 @@
  * @fileoverview Centralized definitions for Genkit model objects using the latest patterns.
  */
 
-import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { openAI } from '@genkit-ai/compat-oai/openai';
-import { anthropic, claude4Sonnet } from 'genkitx-anthropic';
+import { claude4Sonnet } from 'genkitx-anthropic';
 
-// Initialize plugins
-genkit({
-  plugins: [googleAI(), openAI(), anthropic()],
-});
-
-// Define model references from the initialized plugins
+// Model references — plugins are initialized once in ai.ts
 export const MODEL_REGISTRY = {
   google: {
     flash: googleAI.model('gemini-flash-latest'),

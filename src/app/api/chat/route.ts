@@ -2,8 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { chatWithClientAgent, type ClientChatHistory } from '@/ai/flows/client-chat-agent';
 import { type Message } from 'ai';
 
-// Simple in-memory cache for demonstration purposes
+// Bounded in-memory cache — evicts oldest entries when full
+const MAX_CACHE_SIZE = 100;
 const historyCache = new Map<string, ClientChatHistory>();
+
+function setCacheEntry(key: string, value: ClientChatHistory) {
+  if (historyCache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = historyCache.keys().next().value;
+    if (oldestKey) historyCache.delete(oldestKey);
+  }
+  historyCache.set(key, value);
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,7 +36,7 @@ export async function POST(req: NextRequest) {
       ...history,
       { id: `ai-${Date.now()}`, role: 'assistant' as const, content: responseText },
     ];
-    historyCache.set(clientId, updatedHistory);
+    setCacheEntry(clientId, updatedHistory);
 
     // Return as a simple text stream
     const stream = new ReadableStream({
