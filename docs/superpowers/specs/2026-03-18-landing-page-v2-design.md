@@ -54,7 +54,7 @@ Replaces the current `AiMatcher` component. A new `ProjectBuilder` component wit
 
 **Step 3 — AI Preview:**
 - Animated "Analyzing your project..." loading state (pulsing dots or spinner)
-- Once complete, reveals: estimated timeline, estimated cost range, team size, required skills as badges
+- Once complete, reveals: `estimatedTimeline`, `totalCostToClient` (single number, not a range), `estimatedHours`, and `requiredSkills` as badges. No `teamSize` field exists — omit it.
 - Two CTAs: "Start This Project" (→ auth gate → checkout) and "Refine" (→ back to Step 2)
 - **Important:** This step calls `generateProjectIdea` (which includes cost estimation) — NOT `matchFreelancer`. The `matchFreelancer` flow has Firestore side effects (creates project records, updates status) and should only run after the user commits via "Start This Project". Step 3 is a preview only.
 - "Start This Project" behavior:
@@ -153,7 +153,7 @@ CSS-only stylized mockup of the freelancer hub:
 - Each step is a card with the step number (`01`, `02`, `03`), icon, title, description
 - Animated SVG connecting line between steps on desktop: `<svg viewBox="0 0 1200 20">` with `<line>` from x=200 to x=1000, dots at x=200, x=600, x=1000. Path draws on scroll via `whileInView` + `pathLength` animation (same technique as existing WorkflowSection but with 3 nodes).
 - Section background is `bg-chrome` (dark) — cards use `bg-chrome-muted` with `border-border` and `text-chrome-foreground`
-- Steps animate in sequentially on scroll using `ScrollReveal` wrapping each card with incremental `delay` props
+- Steps animate in sequentially on scroll using `motion.div` with `whileInView="visible"` + `viewport={{ once: true }}` and `custom={index}` variants that apply incremental `transition.delay` (same pattern as existing `workflow-section.tsx` cards). Do NOT use `ScrollReveal` for this — it has no `delay` prop.
 
 ---
 
@@ -169,8 +169,11 @@ Pulls tier data from existing `src/lib/subscription.ts` definitions:
 - **Pro:** $49/mo, 10% platform fee, priority matching, unlimited projects, $50,000 max project size, advanced analytics, consolidated billing, favorites
 - **Enterprise:** $299/mo, 10%→8%→6% volume fee, unlimited project size, dedicated pool, custom SLA, API access
 
+### Dark-mode note
+The landing page root has `className="dark"`, so `bg-card` resolves to dark. For "light" sections (3, 4, 6, 7), wrap the section in a `<div>` that overrides: `bg-white text-gray-900` (explicit light surface, not token-dependent). Cards within use `bg-gray-50 border-gray-200` for subtle contrast.
+
 ### Visual Treatment
-- Each tier is a card (`rounded-xl border bg-card p-8`)
+- Each tier is a card (`rounded-xl border border-gray-200 bg-gray-50 p-8`)
 - Enterprise card has a `border-primary` highlight and "Best Value" badge
 - Price in large text, fee rate prominent, 4-5 bullet features with checkmark icons
 - CTA button on each card: "Get Started" → `/client/signup?tier=free|pro|enterprise`
@@ -192,7 +195,7 @@ Placeholder testimonials (3 total — 2 clients, 1 freelancer):
 
 ### Visual Treatment
 - Each card: large quote text, horizontal rule, name + role in muted text, 5-star rating
-- Card style: `bg-card border rounded-xl p-6`
+- Card style: `bg-gray-50 border border-gray-200 rounded-xl p-6` (explicit light — see dark-mode note in Section 6)
 - Subtle quote mark icon (") in `text-primary/20` as background decoration
 - Cards stagger in on scroll
 
@@ -287,11 +290,12 @@ All sections use existing Framer Motion presets from `src/lib/motion.ts`:
 Props: `{ target: number; duration?: number; suffix?: string; prefix?: string }`
 
 Implementation:
-- Uses `framer-motion`'s `useInView` to trigger when scrolled into view
-- Uses `useMotionValue` + `useTransform` + `animate` to count from 0 to `target`
-- Rounds to integer during animation, displays final value
-- Default duration: 2 seconds, ease: `easeOut`
-- Renders as a `<span>` wrapping `{prefix}{animatedValue}{suffix}`
+- Create a `ref` via `useRef<HTMLSpanElement>(null)` and attach to the rendered `<span>`
+- Use `useInView(ref, { once: true })` from `framer-motion` to detect scroll visibility
+- On `inView` becoming true, call `animate(motionValue, target, { duration, ease: 'easeOut' })` from `framer-motion`
+- Subscribe to the `motionValue` via `useMotionValueEvent(motionValue, 'change', (v) => setDisplay(Math.round(v)))` to update a `useState<number>` for display
+- Default duration: 2 seconds
+- Renders as: `<span ref={ref}>{prefix}{display}{suffix}</span>`
 
 ---
 
