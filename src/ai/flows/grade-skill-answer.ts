@@ -14,7 +14,7 @@ export const gradeSkillAnswer = ai.defineFlow(
   },
   async (input) => {
     const { text } = await ai.generate({
-      model: 'googleai/gemini-2.0-flash',
+      model: 'vertexai/gemini-2.0-flash',
       prompt: `You are a strict but fair skill assessment grader for a professional freelancer marketplace.
 
 Grade the following answer on a 0-100 scale.

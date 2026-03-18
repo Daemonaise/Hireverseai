@@ -23,7 +23,7 @@ export const translateUiStrings = ai.defineFlow(
     const jsonStr = JSON.stringify(input.sourceStrings, null, 2);
 
     const { text } = await ai.generate({
-      model: 'googleai/gemini-2.0-flash',
+      model: 'vertexai/gemini-2.0-flash',
       prompt: `Translate the following JSON object of UI strings from English to ${targetName}.
 Rules:
 - Preserve all JSON keys exactly as-is

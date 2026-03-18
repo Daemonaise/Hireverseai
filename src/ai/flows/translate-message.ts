@@ -23,7 +23,7 @@ export const translateMessage = ai.defineFlow(
     const targetName = LOCALE_NAMES[input.targetLocale] || input.targetLocale;
 
     const { text: translatedText } = await ai.generate({
-      model: 'googleai/gemini-2.0-flash',
+      model: 'vertexai/gemini-2.0-flash',
       prompt: `Translate the following message from ${sourceName} to ${targetName}.
 Preserve the original tone, formatting, and any technical terms.
 Return ONLY the translated text, nothing else.

@@ -14,7 +14,7 @@ export const analyzeProject = ai.defineFlow(
   },
   async (input) => {
     const { text } = await ai.generate({
-      model: 'googleai/gemini-2.0-flash',
+      model: 'vertexai/gemini-2.0-flash',
       prompt: `You are an expert project manager for a freelancer marketplace that supports all digital services (programming, design, writing, marketing, video, music, business, translation, AI/data).
 
 Analyze this project and determine what's needed.

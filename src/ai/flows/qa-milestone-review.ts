@@ -18,7 +18,7 @@ export const qaMilestoneReview = ai.defineFlow(
       .join('\n');
 
     const { text } = await ai.generate({
-      model: 'googleai/gemini-2.0-flash',
+      model: 'vertexai/gemini-2.0-flash',
       prompt: `You are a QA reviewer for a freelancer marketplace. Review all completed tasks in this milestone against the project requirements.
 
 **Project Brief:**

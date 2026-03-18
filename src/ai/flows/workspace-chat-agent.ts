@@ -162,7 +162,7 @@ ${context}
     }));
 
     const { text } = await withRetry(() => ai.generate({
-      model: 'googleai/gemini-2.0-flash',
+      model: 'vertexai/gemini-2.0-flash',
       system: systemPrompt,
       messages: chatHistory,
       tools: [listActivityEventsTool, getWorkspaceConnectionsTool, getRecentBriefingTool, listNotesTool, listBookmarksTool],

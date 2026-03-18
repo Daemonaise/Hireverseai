@@ -42,7 +42,7 @@ export const workspaceBriefing = ai.defineFlow(
       : 'No notes.';
 
     const { output } = await withRetry(() => ai.generate({
-      model: 'googleai/gemini-2.0-flash',
+      model: 'vertexai/gemini-2.0-flash',
       prompt: `You are the Hireverse Workspace Assistant generating a briefing for the period ${periodStart} to ${periodEnd}.
 
 ## Workspace Context
@@ -73,7 +73,7 @@ Be specific and actionable. Reference actual events and data.`,
       summary: output.summary,
       actionItems: output.actionItems,
       blockers: output.blockers,
-      model: 'googleai/gemini-2.0-flash',
+      model: 'vertexai/gemini-2.0-flash',
     });
 
     return output;

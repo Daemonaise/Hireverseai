@@ -14,7 +14,7 @@ export const gradePracticalAnswer = ai.defineFlow(
   },
   async (input) => {
     const { text } = await ai.generate({
-      model: 'googleai/gemini-2.0-flash',
+      model: 'vertexai/gemini-2.0-flash',
       prompt: `You are grading a practical skill challenge for a professional freelancer marketplace.
 
 **Challenge (${input.primarySkill}):**

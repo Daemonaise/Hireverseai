@@ -58,7 +58,7 @@ const PromptInputSchema = GenerateProjectIdeaInputSchema.extend({ randomNumber: 
 type PromptInputType = z.infer<typeof PromptInputSchema>;
 
 // --- Define the reusable prompt object ---
-const modelId = 'googleai/gemini-2.0-flash';
+const modelId = 'vertexai/gemini-2.0-flash';
 
 const projectIdeaGenPrompt = ai.definePrompt({
   name: 'generateProjectIdeaPrompt', // Unique name for the prompt

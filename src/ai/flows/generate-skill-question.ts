@@ -18,7 +18,7 @@ export const generateSkillQuestion = ai.defineFlow(
       : '';
 
     const { text } = await ai.generate({
-      model: 'googleai/gemini-2.0-flash',
+      model: 'vertexai/gemini-2.0-flash',
       prompt: `You are a professional skill assessment designer for a freelancer marketplace.
 
 Generate ONE scenario-based question to test "${input.targetSkill}" at ${input.difficulty} difficulty level.

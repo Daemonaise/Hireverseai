@@ -35,7 +35,7 @@ export const workspaceQAReview = ai.defineFlow(
     ).join('\n');
 
     const { output } = await withRetry(() => ai.generate({
-      model: 'googleai/gemini-2.0-flash',
+      model: 'vertexai/gemini-2.0-flash',
       prompt: `You are a QA reviewer for Hireverse. Review the submitted work against the project requirements.
 
 ## Workspace Context
