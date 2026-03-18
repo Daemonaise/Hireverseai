@@ -8,6 +8,7 @@ import { getProjectRules } from './rules/project-rules';
 import { getStreakRules } from './rules/streak-rules';
 import { getMilestoneRules } from './rules/milestone-rules';
 import { getReviewRules } from './rules/review-rules';
+import { getCommunityRules } from './rules/community-rules';
 import { FieldValue } from 'firebase-admin/firestore';
 
 export async function processEvent(event: GamificationEvent): Promise<Reward[]> {
@@ -28,6 +29,7 @@ export async function processEvent(event: GamificationEvent): Promise<Reward[]> 
     ...getStreakRules(event, stats),
     ...getMilestoneRules(event, stats),
     ...getReviewRules(event, stats),
+    ...getCommunityRules(event, stats),
   ];
 
   rewards.push(...allRules);
