@@ -19,7 +19,8 @@ import {
   type Timestamp as FirestoreTimestamp,
   type FieldValue,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import type { Freelancer, FreelancerStatus } from '@/types/freelancer';
 import type { Project, ProjectStatus, Microtask, ChangeRequest, ProjectPaymentStatus } from '@/types/project';
 import type { AdaptiveAssessmentResult } from '@/types/assessment';
@@ -263,12 +264,9 @@ export async function storeAssessmentResult(assessment: AdaptiveAssessmentResult
 
 
 export async function getFreelancerById(id: string): Promise<Freelancer | null> {
-   try {
-     const freelancer = dummyFreelancers.find(f => f.id === id);
-     return freelancer ? { ...freelancer } : null; // Return a copy to prevent mutation
-   } catch (error) {
-      throw new Error('Failed to fetch freelancer data.');
-   }
+   const snap = await getDoc(doc(db, 'freelancers', id));
+   if (!snap.exists()) return null;
+   return { id: snap.id, ...snap.data() } as Freelancer;
 }
 
 export async function getClientById(id: string): Promise<Client | null> {
@@ -582,54 +580,30 @@ export async function handleProjectPaymentUpdate(
 }
 
 
-// --- Authentication Related Functions (Placeholders/Simulations) ---
+// --- Authentication ---
 
-// Replace with actual Firebase Auth user creation
 export async function createAuthUser(email: string, password: string): Promise<{ userId: string } | null> {
-    // In a real app:
-    // try {
-    //   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    //   return { userId: userCredential.user.uid };
-    // } catch (error) {
-    //   console.error("Firebase Auth creation failed:", error);
-    //   // Map Firebase auth errors (e.g., 'auth/email-already-in-use') to user-friendly messages
-    //   if ((error as any).code === 'auth/email-already-in-use') {
-    //       throw new Error("Email address is already in use.");
-    //   }
-    //   throw new Error("Failed to create authentication account.");
-    // }
-
-    // Placeholder logic:
-    if (!email || !password) {
-        throw new Error("Email and password are required.");
+    try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        return { userId: userCredential.user.uid };
+    } catch (error: any) {
+        if (error.code === 'auth/email-already-in-use') {
+            throw new Error('Email address is already in use.');
+        }
+        throw new Error('Failed to create account.');
     }
-    // Simulate success, generate a consistent ID based on email for demo
-    const simulatedId = `auth-${email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '')}-${Date.now() % 1000}`;
-    return { userId: simulatedId };
 }
 
-// Replace with actual Firebase Auth sign-in
 export async function signInAuthUser(email: string, password: string): Promise<{ userId: string } | null> {
-    // In a real app:
-    // try {
-    //   const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    //   return { userId: userCredential.user.uid };
-    // } catch (error) {
-    //   console.error("Firebase Auth sign-in failed:", error);
-    //    // Map Firebase auth errors (e.g., 'auth/invalid-credential')
-    //    if ((error as any).code === 'auth/invalid-credential') {
-    //        throw new Error("Invalid email or password.");
-    //    }
-    //   throw new Error("Login failed. Please check your credentials.");
-    // }
-
-    // Placeholder logic:
-    if (password === 'password') { // Simple check for demo
-        // Derive a consistent ID based on email
-        const simulatedId = `auth-${email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '')}`;
-        return { userId: simulatedId };
+    try {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        return { userId: userCredential.user.uid };
+    } catch (error: any) {
+        if (error.code === 'auth/invalid-credential') {
+            throw new Error('Invalid email or password.');
+        }
+        throw new Error('Login failed. Please check your credentials.');
     }
-    throw new Error("Invalid email or password."); // Simulate auth failure
 }
 
 // --- Project Creation from External Source ---

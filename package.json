@@ -53,6 +53,7 @@
     "dotenv": "^17.2.3",
     "embla-carousel-react": "^8.0.0",
     "firebase": "^12.4.0",
+    "firebase-admin": "^13.7.0",
     "framer-motion": "^12.38.0",
     "genkit": "^1.21.0",
     "genkitx-anthropic": "^0.25.0",

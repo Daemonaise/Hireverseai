@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { adminAuth } from './firebase-admin';
 
 export async function verifyAuthToken(req: NextRequest): Promise<string | null> {
   const authHeader = req.headers.get('Authorization');
@@ -8,18 +9,8 @@ export async function verifyAuthToken(req: NextRequest): Promise<string | null> 
   if (!idToken) return null;
 
   try {
-    // Verify via Google's tokeninfo endpoint (works without Admin SDK)
-    const res = await fetch(
-      `https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
-      }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.users?.[0]?.localId ?? null;
+    const decoded = await adminAuth.verifyIdToken(idToken);
+    return decoded.uid;
   } catch {
     return null;
   }
