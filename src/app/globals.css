@@ -29,6 +29,13 @@
   --color-accent: hsl(30 90% 55%);
   --color-accent-foreground: hsl(210 10% 23%);
 
+  /* Badge rarity colors */
+  --rarity-common: hsl(220 10% 60%);
+  --rarity-uncommon: hsl(152 60% 45%);
+  --rarity-rare: hsl(197 100% 50%);
+  --rarity-epic: hsl(270 60% 55%);
+  --rarity-legendary: hsl(40 95% 55%);
+
   --color-destructive: hsl(0 84.2% 60.2%);
   --color-destructive-foreground: hsl(0 0% 98%);
 
