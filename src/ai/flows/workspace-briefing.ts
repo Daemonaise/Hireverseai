@@ -1,6 +1,7 @@
 'use server';
 
 import { ai } from '@/lib/ai';
+import { withRetry } from '@/lib/ai-retry';
 import { WorkspaceBriefingInputSchema, WorkspaceBriefingOutputSchema } from '@/ai/schemas/workspace-briefing-schema';
 import type { WorkspaceBriefingInput } from '@/ai/schemas/workspace-briefing-schema';
 import { getAIContext, generateAIContext } from '@/services/hub/ai-context';
@@ -40,7 +41,8 @@ export const workspaceBriefing = ai.defineFlow(
       ? notes.map(n => `- ${n.title}: ${n.content.substring(0, 100)}`).join('\n')
       : 'No notes.';
 
-    const { output } = await ai.generate({
+    const { output } = await withRetry(() => ai.generate({
+      model: 'googleai/gemini-2.0-flash',
       prompt: `You are the Hireverse Workspace Assistant generating a briefing for the period ${periodStart} to ${periodEnd}.
 
 ## Workspace Context
@@ -59,7 +61,7 @@ Generate a structured briefing with:
 
 Be specific and actionable. Reference actual events and data.`,
       output: { schema: WorkspaceBriefingOutputSchema },
-    });
+    }));
 
     if (!output) throw new Error('AI did not produce a valid briefing');
 
@@ -71,7 +73,7 @@ Be specific and actionable. Reference actual events and data.`,
       summary: output.summary,
       actionItems: output.actionItems,
       blockers: output.blockers,
-      model: 'default',
+      model: 'googleai/gemini-2.0-flash',
     });
 
     return output;

@@ -85,10 +85,9 @@ const initiateNewProjectTool = ai.defineTool(
             status: z.string(),
         }),
     },
-    async ({ projectBrief }) => {
-        // Note: The `matchFreelancer` flow requires a `freelancerId` which is the client ID in this context.
-        // This is a slight mismatch in naming but we'll adapt. This ID isn't used by the flow currently.
-        const result = await matchFreelancer({ projectBrief, freelancerId: 'client-from-agent' });
+    async ({ projectBrief }, { context }) => {
+        const clientId = (context as Record<string, unknown>)?.clientId as string ?? 'unknown';
+        const result = await matchFreelancer({ projectBrief, freelancerId: clientId });
         return {
             reasoning: result.reasoning,
             estimatedTimeline: result.estimatedTimeline,

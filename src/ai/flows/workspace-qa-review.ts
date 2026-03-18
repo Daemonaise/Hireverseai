@@ -1,6 +1,7 @@
 'use server';
 
 import { ai } from '@/lib/ai';
+import { withRetry } from '@/lib/ai-retry';
 import { WorkspaceQAReviewInputSchema, WorkspaceQAReviewOutputSchema } from '@/ai/schemas/workspace-qa-review-schema';
 import type { WorkspaceQAReviewInput } from '@/ai/schemas/workspace-qa-review-schema';
 import { getAIContext } from '@/services/hub/ai-context';
@@ -33,7 +34,8 @@ export const workspaceQAReview = ai.defineFlow(
       `${i + 1}. ${t.description} (Required skill: ${t.requiredSkill})`
     ).join('\n');
 
-    const { output } = await ai.generate({
+    const { output } = await withRetry(() => ai.generate({
+      model: 'googleai/gemini-2.0-flash',
       prompt: `You are a QA reviewer for Hireverse. Review the submitted work against the project requirements.
 
 ## Workspace Context
@@ -57,7 +59,7 @@ ${activityContext}
 3. Set passed=true ONLY if score >= 70 AND there are no critical issues
 4. Provide constructive feedback that helps the freelancer improve`,
       output: { schema: WorkspaceQAReviewOutputSchema },
-    });
+    }));
 
     if (!output) throw new Error('AI did not produce a valid QA review');
 

@@ -1,6 +1,7 @@
 'use server';
 
 import { ai } from '@/lib/ai';
+import { withRetry } from '@/lib/ai-retry';
 import { WorkspaceChatInputSchema, WorkspaceChatOutputSchema } from '@/ai/schemas/workspace-chat-schema';
 import type { WorkspaceChatInput } from '@/ai/schemas/workspace-chat-schema';
 import { getAIContext, generateAIContext } from '@/services/hub/ai-context';
@@ -10,6 +11,20 @@ import { getLatestBriefing } from '@/services/hub/briefings';
 import { listNotes } from '@/services/hub/notes';
 import { listBookmarks } from '@/services/hub/bookmarks';
 import { z } from 'zod';
+
+// Tool context type — passed via ai.generate({ context })
+interface ToolContext {
+  freelancerId: string;
+  workspaceId: string;
+}
+
+function getToolContext(context: unknown): ToolContext {
+  const ctx = context as Record<string, unknown>;
+  return {
+    freelancerId: String(ctx?.freelancerId ?? ''),
+    workspaceId: String(ctx?.workspaceId ?? ''),
+  };
+}
 
 // Define tools for the chat agent
 const listActivityEventsTool = ai.defineTool(
@@ -30,7 +45,7 @@ const listActivityEventsTool = ai.defineTool(
     })),
   },
   async (input, { context }) => {
-    const { freelancerId, workspaceId } = context as any;
+    const { freelancerId, workspaceId } = getToolContext(context);
     const since = input.sinceDays ? new Date(Date.now() - input.sinceDays * 86400000) : undefined;
     const events = await listActivityEvents(freelancerId, workspaceId, {
       provider: input.provider as any,
@@ -60,7 +75,7 @@ const getWorkspaceConnectionsTool = ai.defineTool(
     })),
   },
   async (_input, { context }) => {
-    const { freelancerId, workspaceId } = context as any;
+    const { freelancerId, workspaceId } = getToolContext(context);
     const conns = await listConnections(freelancerId, workspaceId);
     return conns.map(c => ({ provider: c.provider, label: c.label, status: c.status }));
   }
@@ -78,7 +93,7 @@ const getRecentBriefingTool = ai.defineTool(
     }).nullable(),
   },
   async (_input, { context }) => {
-    const { freelancerId, workspaceId } = context as any;
+    const { freelancerId, workspaceId } = getToolContext(context);
     const briefing = await getLatestBriefing(freelancerId, workspaceId);
     if (!briefing) return null;
     return { summary: briefing.summary, actionItems: briefing.actionItems, blockers: briefing.blockers };
@@ -93,7 +108,7 @@ const listNotesTool = ai.defineTool(
     outputSchema: z.array(z.object({ title: z.string(), content: z.string() })),
   },
   async (_input, { context }) => {
-    const { freelancerId, workspaceId } = context as any;
+    const { freelancerId, workspaceId } = getToolContext(context);
     const notes = await listNotes(freelancerId, workspaceId);
     return notes.map(n => ({ title: n.title, content: n.content }));
   }
@@ -107,7 +122,7 @@ const listBookmarksTool = ai.defineTool(
     outputSchema: z.array(z.object({ title: z.string(), url: z.string(), description: z.string() })),
   },
   async (_input, { context }) => {
-    const { freelancerId, workspaceId } = context as any;
+    const { freelancerId, workspaceId } = getToolContext(context);
     const bookmarks = await listBookmarks(freelancerId, workspaceId);
     return bookmarks.map(b => ({ title: b.title, url: b.url, description: b.description }));
   }
@@ -146,12 +161,13 @@ ${context}
       content: [{ text: m.content }],
     }));
 
-    const { text } = await ai.generate({
+    const { text } = await withRetry(() => ai.generate({
+      model: 'googleai/gemini-2.0-flash',
       system: systemPrompt,
       messages: chatHistory,
       tools: [listActivityEventsTool, getWorkspaceConnectionsTool, getRecentBriefingTool, listNotesTool, listBookmarksTool],
       context: { freelancerId, workspaceId },
-    });
+    }));
 
     return { responseText: text || 'I apologize, I was unable to generate a response.' };
   }
