@@ -22,6 +22,8 @@ export interface Freelancer {
   assessmentResultId?: string | null; // Optional: ID linking to the AdaptiveAssessmentResult document
   xp?: number; // Experience points for gamification
   badges?: string[]; // Array of badge IDs earned
+  level?: number;
+  levelTitle?: string;
   createdAt: Timestamp; // Timestamp of creation
   updatedAt?: Timestamp | FieldValue; // Timestamp of last update
   isLoggedIn?: boolean; // Tracks if the freelancer is currently logged in (based on session/token)

@@ -12,7 +12,6 @@ import {
   orderBy,
   limit,
   writeBatch,
-  increment,
   arrayUnion,
   arrayRemove, // Import arrayRemove
   collectionGroup,
@@ -231,30 +230,6 @@ export async function updateFreelancerByStripeAccount(stripeAccountId: string, d
   });
 }
 
-export async function awardXp(freelancerId: string, amount: number) {
-  if (amount === 0) return;
-   try {
-      await updateDoc(getDocRef('freelancers', freelancerId), {
-        xp: increment(amount),
-        updatedAt: now(),
-      });
-   } catch (error) {
-      // Decide if this should throw or just log
-   }
-}
-
-export async function awardBadge(freelancerId: string, badgeId: string) {
-   try {
-      await updateDoc(getDocRef('freelancers', freelancerId), {
-        badges: arrayUnion(badgeId),
-        xp: increment(50), // Example: Award XP for badges
-        updatedAt: now(),
-      });
-   } catch (error) {
-      // Decide if this should throw or just log
-   }
-}
-
 // Stores the result of an adaptive assessment and updates the freelancer's profile
 export async function storeAssessmentResult(assessment: AdaptiveAssessmentResult): Promise<string> {
   const assessmentRef = doc(collection(assessmentsRef)); // Create a reference for the new assessment doc
@@ -275,8 +250,6 @@ export async function storeAssessmentResult(assessment: AdaptiveAssessmentResult
         assessmentResultId: assessmentRef.id, // Link freelancer to the assessment result
         // Optionally update skills based on assessment (if needed)
         // skills: assessment.allSkills, // Or derive from high-scored skills
-        badges: arrayUnion('onboarding-complete'), // Award badge
-        xp: increment(50 + Math.round(assessment.finalScore / 5)), // Award XP based on score
         updatedAt: now(),
       });
 
