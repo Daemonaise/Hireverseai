@@ -17,7 +17,7 @@
   --color-popover: hsl(210 20% 100%);
   --color-popover-foreground: hsl(210 10% 23%);
 
-  --color-primary: hsl(180 90% 45%);
+  --color-primary: hsl(197 100% 50%);
   --color-primary-foreground: hsl(210 20% 98%);
 
   --color-secondary: hsl(210 20% 94%);
@@ -53,6 +53,19 @@
 
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-shimmer: shimmer 1.5s infinite linear;
+
+  /* Chrome (dark sidebar/toolbar) tokens */
+  --color-chrome: hsl(220 30% 12%);
+  --color-chrome-foreground: hsl(210 20% 92%);
+  --color-chrome-muted: hsl(220 20% 22%);
+  --color-chrome-border: hsl(220 15% 20%);
+  --color-primary-glow: hsl(197 100% 50% / 0.15);
+  --color-content-bg: hsl(210 20% 98%);
+  --color-accent-green: hsl(142 71% 45%);
+  --color-accent-amber: hsl(38 92% 50%);
+  --color-accent-red: hsl(0 72% 51%);
+  --color-unread: hsl(0 72% 51%);
 }
 
 .dark {
@@ -93,6 +106,11 @@
 @keyframes accordion-up {
   from { height: var(--radix-accordion-content-height); }
   to { height: 0; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 @layer base {
