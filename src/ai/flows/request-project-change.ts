@@ -156,31 +156,11 @@ const estimateProjectChangeImpactFlow = ai.defineFlow(
       // 2. Execute AI estimation with retry logic
       const aiOutput = await executeAIEstimation(input, primaryModel.name);
 
-      // 3. Validate the output using cross-validation
-      
-      try {
-        
-
-        
-      } catch (validationError: any) {
-        if (validationError.message === 'Validation timeout') {
-          // Depending on requirements, you might want to proceed or fail here
-        } else {
-          throw validationError;
-        }
-      }
-
       const duration = Date.now() - startTime;
       
       return aiOutput;
 
     } catch (error: any) {
-      const duration = Date.now() - startTime;
-        message: error?.message ?? 'Unknown error',
-        stack: error?.stack,
-        input: { projectId: input.projectId, priority: input.priority }
-      });
-      
       throw new Error(`Failed to estimate project change impact: ${error?.message ?? 'An unknown error occurred'}`);
     }
   }
