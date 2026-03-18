@@ -83,14 +83,13 @@ export function HeroSection() {
               quality assurance, delivery.
             </motion.p>
 
-            {/* Trust line */}
+            {/* Beta badge */}
             <motion.div
               variants={fadeUp}
-              className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground"
+              className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm"
             >
-              <span><span className="font-semibold text-foreground">500+</span> clients</span>
-              <span><span className="font-semibold text-foreground">1,200+</span> freelancers</span>
-              <span><span className="font-semibold text-foreground">2,000+</span> projects delivered</span>
+              <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-white">BETA</span>
+              <span className="text-muted-foreground">Now accepting freelancers and clients</span>
             </motion.div>
           </motion.div>
 

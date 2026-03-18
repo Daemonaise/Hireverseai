@@ -12,7 +12,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Hireverse AI - Expert Freelance Work, Delivered Faster',
+    default: 'Hireverse AI | Expert Freelance Work, Delivered Faster',
     template: '%s | Hireverse AI',
   },
   description:
