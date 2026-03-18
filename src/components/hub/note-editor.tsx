@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Trash2, FileText, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { addNote, listNotes, updateNote, deleteNote } from '@/services/hub/notes';
+import { useNotes, useNoteMutations } from '@/hooks/hub/use-notes';
+import { useTranslations } from 'next-intl';
 import type { Note } from '@/types/hub';
 import { Timestamp } from 'firebase/firestore';
 
@@ -25,82 +26,89 @@ function formatDate(value: Note['updatedAt']): string {
 }
 
 export function NoteEditor({ freelancerId, workspaceId }: NoteEditorProps) {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: notes = [], isLoading: loading } = useNotes(freelancerId, workspaceId);
+  const { create, update, remove } = useNoteMutations(freelancerId, workspaceId);
+  const t = useTranslations('notes');
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Local edits for optimistic UI
+  const [localEdits, setLocalEdits] = useState<Record<string, Partial<Pick<Note, 'title' | 'content'>>>>({});
+
+  // Auto-select first note when data changes and nothing is selected
+  useEffect(() => {
+    if (!selectedId && notes.length > 0) {
+      setSelectedId(notes[0].id);
+    }
+  }, [notes, selectedId]);
 
   const selectedNote = notes.find((n) => n.id === selectedId) ?? null;
-  const initialized = useRef(false);
-
-  const refreshNotes = useCallback(async () => {
-    const data = await listNotes(freelancerId, workspaceId);
-    setNotes(data);
-    return data;
-  }, [freelancerId, workspaceId]);
-
-  useEffect(() => {
-    refreshNotes().then((data) => {
-      setLoading(false);
-      if (!initialized.current && data.length > 0) {
-        setSelectedId(data[0].id);
-        initialized.current = true;
-      }
-    });
-  }, [refreshNotes]);
+  const displayNote = selectedNote
+    ? { ...selectedNote, ...localEdits[selectedNote.id] }
+    : null;
 
   async function handleNewNote() {
-    setCreating(true);
-    try {
-      const id = await addNote(freelancerId, workspaceId, {
-        title: 'Untitled Note',
-        content: '',
-      });
-      await refreshNotes();
-      setSelectedId(id);
-    } finally {
-      setCreating(false);
-    }
+    const id = await create.mutateAsync({
+      title: t('untitledNote'),
+      content: '',
+    });
+    setSelectedId(id);
   }
 
   async function handleDelete(noteId: string) {
     setDeletingId(noteId);
     try {
-      await deleteNote(freelancerId, workspaceId, noteId);
-      const remaining = await refreshNotes();
+      await remove.mutateAsync(noteId);
       if (selectedId === noteId) {
+        const remaining = notes.filter((n) => n.id !== noteId);
         setSelectedId(remaining.length > 0 ? remaining[0].id : null);
       }
+      setLocalEdits((prev) => {
+        const next = { ...prev };
+        delete next[noteId];
+        return next;
+      });
     } finally {
       setDeletingId(null);
     }
   }
 
   async function handleTitleBlur(noteId: string, title: string) {
-    await updateNote(freelancerId, workspaceId, noteId, { title });
-    setNotes((prev) =>
-      prev.map((n) => (n.id === noteId ? { ...n, title } : n))
-    );
+    await update.mutateAsync({ noteId, data: { title } });
+    setLocalEdits((prev) => {
+      const next = { ...prev };
+      if (next[noteId]) {
+        delete next[noteId].title;
+        if (Object.keys(next[noteId]).length === 0) delete next[noteId];
+      }
+      return next;
+    });
   }
 
   async function handleContentBlur(noteId: string, content: string) {
-    await updateNote(freelancerId, workspaceId, noteId, { content });
-    setNotes((prev) =>
-      prev.map((n) => (n.id === noteId ? { ...n, content } : n))
-    );
+    await update.mutateAsync({ noteId, data: { content } });
+    setLocalEdits((prev) => {
+      const next = { ...prev };
+      if (next[noteId]) {
+        delete next[noteId].content;
+        if (Object.keys(next[noteId]).length === 0) delete next[noteId];
+      }
+      return next;
+    });
   }
 
   function handleLocalTitleChange(noteId: string, title: string) {
-    setNotes((prev) =>
-      prev.map((n) => (n.id === noteId ? { ...n, title } : n))
-    );
+    setLocalEdits((prev) => ({
+      ...prev,
+      [noteId]: { ...prev[noteId], title },
+    }));
   }
 
   function handleLocalContentChange(noteId: string, content: string) {
-    setNotes((prev) =>
-      prev.map((n) => (n.id === noteId ? { ...n, content } : n))
-    );
+    setLocalEdits((prev) => ({
+      ...prev,
+      [noteId]: { ...prev[noteId], content },
+    }));
   }
 
   return (
@@ -112,14 +120,14 @@ export function NoteEditor({ freelancerId, workspaceId }: NoteEditorProps) {
             size="sm"
             className="w-full"
             onClick={handleNewNote}
-            disabled={creating}
+            disabled={create.isPending}
           >
-            {creating ? (
+            {create.isPending ? (
               <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
             ) : (
               <Plus className="h-3.5 w-3.5 mr-1.5" />
             )}
-            New Note
+            {t('newNote')}
           </Button>
         </div>
 
@@ -130,7 +138,7 @@ export function NoteEditor({ freelancerId, workspaceId }: NoteEditorProps) {
             </div>
           ) : notes.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-6 px-3">
-              No notes yet.
+              {t('noNotesYet')}
             </p>
           ) : (
             <ul className="p-2 space-y-0.5">
@@ -146,7 +154,7 @@ export function NoteEditor({ freelancerId, workspaceId }: NoteEditorProps) {
                   >
                     <FileText className="h-3.5 w-3.5 mt-0.5 shrink-0 opacity-60" />
                     <span className="flex-1 truncate font-medium text-xs leading-snug">
-                      {note.title || 'Untitled Note'}
+                      {note.title || t('untitledNote')}
                     </span>
                   </button>
                 </li>
@@ -158,15 +166,15 @@ export function NoteEditor({ freelancerId, workspaceId }: NoteEditorProps) {
 
       {/* Right panel: note content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {selectedNote ? (
+        {displayNote && selectedNote ? (
           <>
             <div className="flex items-center gap-2 px-4 py-3 border-b">
               <Input
                 className="font-semibold border-none shadow-none focus-visible:ring-0 px-0 text-base h-auto"
-                value={selectedNote.title}
+                value={displayNote.title}
                 onChange={(e) => handleLocalTitleChange(selectedNote.id, e.target.value)}
                 onBlur={(e) => handleTitleBlur(selectedNote.id, e.target.value)}
-                placeholder="Note title"
+                placeholder={t('noteTitle')}
               />
               <Button
                 variant="ghost"
@@ -184,16 +192,16 @@ export function NoteEditor({ freelancerId, workspaceId }: NoteEditorProps) {
             </div>
             <Textarea
               className="flex-1 resize-none rounded-none border-none shadow-none focus-visible:ring-0 px-4 py-3 text-sm font-mono"
-              value={selectedNote.content}
+              value={displayNote.content}
               onChange={(e) => handleLocalContentChange(selectedNote.id, e.target.value)}
               onBlur={(e) => handleContentBlur(selectedNote.id, e.target.value)}
-              placeholder="Write your notes here (markdown supported)..."
+              placeholder={t('writeNotesPlaceholder')}
             />
             <div className="px-4 py-2 border-t">
               <p className="text-xs text-muted-foreground">
                 {formatDate(selectedNote.updatedAt)
-                  ? `Last updated ${formatDate(selectedNote.updatedAt)}`
-                  : 'Auto-saves on blur'}
+                  ? `${t('lastUpdated')} ${formatDate(selectedNote.updatedAt)}`
+                  : t('autoSavesOnBlur')}
               </p>
             </div>
           </>
@@ -202,7 +210,7 @@ export function NoteEditor({ freelancerId, workspaceId }: NoteEditorProps) {
             {loading ? (
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
-              'Select a note or create a new one'
+              t('selectOrCreateNote')
             )}
           </div>
         )}

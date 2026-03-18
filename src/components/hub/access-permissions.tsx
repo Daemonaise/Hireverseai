@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { MessageSquare, Github, HardDrive, LayoutGrid, BookOpen, Loader2, ShieldOff, Clock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,10 +17,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { listConnections, deleteConnection } from '@/services/hub/connections';
-import { listActivityEvents } from '@/services/hub/activity';
+import { useConnections, useConnectionMutations } from '@/hooks/hub/use-connections';
+import { useActivityEvents } from '@/hooks/hub/use-activity';
+import { useTranslations } from 'next-intl';
 import { getProviderConfig } from '@/services/integrations/types';
-import type { WorkspaceConnection, NormalizedActivity } from '@/types/hub';
+import type { WorkspaceConnection } from '@/types/hub';
 import { Timestamp } from 'firebase/firestore';
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -46,30 +47,21 @@ interface AccessPermissionsProps {
 }
 
 export function AccessPermissions({ freelancerId, workspaceId }: AccessPermissionsProps) {
-  const [connections, setConnections] = useState<WorkspaceConnection[]>([]);
-  const [auditEvents, setAuditEvents] = useState<NormalizedActivity[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [revokingId, setRevokingId] = useState<string | null>(null);
+  const { data: connections = [], isLoading: loading } = useConnections(freelancerId, workspaceId);
+  const { data: auditEvents = [] } = useActivityEvents(freelancerId, workspaceId, { sourceType: 'connection_event' });
+  const { remove } = useConnectionMutations(freelancerId, workspaceId);
+  const t = useTranslations('permissions');
 
-  useEffect(() => {
-    Promise.all([
-      listConnections(freelancerId, workspaceId),
-      listActivityEvents(freelancerId, workspaceId, { sourceType: 'connection_event' }),
-    ]).then(([conns, events]) => {
-      setConnections(conns);
-      setAuditEvents(events);
-      setLoading(false);
-    });
-  }, [freelancerId, workspaceId]);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   async function handleRevoke(connection: WorkspaceConnection) {
     setRevokingId(connection.id);
     try {
-      await deleteConnection(freelancerId, workspaceId, connection.id, connection.provider, connection.label);
-      setConnections((prev) => prev.filter((c) => c.id !== connection.id));
-      // Refresh audit log
-      const events = await listActivityEvents(freelancerId, workspaceId, { sourceType: 'connection_event' });
-      setAuditEvents(events);
+      await remove.mutateAsync({
+        connectionId: connection.id,
+        provider: connection.provider,
+        label: connection.label,
+      });
     } finally {
       setRevokingId(null);
     }
@@ -88,9 +80,9 @@ export function AccessPermissions({ freelancerId, workspaceId }: AccessPermissio
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
           <ShieldOff className="h-8 w-8 text-muted-foreground mb-3" />
-          <p className="text-sm font-medium">No connected integrations</p>
+          <p className="text-sm font-medium">{t('noConnectedIntegrations')}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            Connect an integration from the Integrations tab.
+            {t('connectFromIntegrationsTab')}
           </p>
         </CardContent>
       </Card>
@@ -100,8 +92,7 @@ export function AccessPermissions({ freelancerId, workspaceId }: AccessPermissio
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        These integrations have access to this workspace. Revoking access removes the
-        connection from this workspace only.
+        {t('integrationsDescription')}
       </p>
 
       {connections.map((connection) => {
@@ -117,10 +108,10 @@ export function AccessPermissions({ freelancerId, workspaceId }: AccessPermissio
 
         const statusLabel =
           connection.status === 'connected'
-            ? 'Connected'
+            ? t('connected')
             : connection.status === 'disconnected'
-            ? 'Disconnected'
-            : 'Error';
+            ? t('disconnected')
+            : t('error');
 
         return (
           <Card key={connection.id}>
@@ -137,7 +128,7 @@ export function AccessPermissions({ freelancerId, workspaceId }: AccessPermissio
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {config.name} &middot; Connected since {formatDate(connection.createdAt)}
+                  {config.name} &middot; {t('connectedSince')} {formatDate(connection.createdAt)}
                 </p>
               </div>
 
@@ -154,24 +145,23 @@ export function AccessPermissions({ freelancerId, workspaceId }: AccessPermissio
                     ) : (
                       <ShieldOff className="h-3.5 w-3.5 mr-1.5" />
                     )}
-                    Revoke
+                    {t('revoke')}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Revoke {config.name} access?</AlertDialogTitle>
+                    <AlertDialogTitle>{t('revokeAccessTitle', { provider: config.name })}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will remove the {config.name} connection from this workspace.
-                      You can reconnect it at any time from the Integrations tab.
+                      {t('revokeAccessDescription', { provider: config.name })}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                     <AlertDialogAction
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       onClick={() => handleRevoke(connection)}
                     >
-                      Revoke Access
+                      {t('revokeAccess')}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -184,7 +174,7 @@ export function AccessPermissions({ freelancerId, workspaceId }: AccessPermissio
       {/* Connection Audit Log */}
       {auditEvents.length > 0 && (
         <div className="mt-6 space-y-2">
-          <h3 className="text-sm font-semibold text-gray-700">Connection Audit Log</h3>
+          <h3 className="text-sm font-semibold text-gray-700">{t('connectionAuditLog')}</h3>
           <Card>
             <CardContent className="p-0">
               <ScrollArea className="max-h-64">
