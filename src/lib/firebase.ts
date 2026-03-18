@@ -1,6 +1,7 @@
 // src/lib/firebase.ts
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getFirestore, Firestore } from 'firebase/firestore';
+import { getAuth, Auth } from 'firebase/auth';
 import 'dotenv/config';
 
 const firebaseConfig = {
@@ -24,3 +25,4 @@ const app: FirebaseApp = !getApps().length
   : getApp();
 
 export const db: Firestore = getFirestore(app);
+export const auth: Auth = getAuth(app);
