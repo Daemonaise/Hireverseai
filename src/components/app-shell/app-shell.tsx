@@ -3,6 +3,7 @@
 import { Webdock } from './webdock';
 import { Toolbar } from './toolbar';
 import { ContentArea } from './content-area';
+import { ShellProvider, useShell } from './shell-context';
 import type { TabDef } from './toolbar-tabstrip';
 
 interface AppShellProps {
@@ -22,17 +23,25 @@ interface AppShellProps {
   contentClassName?: string;
 }
 
-export function AppShell({
+function AppShellInner({
   role,
-  title = '',
-  tabs,
-  activeTab,
-  onTabChange,
+  title: propTitle,
+  tabs: propTabs,
+  activeTab: propActiveTab,
+  onTabChange: propOnTabChange,
   groups,
   onCreateGroup,
   children,
   contentClassName,
 }: AppShellProps) {
+  const shell = useShell();
+
+  // Context values override prop values (child pages can set their own title/tabs)
+  const title = shell.title || propTitle || '';
+  const tabs = shell.tabs.length > 0 ? shell.tabs : propTabs;
+  const activeTab = shell.activeTab || propActiveTab;
+  const onTabChange = shell.tabs.length > 0 ? shell.setActiveTab : propOnTabChange;
+
   return (
     <div className="flex h-screen w-screen overflow-hidden">
       <Webdock role={role} groups={groups} onCreateGroup={onCreateGroup} />
@@ -46,5 +55,13 @@ export function AppShell({
         <ContentArea className={contentClassName}>{children}</ContentArea>
       </div>
     </div>
+  );
+}
+
+export function AppShell(props: AppShellProps) {
+  return (
+    <ShellProvider>
+      <AppShellInner {...props} />
+    </ShellProvider>
   );
 }
