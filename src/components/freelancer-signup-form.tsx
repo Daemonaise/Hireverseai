@@ -14,7 +14,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { addFreelancer, updateFreelancerSkills } from '@/services/firestore';
 import { determinePrimarySkill, type DeterminePrimarySkillOutput } from '@/ai/flows/determine-primary-skill';
-import { AdaptiveSkillAssessment } from '@/components/adaptive-skill-assessment';
+import { AssessmentShell } from '@/components/assessment/assessment-shell';
+import { storeAssessmentResult } from '@/services/firestore';
+import type { AssessmentResult } from '@/types/assessment';
 import { Textarea } from '@/components/ui/textarea';
 
 const formSchema = z.object({
@@ -105,11 +107,18 @@ export function FreelancerSignupForm() {
 
   if (currentStep === 'assessment' && freelancerId && primarySkill && allSkills.length > 0) {
     return (
-      <AdaptiveSkillAssessment
+      <AssessmentShell
         freelancerId={freelancerId}
         primarySkill={primarySkill}
         allSkills={allSkills}
-        onComplete={handleAssessmentComplete}
+        onComplete={async (result: AssessmentResult) => {
+          try {
+            await storeAssessmentResult({ ...result, freelancerId });
+          } catch {
+            // Storage failure shouldn't block completion
+          }
+          handleAssessmentComplete();
+        }}
       />
     );
   }
