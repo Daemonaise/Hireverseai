@@ -313,7 +313,124 @@ src/components/client-dashboard.tsx            — Show project plan with anonym
 
 ---
 
-## 10. Out of Scope
+## 10. Data Collection & Analytics Pipeline
+
+Every project generates signals that improve the platform over time. Data collection is built into the decomposition and execution pipeline — not bolted on after.
+
+### 10.1 Event Types
+
+Events are stored in a `projects/{projectId}/events` Firestore subcollection. Each event is a timestamped record:
+
+| Event | Source | Data Collected | Used For |
+|---|---|---|---|
+| `project_created` | Client | category, priority, brief length, skill count | Demand forecasting |
+| `decomposition_complete` | Pipeline | complexity, milestone count, task count, total estimated hours, total estimated cost, roles identified | Estimate accuracy tracking |
+| `freelancer_matched` | Matcher | task ID, freelancer cert level, pay multiplier, skill score, priority used | Match quality analysis |
+| `task_started` | Freelancer | task ID, actual start time | Time-to-start metrics |
+| `task_submitted` | Freelancer | task ID, actual hours spent, submission time | Estimate vs actual comparison |
+| `qa_milestone_reviewed` | QA Gate | milestone ID, score, pass/fail, revision count | Quality metrics |
+| `task_revised` | Freelancer | task ID, revision number, reason | Quality issue tracking |
+| `milestone_completed` | System | milestone ID, actual duration vs estimated | Timeline accuracy |
+| `project_completed` | System | total actual cost, total actual hours, final QA score, client priority achieved | ROI analysis |
+| `change_requested` | Client | description, estimated impact cost | Scope creep tracking |
+
+### 10.2 Derived Metrics (computed from events)
+
+Stored on the freelancer profile and updated after each project:
+
+| Metric | How it's computed | Used for |
+|---|---|---|
+| `estimateAccuracy` | avg(actual_hours / estimated_hours) across all tasks | Improving AI estimates |
+| `qualityScore` | weighted avg of QA scores across milestones | Matching quality signal |
+| `revisionRate` | revisions / total tasks submitted | Reliability indicator |
+| `onTimeRate` | % of tasks completed within estimated time | Speed signal |
+| `clientSatisfactionProxy` | composite of QA scores + low change request rate + project completion | Overall freelancer rating |
+
+Stored on projects for platform analytics:
+
+| Metric | How it's computed | Used for |
+|---|---|---|
+| `costEfficiency` | estimated_cost / actual_cost | Pricing model tuning |
+| `timeEfficiency` | estimated_duration / actual_duration | Timeline model tuning |
+| `matchQuality` | avg freelancer skill score for assigned tasks / max available | Matcher optimization |
+
+### 10.3 Storage Strategy (cost-effective)
+
+```
+Firestore (hot data, real-time):
+  projects/{id}/events/{eventId}     — Raw events during active projects
+  freelancers/{id}/performanceStats  — Derived metrics (single document, updated on project close)
+
+BigQuery (cold analytics, batch):
+  Firestore → BigQuery scheduled export (daily)
+  — Full event history for ML training
+  — Cross-project analytics
+  — Demand forecasting
+  — Pricing optimization models
+```
+
+Cost: Firestore export to BigQuery is ~$0.01/GB. Events are small (~500 bytes each). A project with 20 tasks generates ~100 events ≈ 50KB. At 1000 projects/month = 50MB/month = pennies.
+
+### 10.4 Security
+
+- Events subcollection is write-only from server-side (no client reads)
+- Performance stats on freelancer profiles are read-only by the matching engine
+- BigQuery access is restricted to service account (no client/freelancer access)
+- Anonymous IDs in events — freelancer IDs are present but never exposed via client-facing queries
+- Firestore security rules: clients can read their own project events but not freelancer IDs within them
+
+### 10.5 Data Files
+
+```
+src/services/project-events.ts        — Event recording service
+src/lib/analytics/performance-stats.ts — Compute derived metrics from events
+```
+
+---
+
+## 11. Security Hardening
+
+### 11.1 API Route Protection
+
+All API routes that touch the decomposition pipeline require authentication:
+
+| Route | Protection |
+|---|---|
+| Decompose project | `verifyAuthToken` + verify `clientId` matches authenticated user |
+| Approve project plan | `verifyAuthToken` + verify project belongs to client |
+| Get project assignments | `verifyAuthToken` + strip `freelancerId` from response (anonymity) |
+| Milestone QA trigger | Server-only (not client-callable) |
+
+### 11.2 Firestore Security Rules
+
+```
+projects/{projectId}:
+  - read: client who owns the project OR assigned freelancers
+  - write: server-only (via admin or server actions)
+
+projects/{projectId}/assignments:
+  - read: server-only (NEVER client-readable)
+  - write: server-only
+
+projects/{projectId}/events:
+  - read: server-only (analytics pipeline)
+  - write: server-only
+
+freelancers/{fid}/performanceStats:
+  - read: server-only (matching engine)
+  - write: server-only
+```
+
+### 11.3 Data Isolation
+
+- Clients never see: freelancer real IDs, other clients' projects, assignment internals
+- Freelancers never see: client names, other freelancers on the same project, payment details
+- Anonymous IDs are the only cross-reference visible to either side
+- The matching engine runs server-side only — no client-side access to the candidate pool
+
+---
+
+## 12. Out of Scope
 
 - Client-facing freelancer selection (by design — anonymity)
 - Real-time task progress streaming
