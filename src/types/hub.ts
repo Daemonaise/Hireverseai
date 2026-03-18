@@ -24,6 +24,7 @@ export interface Workspace {
   id: string;
   name: string;
   clientName: string;
+  clientId?: string; // references clients/{cid} — optional until migration
   engagementType: string; // free-text: "retainer", "contract", etc.
   status: WorkspaceStatus;
   createdAt: Timestamp;
@@ -134,4 +135,48 @@ export interface UpdateItemPayload {
   externalId: string;
   type: 'issue' | 'card' | 'page';
   updates: Record<string, unknown>;
+}
+
+// --- Messaging ---
+
+export interface ThreadParticipant {
+  id: string;
+  role: 'freelancer' | 'client';
+  locale: string;
+}
+
+export interface Thread {
+  id: string;
+  subject: string;
+  workspaceId: string;
+  freelancerId: string;
+  clientId: string;
+  participants: ThreadParticipant[];
+  lastMessageAt: Timestamp;
+  createdAt: Timestamp;
+  createdBy: string;
+}
+
+export interface ThreadMessage {
+  id: string;
+  authorId: string;
+  authorRole: 'freelancer' | 'client';
+  originalText: string;
+  originalLocale: string;
+  translations: Partial<Record<'en' | 'es' | 'ru', string>>;
+  createdAt: Timestamp;
+}
+
+export interface CreateThreadInput {
+  workspaceId: string;
+  freelancerId: string;
+  clientId: string;
+  subject: string;
+}
+
+export interface PostMessageInput {
+  authorId: string;
+  authorRole: 'freelancer' | 'client';
+  text: string;
+  locale: string;
 }
