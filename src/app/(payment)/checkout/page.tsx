@@ -145,7 +145,7 @@ function CheckoutPageInner() {
 
   if (stripeKeyMissing) {
     return (
-        <div className="flex min-h-screen items-center justify-center bg-muted/40 py-12">
+        <div className="flex min-h-screen items-center justify-center bg-content-bg py-12">
             <Card className="w-full max-w-md shadow-lg">
                 <CardHeader>
                     <CardTitle>Payment Error</CardTitle>
@@ -169,7 +169,7 @@ function CheckoutPageInner() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 py-12">
+    <div className="flex min-h-screen items-center justify-center bg-content-bg py-12">
       <Card className="w-full max-w-md shadow-lg">
           <CardHeader>
               <CardTitle>Complete Project Payment</CardTitle>
