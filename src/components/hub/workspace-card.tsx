@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type { Workspace } from '@/types/hub';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Timestamp } from 'firebase/firestore';
-import { listActivityEvents } from '@/services/hub/activity';
+import { useActivityEvents } from '@/hooks/hub/use-activity';
 import { Clock } from 'lucide-react';
 
 interface WorkspaceCardProps {
@@ -32,32 +32,21 @@ function formatRelativeTime(value: Workspace['updatedAt']): string {
 
 export function WorkspaceCard({ workspace, freelancerId, onClick }: WorkspaceCardProps) {
   const router = useRouter();
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [nextDeadline, setNextDeadline] = useState<string | null>(null);
+  const t = useTranslations('hub');
 
-  useEffect(() => {
-    async function fetchIndicators() {
-      try {
-        const since = workspace.lastVisitedAt?.toDate() ?? undefined;
-        if (since) {
-          const events = await listActivityEvents(freelancerId, workspace.id, { since, limit: 100 });
-          setUnreadCount(events.length);
-        }
-        // Find nearest deadline
-        const allEvents = await listActivityEvents(freelancerId, workspace.id, { limit: 50 });
-        const now = new Date();
-        const upcoming = allEvents
-          .filter(e => e.dueDate && e.dueDate.toDate() > now)
-          .sort((a, b) => a.dueDate!.toDate().getTime() - b.dueDate!.toDate().getTime());
-        if (upcoming.length > 0) {
-          setNextDeadline(upcoming[0].dueDate!.toDate().toLocaleDateString());
-        }
-      } catch {
-        // Activity may not exist yet
-      }
-    }
-    fetchIndicators();
-  }, [freelancerId, workspace.id, workspace.lastVisitedAt]);
+  const { data: unreadActivity = [] } = useActivityEvents(freelancerId, workspace.id, {
+    since: workspace.lastVisitedAt?.toDate() ?? undefined,
+    limit: 100,
+  });
+  const { data: deadlineActivity = [] } = useActivityEvents(freelancerId, workspace.id, {
+    limit: 50,
+  });
+
+  const unreadCount = unreadActivity.length;
+  const nextDeadline = deadlineActivity
+    .filter((e) => e.dueDate)
+    .sort((a, b) => a.dueDate!.toMillis() - b.dueDate!.toMillis())
+    .find((e) => e.dueDate!.toDate() > new Date())?.dueDate ?? null;
 
   function handleClick() {
     if (onClick) onClick();
@@ -86,7 +75,7 @@ export function WorkspaceCard({ workspace, freelancerId, onClick }: WorkspaceCar
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-100'
             }
           >
-            {workspace.status === 'active' ? 'Active' : 'Archived'}
+            {workspace.status === 'active' ? t('active') : t('archived')}
           </Badge>
         </div>
       </CardHeader>
@@ -98,7 +87,7 @@ export function WorkspaceCard({ workspace, freelancerId, onClick }: WorkspaceCar
         {nextDeadline && (
           <p className="flex items-center gap-1 text-xs text-amber-600">
             <Clock className="h-3 w-3" />
-            Next deadline: {nextDeadline}
+            {t('nextDeadline')}: {nextDeadline.toDate().toLocaleDateString()}
           </p>
         )}
         <p className="text-xs text-muted-foreground mt-2">

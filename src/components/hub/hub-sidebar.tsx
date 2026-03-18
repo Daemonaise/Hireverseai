@@ -1,14 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Plus, Archive, FolderOpen } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { listWorkspaces } from '@/services/hub/workspaces';
-import type { Workspace } from '@/types/hub';
+import { useWorkspaces } from '@/hooks/hub/use-workspace';
 
 interface HubSidebarProps {
   freelancerId: string;
@@ -16,12 +16,9 @@ interface HubSidebarProps {
 
 export function HubSidebar({ freelancerId }: HubSidebarProps) {
   const pathname = usePathname();
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const { data: workspaces = [] } = useWorkspaces(freelancerId);
   const [archivedOpen, setArchivedOpen] = useState(false);
-
-  useEffect(() => {
-    listWorkspaces(freelancerId).then(setWorkspaces);
-  }, [freelancerId]);
+  const t = useTranslations('sidebar');
 
   const active = workspaces.filter((w) => w.status === 'active');
   const archived = workspaces.filter((w) => w.status === 'archived');
@@ -32,7 +29,7 @@ export function HubSidebar({ freelancerId }: HubSidebarProps) {
         <Button asChild className="w-full" size="sm">
           <Link href="/freelancer/hub">
             <Plus className="h-4 w-4 mr-2" />
-            New Workspace
+            {t('newWorkspace')}
           </Link>
         </Button>
       </div>
@@ -79,7 +76,7 @@ export function HubSidebar({ freelancerId }: HubSidebarProps) {
                 className="flex items-center gap-2 w-full text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 mb-2 hover:text-foreground transition-colors"
               >
                 <Archive className="h-3.5 w-3.5" />
-                Archived
+                {t('archived')}
                 <span className="ml-auto">{archivedOpen ? '−' : '+'}</span>
               </button>
 

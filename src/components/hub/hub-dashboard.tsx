@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Plus, Loader2 } from 'lucide-react';
-import type { Workspace } from '@/types/hub';
-import { listWorkspaces, createWorkspace } from '@/services/hub/workspaces';
+import { useTranslations } from 'next-intl';
+import { useWorkspaces, useWorkspaceMutations } from '@/hooks/hub/use-workspace';
 import { WorkspaceCard } from '@/components/hub/workspace-card';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,29 +21,16 @@ interface HubDashboardProps {
 }
 
 export function HubDashboard({ freelancerId }: HubDashboardProps) {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: workspaces = [], isLoading: loading } = useWorkspaces(freelancerId);
+  const { create } = useWorkspaceMutations(freelancerId);
+  const t = useTranslations('hub');
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [name, setName] = useState('');
   const [clientName, setClientName] = useState('');
   const [engagementType, setEngagementType] = useState('');
-
-  async function fetchWorkspaces() {
-    setLoading(true);
-    try {
-      const data = await listWorkspaces(freelancerId);
-      setWorkspaces(data);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchWorkspaces();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [freelancerId]);
 
   function openDialog() {
     setName('');
@@ -57,14 +44,13 @@ export function HubDashboard({ freelancerId }: HubDashboardProps) {
     if (!name.trim() || !clientName.trim()) return;
     setSubmitting(true);
     try {
-      await createWorkspace(freelancerId, {
+      await create.mutateAsync({
         name: name.trim(),
         clientName: clientName.trim(),
         engagementType: engagementType.trim(),
         status: 'active',
       });
       setDialogOpen(false);
-      await fetchWorkspaces();
     } finally {
       setSubmitting(false);
     }
@@ -73,10 +59,10 @@ export function HubDashboard({ freelancerId }: HubDashboardProps) {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Client Systems Hub</h1>
+        <h1 className="text-2xl font-bold">{t('title')}</h1>
         <Button onClick={openDialog}>
           <Plus className="mr-2 h-4 w-4" />
-          New Workspace
+          {t('newWorkspace')}
         </Button>
       </div>
 
@@ -86,7 +72,7 @@ export function HubDashboard({ freelancerId }: HubDashboardProps) {
         </div>
       ) : workspaces.length === 0 ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
-          No workspaces yet. Create one to get started.
+          {t('emptyState')}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -99,11 +85,11 @@ export function HubDashboard({ freelancerId }: HubDashboardProps) {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New Workspace</DialogTitle>
+            <DialogTitle>{t('newWorkspace')}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="workspace-name">Workspace Name</Label>
+              <Label htmlFor="workspace-name">{t('workspaceName')}</Label>
               <Input
                 id="workspace-name"
                 value={name}
@@ -113,7 +99,7 @@ export function HubDashboard({ freelancerId }: HubDashboardProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="client-name">Client Name</Label>
+              <Label htmlFor="client-name">{t('clientName')}</Label>
               <Input
                 id="client-name"
                 value={clientName}
@@ -123,7 +109,7 @@ export function HubDashboard({ freelancerId }: HubDashboardProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="engagement-type">Engagement Type</Label>
+              <Label htmlFor="engagement-type">{t('engagementType')}</Label>
               <Input
                 id="engagement-type"
                 value={engagementType}
@@ -138,11 +124,11 @@ export function HubDashboard({ freelancerId }: HubDashboardProps) {
                 onClick={() => setDialogOpen(false)}
                 disabled={submitting}
               >
-                Cancel
+                {t('cancel')}
               </Button>
               <Button type="submit" disabled={submitting || !name.trim() || !clientName.trim()}>
                 {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create Workspace
+                {t('createWorkspace')}
               </Button>
             </DialogFooter>
           </form>
