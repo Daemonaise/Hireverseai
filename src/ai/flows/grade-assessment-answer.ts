@@ -62,13 +62,11 @@ const gradeAssessmentAnswerFlow = ai.defineFlow(
     outputSchema: GradeAssessmentAnswerOutputSchema,
   },
   async (input) => {
-    console.log(`Grading answer for question ${input.questionId} (Skill: ${input.skillTested}, Difficulty: ${input.difficulty})...`);
 
     try {
         // 1. Choose the primary model for generation
         const promptContext = `Grade answer for question about ${input.skillTested} (${input.difficulty}). Question: ${input.questionText}. Answer: ${input.answerText}`;
         const primaryModel = await chooseModelBasedOnPrompt(promptContext);
-        console.log(`Using model ${primaryModel.name} for grading.`);
 
         // 2. Define the prompt using the chosen model and template
         const gradeAnswerPrompt = ai.definePrompt({
@@ -88,12 +86,10 @@ const gradeAssessmentAnswerFlow = ai.defineFlow(
 
       // 4. Validate AI output structure (already done by prompt definition)
       if (aiOutput.score < 0 || aiOutput.score > 100) {
-           console.warn(`AI returned score (${aiOutput.score}) outside 0-100 range. Clamping.`);
            aiOutput.score = Math.max(0, Math.min(100, aiOutput.score));
        }
 
        // 5. Validate the output with other models
-        const originalPromptText = gradeAnswerPromptTemplate
             .replace('{{{freelancerId}}}', input.freelancerId)
             .replace('{{{primarySkill}}}', input.primarySkill)
             .replace('{{{questionId}}}', input.questionId)
@@ -114,12 +110,10 @@ const gradeAssessmentAnswerFlow = ai.defineFlow(
       // Validate the final constructed output (optional but recommended)
       GradeAssessmentAnswerOutputSchema.parse(finalOutput);
 
-      console.log(`Successfully graded and validated question ${finalOutput.questionId}. Score: ${finalOutput.score}`);
       return finalOutput;
 
     } catch (error: any) {
       // Catch errors from AI call or parsing/validation
-      console.error(`Grading error for question ${input.questionId}:`, error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       // Propagate the error to the caller
       throw new Error(`Failed to grade answer for question ${input.questionId}: ${errorMessage}`);

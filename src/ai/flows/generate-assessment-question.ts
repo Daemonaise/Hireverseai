@@ -63,13 +63,11 @@ const generateAssessmentQuestionFlow = ai.defineFlow(
     const timestamp = Date.now();
     const uniqueQuestionId = `q_${input.freelancerId}_${timestamp}`;
 
-    console.log(`Generating assessment question for skill "${input.primarySkill}" (Difficulty: ${input.difficulty})...`);
 
     try {
       // 1. Choose the primary model for generation
       const promptContext = `Generate ${input.difficulty} question for ${input.primarySkill}. Other skills: ${input.allSkills.join(', ')}. Avoid similar to: ${input.previousQuestions?.join('; ') ?? 'None'}`;
       const primaryModel = await chooseModelBasedOnPrompt(promptContext);
-      console.log(`Using model ${primaryModel.name} for question generation.`);
 
       // 2. Define the prompt using the chosen model and template
       const generateQuestionPrompt = ai.definePrompt({
@@ -89,7 +87,6 @@ const generateAssessmentQuestionFlow = ai.defineFlow(
       }
 
       // 4. Validate the output with other models
-       const originalPromptText = generateQuestionPromptTemplate
             .replace('{{{freelancerId}}}', input.freelancerId)
             .replace('{{{primarySkill}}}', input.primarySkill)
             .replace(`{{#each allSkills}}- {{{this}}}
@@ -116,12 +113,10 @@ const generateAssessmentQuestionFlow = ai.defineFlow(
       // Validate the final constructed output (optional but recommended)
       GenerateAssessmentQuestionOutputSchema.parse(finalOutput);
 
-      console.log(`Generated and validated question ${finalOutput.questionId} for ${input.primarySkill} at ${input.difficulty}`);
       return finalOutput;
 
     } catch (error: any) {
       // Catch errors from AI call or parsing/validation
-      console.error(`Failed to generate assessment question for ${input.primarySkill}:`, error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       throw new Error(`Generation error for ${input.primarySkill}: ${errorMessage}`);
     }

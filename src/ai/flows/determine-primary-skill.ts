@@ -40,7 +40,6 @@ const determinePrimarySkillFlow = ai.defineFlow(
     outputSchema: DeterminePrimarySkillOutputSchema,
   },
   async (input) => {
-    console.log(`Determining primary skill from resume starting with: "${input.skillsDescription.substring(0, 80)}..."`);
 
     try {
       const determineSkillPrompt = ai.definePrompt({
@@ -60,10 +59,8 @@ const determinePrimarySkillFlow = ai.defineFlow(
         throw new Error('AI failed to identify a primary skill or extract any skills.');
       }
 
-      console.log(`Determined primary skill: ${output.primarySkill}, Extracted: ${output.extractedSkills.length} skills`);
       return output;
     } catch (error: any) {
-      console.error('Error in determinePrimarySkill flow:', error?.message || error);
       // On failure, return a generic result to prevent breaking the signup flow.
       return { primarySkill: 'Generalist', extractedSkills: ['Generalist'] };
     }

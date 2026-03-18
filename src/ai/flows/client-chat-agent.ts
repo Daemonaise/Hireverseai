@@ -29,7 +29,6 @@ const listClientProjectsTool = ai.defineTool(
     ),
   },
   async ({ clientId }) => {
-    console.log(`[Agent Tool] Listing projects for client: ${clientId}`);
     const projects = await getProjectsByClientId(clientId);
     return projects.map(({ id, name, status, assignedFreelancerId }) => ({
       id: id || 'N/A',
@@ -57,7 +56,6 @@ const getProjectDetailsTool = ai.defineTool(
     }).nullable(),
   },
   async ({ projectId }) => {
-    console.log(`[Agent Tool] Getting details for project: ${projectId}`);
     const project = await getProjectById(projectId);
     if (!project) return null;
     return {
@@ -88,7 +86,6 @@ const initiateNewProjectTool = ai.defineTool(
         }),
     },
     async ({ projectBrief }) => {
-        console.log('[Agent Tool] Initiating new project with brief:', projectBrief);
         // Note: The `matchFreelancer` flow requires a `freelancerId` which is the client ID in this context.
         // This is a slight mismatch in naming but we'll adapt. This ID isn't used by the flow currently.
         const result = await matchFreelancer({ projectBrief, freelancerId: 'client-from-agent' });
@@ -125,7 +122,6 @@ export const clientAgent = ai.definePrompt({
 export type ClientChatHistory = Message[];
 
 export async function chatWithClientAgent(clientId: string, history: ClientChatHistory): Promise<string> {
-  console.log(`[Client Agent] Processing chat for client ${clientId}...`);
   try {
     const { output } = await clientAgent({
         prompt: history, // Pass the entire history
@@ -148,7 +144,6 @@ export async function chatWithClientAgent(clientId: string, history: ClientChatH
 
     return textResponse;
   } catch (error) {
-    console.error('[Client Agent] Error in chat flow:', error);
     return `Sorry, I encountered an error. Please try again. (Details: ${ (error as Error).message })`;
   }
 }

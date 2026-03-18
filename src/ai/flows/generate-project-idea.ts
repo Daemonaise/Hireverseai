@@ -13,7 +13,7 @@ import {
   type GenerateProjectIdeaInput,
   type GenerateProjectIdeaOutput,
 } from '@/ai/schemas/generate-project-idea-schema';
-import { MODEL_REGISTRY } from '@/lib/ai-models';
+// Model registry import removed — using explicit model ID
 
 // --- Configuration ---
 const PLATFORM_FEE = 0.15;       // 15%
@@ -58,7 +58,7 @@ const PromptInputSchema = GenerateProjectIdeaInputSchema.extend({ randomNumber: 
 type PromptInputType = z.infer<typeof PromptInputSchema>;
 
 // --- Define the reusable prompt object ---
-const modelId = MODEL_REGISTRY.google.flash; 
+const modelId = 'googleai/gemini-2.0-flash';
 
 const projectIdeaGenPrompt = ai.definePrompt({
   name: 'generateProjectIdeaPrompt', // Unique name for the prompt
@@ -94,7 +94,6 @@ const generateProjectIdeaFlow = ai.defineFlow<
 
       } catch (err: any) {
         lastError = `Error during AI call or processing (attempt ${attempt}): ${err.message || String(err)}`;
-        console.error(`[generateProjectIdeaFlow Attempt ${attempt}]`, lastError, err);
         if (attempt < MAX_ATTEMPTS) await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
       }
     }

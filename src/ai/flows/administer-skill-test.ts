@@ -44,7 +44,6 @@ const administerSkillTestFlow = ai.defineFlow(
     const testId = `test_${input.freelancerId}_${Date.now()}`;
     const questions: Question[] = [];
 
-    console.log(
       `Generating skill test for ${input.freelancerId}: ${input.skills.join(
         ', ',
       )}`,
@@ -52,11 +51,9 @@ const administerSkillTestFlow = ai.defineFlow(
 
     for (const skill of input.skills) {
       try {
-        console.log(`-> Generating for ${skill}`);
         const primaryModel = await chooseModelBasedOnPrompt(
           `Create skill question for: ${skill}`,
         );
-        console.log(`Model: ${primaryModel.name}`);
 
         const skillQuestionPrompt = ai.definePrompt({
           name: `skillQuestionPrompt_${skill}`,
@@ -72,7 +69,6 @@ const administerSkillTestFlow = ai.defineFlow(
         });
         if (!aiOutput?.questionText) throw new Error('No question returned.');
 
-        const originalPromptText = skillQuestionPromptTemplate
           .replace('{{{skill}}}', skill)
           .replace('{{{freelancerId}}}', input.freelancerId);
         
@@ -81,9 +77,7 @@ const administerSkillTestFlow = ai.defineFlow(
           questionText: aiOutput.questionText,
           skillTested: skill,
         });
-        console.log(`✔ ${skill}`);
       } catch (err: any) {
-        console.error(`Error for ${skill}:`, err.message);
         questions.push({
           questionText: `Placeholder for ${skill}: Describe a real-world scenario showcasing your expertise with ${skill}.`,
           skillTested: skill,

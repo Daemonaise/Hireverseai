@@ -197,7 +197,6 @@ const matchFreelancerFlow = ai.defineFlow(
       // 4. Build and return result
       const selectedProfile = viableCandidates.find(c => c.id === estOut.selectedFreelancerId);
       if (!selectedProfile && estOut.selectedFreelancerId) {
-          console.warn(`Selected freelancer ID ${estOut.selectedFreelancerId} not found in candidates list.`);
            if(projectId) await updateProjectStatus(projectId, 'pending');
            return { projectId, reasoning: `Internal error: Selected freelancer profile not found. Reasoning: ${estOut.reasoning}`, status: 'error' };
       }

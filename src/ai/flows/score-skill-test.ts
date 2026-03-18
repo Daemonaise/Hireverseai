@@ -91,7 +91,6 @@ const scoreSkillTestFlow = ai.defineFlow(
     outputSchema: ScoreSkillTestOutputSchema,
   },
   async (input) => {
-    console.log(`Scoring test ${input.testId} for Freelancer ${input.freelancerId}`);
 
     // Group answers by skill
     const answersBySkill = input.answers.reduce((acc, answer) => {
@@ -117,7 +116,6 @@ Answer: ${a.answerText}
           // 1a. Choose model for scoring this skill
           const scoreModel = await chooseModelBasedOnPrompt(`Score skill test answers for ${skill}. Answers: ${answersText}`);
           scoreModelName = scoreModel.name;
-          console.log(`Using model ${scoreModelName} for scoring skill: ${skill}`);
 
           // 1b. Define scoring prompt
           const scoreSingleSkillPrompt = ai.definePrompt({
@@ -145,11 +143,9 @@ Answer: ${a.answerText}
               score: aiOutput.score,
               reasoning: aiOutput.reasoning,
           };
-          console.log(`Successfully scored and validated skill: ${skill} - Score: ${skillScoreOutput.score}`);
           return skillScoreOutput;
 
       } catch (error: any) {
-           console.error(`Error during scoring setup, AI call, or validation for skill "${skill}":`, error?.message || error);
            // Return error state for this skill
            return { skill: skill, score: 0, reasoning: `Error during automated scoring: ${error?.message || 'Unknown error'}.` };
       }
@@ -175,7 +171,6 @@ Answer: ${a.answerText}
             // 2a. Choose model for feedback generation
             const feedbackModel = await chooseModelBasedOnPrompt(`Summarize test results: ${scoresText}`);
             feedbackModelName = feedbackModel.name;
-            console.log(`Using model ${feedbackModelName} for feedback aggregation.`);
 
             // 2b. Define feedback prompt
             const aggregateFeedbackPrompt = ai.definePrompt({
@@ -195,18 +190,15 @@ Answer: ${a.answerText}
              }
              feedback = feedbackOutput.feedback;
              finalFeedback = feedback; // Use validated feedback
-             console.log(`Generated and validated overall feedback for test ${input.testId}.`);
              
 
         } catch (error: any) {
-            console.error(`Error generating or validating overall feedback for test ${input.testId}:`, error?.message || error);
             finalFeedback = `Feedback generation/validation failed due to an API error: ${error?.message || 'Unknown error'}.`;
         }
     } else {
          finalFeedback = input.answers.length === 0
             ? `No answers submitted for scoring.`
             : `Error: Could not score any skills.`;
-        console.warn(`${finalFeedback} for test ${input.testId}`);
     }
 
 
@@ -218,12 +210,9 @@ Answer: ${a.answerText}
                 updateFreelancerTestScore(input.freelancerId, skillScore.skill, skillScore.score)
             );
             await Promise.all(updatePromises);
-            console.log(`Successfully updated ${successfulScores.length} test scores in Firestore for freelancer ${input.freelancerId}`);
         } catch (error) {
-            console.error(`Failed to update one or more scores in Firestore for freelancer ${input.freelancerId}:`, error);
         }
     } else {
-        console.warn(`No successful skill scores generated for freelancer ${input.freelancerId}, test ${input.testId}. Skipping Firestore update.`);
     }
 
     // --- Construct final output ---

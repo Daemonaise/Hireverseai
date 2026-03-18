@@ -88,14 +88,12 @@ function sanitizeAIOutput(output: RequestProjectChangeOutput): RequestProjectCha
   
   // Ensure non-negative cost
   if (sanitized.estimatedAdditionalCost < 0) {
-    console.warn(`AI returned negative cost (${sanitized.estimatedAdditionalCost}). Correcting to 0.`);
     sanitized.estimatedAdditionalCost = 0;
   }
   
   // Cap unreasonably high costs (business rule - adjust as needed)
   const MAX_REASONABLE_COST = 1000000;
   if (sanitized.estimatedAdditionalCost > MAX_REASONABLE_COST) {
-    console.warn(`AI returned unreasonably high cost (${sanitized.estimatedAdditionalCost}). Capping at ${MAX_REASONABLE_COST}.`);
     sanitized.estimatedAdditionalCost = MAX_REASONABLE_COST;
   }
   
@@ -132,7 +130,6 @@ async function executeAIEstimation(
     return sanitizeAIOutput(aiOutput);
   } catch (error: any) {
     if (attempt < MAX_RETRY_ATTEMPTS) {
-      console.warn(`AI estimation attempt ${attempt} failed for project ${input.projectId}. Retrying... Error: ${error?.message}`);
       return executeAIEstimation(input, primaryModel, attempt + 1);
     }
     throw error;
@@ -150,19 +147,16 @@ const estimateProjectChangeImpactFlow = ai.defineFlow(
   },
   async (input) => {
     const startTime = Date.now();
-    console.log(`Starting project change impact estimation for project ${input.projectId}...`);
 
     try {
       // 1. Choose the primary model dynamically
       const promptContext = `Estimate impact of change: ${input.changeDescription} (Priority: ${input.priority}) on project: ${input.currentBrief}`;
       const primaryModel = await chooseModelBasedOnPrompt(promptContext);
-      console.log(`Selected model ${primaryModel.name} for change impact estimation.`);
 
       // 2. Execute AI estimation with retry logic
       const aiOutput = await executeAIEstimation(input, primaryModel.name);
 
       // 3. Validate the output using cross-validation
-      const originalPromptText = renderChangeImpactPrompt(input);
       
       try {
         
@@ -170,7 +164,6 @@ const estimateProjectChangeImpactFlow = ai.defineFlow(
         
       } catch (validationError: any) {
         if (validationError.message === 'Validation timeout') {
-          console.warn(`Validation timed out for project ${input.projectId}. Proceeding without validation.`);
           // Depending on requirements, you might want to proceed or fail here
         } else {
           throw validationError;
@@ -178,13 +171,11 @@ const estimateProjectChangeImpactFlow = ai.defineFlow(
       }
 
       const duration = Date.now() - startTime;
-      console.log(`Successfully estimated change for project ${input.projectId} in ${duration}ms: Timeline - ${aiOutput.estimatedNewTimeline}, Additional Cost - $${aiOutput.estimatedAdditionalCost}`);
       
       return aiOutput;
 
     } catch (error: any) {
       const duration = Date.now() - startTime;
-      console.error(`Error estimating project change impact for project ${input.projectId} after ${duration}ms:`, {
         message: error?.message ?? 'Unknown error',
         stack: error?.stack,
         input: { projectId: input.projectId, priority: input.priority }
