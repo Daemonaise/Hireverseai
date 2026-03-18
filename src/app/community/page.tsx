@@ -1,19 +1,34 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { MessageSquare, UserPlus } from 'lucide-react';
-import { Leaderboard } from '@/components/leaderboard';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { SiteLogo } from '@/components/site-logo';
 import { HeaderNavigationClient } from '@/components/header-navigation-client';
-import { PageTransition } from '@/components/motion/page-transition';
-import { ScrollReveal } from '@/components/motion/scroll-reveal';
+import { LeaderboardTab } from '@/components/community/leaderboard-tab';
+import { ForumsTab } from '@/components/community/forums-tab';
+import { ShowcaseTab } from '@/components/community/showcase-tab';
+import { ActivityTab } from '@/components/community/activity-tab';
+import { PostDetail } from '@/components/community/post-detail';
+
+type Tab = 'leaderboard' | 'forums' | 'showcase' | 'activity';
+
+const TABS: { value: Tab; label: string }[] = [
+  { value: 'leaderboard', label: 'Leaderboard' },
+  { value: 'forums', label: 'Forums' },
+  { value: 'showcase', label: 'Showcase' },
+  { value: 'activity', label: 'Activity' },
+];
 
 export default function CommunityPage() {
+  const [tab, setTab] = useState<Tab>('leaderboard');
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+
+  const handleSelectPost = (postId: string) => setSelectedPostId(postId);
+  const handleBack = () => setSelectedPostId(null);
+
   return (
     <div className="dark flex min-h-screen flex-col bg-background text-foreground">
-      {/* Header — matches landing page */}
+      {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
           <Link href="/">
@@ -23,49 +38,43 @@ export default function CommunityPage() {
         </div>
       </header>
 
-      <main className="flex-1 py-12">
-        <div className="container mx-auto px-4 md:px-6 space-y-12">
-          <PageTransition>
-            <section>
-              <Leaderboard />
-            </section>
-          </PageTransition>
+      {/* Content */}
+      <main className="flex-1 bg-white text-gray-900">
+        <div className="container mx-auto px-4 md:px-6 py-8">
+          <h1 className="text-3xl font-bold mb-6">Community</h1>
 
-          <Separator />
+          {/* Tabs */}
+          {!selectedPostId && (
+            <div className="flex gap-1 mb-6 border-b border-gray-200">
+              {TABS.map((t) => (
+                <button
+                  key={t.value}
+                  onClick={() => setTab(t.value)}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    tab === t.value
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
 
-          <ScrollReveal>
-            <section className="text-center">
-              <h2 className="text-2xl font-semibold mb-4">Engage & Grow</h2>
-              <p className="text-muted-foreground max-w-xl mx-auto mb-6">
-                Join discussions, help fellow freelancers, and complete projects to earn XP and badges.
-                Your contributions make our community stronger!
-              </p>
-              <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
-                <Button size="lg" disabled>
-                  <MessageSquare className="mr-2 h-5 w-5" />
-                  Visit Forums (Coming Soon)
-                </Button>
-                <Button size="lg" variant="outline" asChild>
-                  <Link href="/freelancer/signup">
-                    <UserPlus className="mr-2 h-5 w-5" />
-                    Join as a Freelancer
-                  </Link>
-                </Button>
-              </div>
-            </section>
-          </ScrollReveal>
+          {/* Tab content or post detail */}
+          {selectedPostId ? (
+            <PostDetail postId={selectedPostId} onBack={handleBack} />
+          ) : (
+            <>
+              {tab === 'leaderboard' && <LeaderboardTab />}
+              {tab === 'forums' && <ForumsTab onSelectPost={handleSelectPost} />}
+              {tab === 'showcase' && <ShowcaseTab onSelectPost={handleSelectPost} />}
+              {tab === 'activity' && <ActivityTab />}
+            </>
+          )}
         </div>
       </main>
-
-      {/* Footer — matches landing page */}
-      <footer className="border-t border-border bg-chrome py-8">
-        <div className="container mx-auto flex flex-col items-center justify-between px-4 text-center text-sm text-chrome-foreground/60 md:flex-row md:px-6">
-          <div className="flex items-center gap-3">
-            <SiteLogo variant="dark" className="h-7 w-auto" />
-            <p>&copy; {new Date().getFullYear()} Hireverse AI. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
