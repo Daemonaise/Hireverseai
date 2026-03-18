@@ -5,11 +5,20 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Globe } from 'lucide-react';
 import { AuthPromptDialog } from '@/components/auth-prompt-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { useLocale, useTranslations } from 'next-intl';
 
 export function HeaderNavigationClient() {
   const router = useRouter();
+  const locale = useLocale();
+  const t = useTranslations('locale');
   const [isAuthDialogOpen, setIsAuthDialogOpen] = useState(false);
 
   const handleClientPortalClick = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -17,9 +26,43 @@ export function HeaderNavigationClient() {
     router.push('/client/dashboard');
   };
 
+  function switchLocale(newLocale: string) {
+    document.cookie = `NEXT_LOCALE=${newLocale};path=/;max-age=31536000`;
+    router.refresh();
+  }
+
   return (
     <>
       <nav className="flex items-center gap-2 md:gap-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Globe className="h-4 w-4" />
+              <span className="sr-only">{t('switchLanguage')}</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() => switchLocale('en')}
+              className={locale === 'en' ? 'font-semibold' : ''}
+            >
+              {t('en')}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => switchLocale('es')}
+              className={locale === 'es' ? 'font-semibold' : ''}
+            >
+              {t('es')}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => switchLocale('ru')}
+              className={locale === 'ru' ? 'font-semibold' : ''}
+            >
+              {t('ru')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
           <Link href="/community">Community</Link>
         </Button>

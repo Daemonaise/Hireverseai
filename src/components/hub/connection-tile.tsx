@@ -6,6 +6,7 @@ import type { WorkspaceConnection } from '@/types/hub';
 import { getProviderConfig } from '@/services/integrations/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useTranslations } from 'next-intl';
 import { Timestamp } from 'firebase/firestore';
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -33,13 +34,14 @@ function formatLastSync(ts: Timestamp | null): string {
 
 interface ConnectionTileProps {
   connection: WorkspaceConnection;
-  onDisconnect: (connectionId: string) => void;
+  onDelete: (connectionId: string) => void;
 }
 
-export function ConnectionTile({ connection, onDisconnect }: ConnectionTileProps) {
+export function ConnectionTile({ connection, onDelete }: ConnectionTileProps) {
   const [confirming, setConfirming] = useState(false);
   const config = getProviderConfig(connection.provider);
   const IconComponent = ICON_MAP[config.icon] ?? HardDrive;
+  const t = useTranslations('connections');
 
   const statusDot =
     connection.status === 'connected'
@@ -50,10 +52,10 @@ export function ConnectionTile({ connection, onDisconnect }: ConnectionTileProps
 
   const statusLabel =
     connection.status === 'connected'
-      ? 'Connected'
+      ? t('connected')
       : connection.status === 'disconnected'
-      ? 'Disconnected'
-      : 'Error';
+      ? t('disconnected')
+      : t('error');
 
   const statusVariant =
     connection.status === 'connected'
@@ -67,7 +69,7 @@ export function ConnectionTile({ connection, onDisconnect }: ConnectionTileProps
       setConfirming(true);
       return;
     }
-    onDisconnect(connection.id);
+    onDelete(connection.id);
     setConfirming(false);
   }
 
@@ -86,7 +88,7 @@ export function ConnectionTile({ connection, onDisconnect }: ConnectionTileProps
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Last synced: {formatLastSync(connection.lastSyncAt)}
+          {t('lastSynced')}: {formatLastSync(connection.lastSyncAt)}
         </p>
       </div>
 
@@ -98,7 +100,7 @@ export function ConnectionTile({ connection, onDisconnect }: ConnectionTileProps
         >
           <a href={connection.launchUrl} target="_blank" rel="noopener noreferrer">
             <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-            Launch
+            {t('launch')}
           </a>
         </Button>
 
@@ -109,14 +111,14 @@ export function ConnectionTile({ connection, onDisconnect }: ConnectionTileProps
               size="sm"
               onClick={handleDisconnect}
             >
-              Confirm
+              {t('confirm')}
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setConfirming(false)}
             >
-              Cancel
+              {t('cancel')}
             </Button>
           </div>
         ) : (
@@ -127,7 +129,7 @@ export function ConnectionTile({ connection, onDisconnect }: ConnectionTileProps
             className="text-muted-foreground hover:text-destructive"
           >
             <Unplug className="h-3.5 w-3.5 mr-1.5" />
-            Disconnect
+            {t('disconnect')}
           </Button>
         )}
       </div>

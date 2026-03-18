@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { PROVIDER_CONFIGS } from '@/services/integrations/types';
 import { createConnection } from '@/services/hub/connections';
+import { useTranslations } from 'next-intl';
 import type { ProviderId } from '@/types/hub';
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -39,6 +40,7 @@ export function ConnectionSetupDialog({
 }: ConnectionSetupDialogProps) {
   const [connecting, setConnecting] = useState<ProviderId | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const t = useTranslations('connections');
 
   const availableProviders = Object.values(PROVIDER_CONFIGS).filter(
     (config) => !existingProviders.includes(config.id)
@@ -62,7 +64,7 @@ export function ConnectionSetupDialog({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? 'Failed to create session');
+        throw new Error(data.error ?? t('failedToCreateSession'));
       }
 
       const { sessionToken } = await res.json();
@@ -93,7 +95,7 @@ export function ConnectionSetupDialog({
 
       connect.setSessionToken(sessionToken);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+      setError(err instanceof Error ? err.message : t('somethingWentWrong'));
     } finally {
       setConnecting(null);
     }
@@ -103,7 +105,7 @@ export function ConnectionSetupDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Connect an Integration</DialogTitle>
+          <DialogTitle>{t('connectIntegration')}</DialogTitle>
         </DialogHeader>
 
         {error && (
@@ -114,7 +116,7 @@ export function ConnectionSetupDialog({
 
         {availableProviders.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">
-            All available integrations are already connected.
+            {t('allIntegrationsConnected')}
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-3 mt-2">

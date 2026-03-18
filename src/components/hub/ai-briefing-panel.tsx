@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AlertCircle, Loader2, RefreshCw, CheckCircle2, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useQueryClient } from '@tanstack/react-query';
+import { useLatestBriefing, useBriefings } from '@/hooks/hub/use-briefings';
+import { useTranslations } from 'next-intl';
 import { workspaceBriefing } from '@/ai/flows/workspace-briefing';
-import { getLatestBriefing, listBriefings } from '@/services/hub/briefings';
-import type { AIBriefing } from '@/types/hub';
 import { Timestamp } from 'firebase/firestore';
 
 interface AiBriefingPanelProps {
@@ -30,9 +31,11 @@ function toDateInputValue(date: Date): string {
 }
 
 export function AiBriefingPanel({ freelancerId, workspaceId }: AiBriefingPanelProps) {
-  const [briefing, setBriefing] = useState<AIBriefing | null>(null);
-  const [history, setHistory] = useState<AIBriefing[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: briefing, isLoading: loading } = useLatestBriefing(freelancerId, workspaceId);
+  const { data: history = [], refetch: refetchHistory } = useBriefings(freelancerId, workspaceId);
+  const t = useTranslations('briefing');
+
   const [generating, setGenerating] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,26 +43,6 @@ export function AiBriefingPanel({ freelancerId, workspaceId }: AiBriefingPanelPr
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const [periodStart, setPeriodStart] = useState(toDateInputValue(sevenDaysAgo));
   const [periodEnd, setPeriodEnd] = useState(toDateInputValue(new Date()));
-
-  async function fetchLatest() {
-    setLoading(true);
-    try {
-      const latest = await getLatestBriefing(freelancerId, workspaceId);
-      setBriefing(latest);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function fetchHistory() {
-    const all = await listBriefings(freelancerId, workspaceId, 10);
-    setHistory(all);
-  }
-
-  useEffect(() => {
-    fetchLatest();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [freelancerId, workspaceId]);
 
   async function handleGenerate() {
     setGenerating(true);
@@ -71,10 +54,10 @@ export function AiBriefingPanel({ freelancerId, workspaceId }: AiBriefingPanelPr
         periodStart: new Date(periodStart).toISOString(),
         periodEnd: new Date(periodEnd + 'T23:59:59').toISOString(),
       });
-      await fetchLatest();
-      if (historyOpen) await fetchHistory();
+      await queryClient.invalidateQueries({ queryKey: ['briefing-latest', freelancerId, workspaceId] });
+      if (historyOpen) await refetchHistory();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate briefing');
+      setError(err instanceof Error ? err.message : t('generateFailed'));
     } finally {
       setGenerating(false);
     }
@@ -82,7 +65,7 @@ export function AiBriefingPanel({ freelancerId, workspaceId }: AiBriefingPanelPr
 
   async function handleToggleHistory() {
     if (!historyOpen && history.length === 0) {
-      await fetchHistory();
+      await refetchHistory();
     }
     setHistoryOpen((prev) => !prev);
   }
@@ -91,10 +74,10 @@ export function AiBriefingPanel({ freelancerId, workspaceId }: AiBriefingPanelPr
     <Card className="bg-white">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <CardTitle className="text-base font-semibold">AI Briefing</CardTitle>
+          <CardTitle className="text-base font-semibold">{t('aiBriefing')}</CardTitle>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <label htmlFor="period-start" className="sr-only">Period start</label>
+              <label htmlFor="period-start" className="sr-only">{t('periodStart')}</label>
               <input
                 id="period-start"
                 type="date"
@@ -102,8 +85,8 @@ export function AiBriefingPanel({ freelancerId, workspaceId }: AiBriefingPanelPr
                 onChange={(e) => setPeriodStart(e.target.value)}
                 className="border rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
               />
-              <span>to</span>
-              <label htmlFor="period-end" className="sr-only">Period end</label>
+              <span>{t('to')}</span>
+              <label htmlFor="period-end" className="sr-only">{t('periodEnd')}</label>
               <input
                 id="period-end"
                 type="date"
@@ -122,7 +105,7 @@ export function AiBriefingPanel({ freelancerId, workspaceId }: AiBriefingPanelPr
               ) : (
                 <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
               )}
-              {generating ? 'Generating...' : 'Generate Briefing'}
+              {generating ? t('generating') : t('generateBriefing')}
             </Button>
           </div>
         </div>
@@ -142,14 +125,14 @@ export function AiBriefingPanel({ freelancerId, workspaceId }: AiBriefingPanelPr
           </div>
         ) : !briefing ? (
           <div className="text-sm text-muted-foreground text-center py-10">
-            No briefing yet. Generate one above to get started.
+            {t('noBriefingYet')}
           </div>
         ) : (
           <div className="space-y-5">
             {/* Header meta */}
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="secondary" className="text-xs">
-                Generated {formatDate(briefing.generatedAt)}
+                {t('generated')} {formatDate(briefing.generatedAt)}
               </Badge>
               <span className="text-xs text-muted-foreground">
                 {formatDate(briefing.periodStart)} – {formatDate(briefing.periodEnd)}
@@ -158,14 +141,14 @@ export function AiBriefingPanel({ freelancerId, workspaceId }: AiBriefingPanelPr
 
             {/* Summary */}
             <div>
-              <h3 className="text-sm font-semibold mb-1.5">Summary</h3>
+              <h3 className="text-sm font-semibold mb-1.5">{t('summary')}</h3>
               <p className="text-sm text-foreground leading-relaxed">{briefing.summary}</p>
             </div>
 
             {/* Action Items */}
             {briefing.actionItems.length > 0 && (
               <div>
-                <h3 className="text-sm font-semibold mb-2">Action Items</h3>
+                <h3 className="text-sm font-semibold mb-2">{t('actionItems')}</h3>
                 <ol className="space-y-1.5">
                   {briefing.actionItems.map((item, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm">
@@ -183,7 +166,7 @@ export function AiBriefingPanel({ freelancerId, workspaceId }: AiBriefingPanelPr
             {/* Blockers */}
             {briefing.blockers.length > 0 && (
               <div>
-                <h3 className="text-sm font-semibold mb-2">Blockers & Risks</h3>
+                <h3 className="text-sm font-semibold mb-2">{t('blockersAndRisks')}</h3>
                 <ul className="space-y-1.5">
                   {briefing.blockers.map((blocker, i) => (
                     <li
@@ -209,13 +192,13 @@ export function AiBriefingPanel({ freelancerId, workspaceId }: AiBriefingPanelPr
             <ChevronDown
               className={`h-4 w-4 transition-transform ${historyOpen ? 'rotate-180' : ''}`}
             />
-            Briefing history
+            {t('briefingHistory')}
           </button>
 
           {historyOpen && (
             <div className="mt-3 space-y-2">
               {history.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4">No past briefings.</p>
+                <p className="text-xs text-muted-foreground text-center py-4">{t('noPastBriefings')}</p>
               ) : (
                 history.map((b) => (
                   <div
@@ -227,7 +210,7 @@ export function AiBriefingPanel({ freelancerId, workspaceId }: AiBriefingPanelPr
                         {formatDate(b.generatedAt)}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {b.actionItems.length} actions · {b.blockers.length} blockers
+                        {b.actionItems.length} {t('actions')} · {b.blockers.length} {t('blockers')}
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">

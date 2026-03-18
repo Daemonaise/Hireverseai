@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useTranslations } from 'next-intl';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -44,6 +45,7 @@ function TypingIndicator() {
 }
 
 export function WorkspaceChat({ freelancerId, workspaceId }: WorkspaceChatProps) {
+  const t = useTranslations('chat');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
@@ -84,7 +86,7 @@ export function WorkspaceChat({ freelancerId, workspaceId }: WorkspaceChatProps)
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? `Request failed (${res.status})`);
+        throw new Error(data.error ?? `${t('requestFailed')} (${res.status})`);
       }
 
       const data = await res.json();
@@ -95,7 +97,7 @@ export function WorkspaceChat({ freelancerId, workspaceId }: WorkspaceChatProps)
 
       setMessages((prev) => [...prev, { role: 'assistant', content: responseText }]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      setError(err instanceof Error ? err.message : t('somethingWentWrong'));
     } finally {
       setTyping(false);
     }
@@ -115,7 +117,7 @@ export function WorkspaceChat({ freelancerId, workspaceId }: WorkspaceChatProps)
         {messages.length === 0 && !typing ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground py-16">
             <Bot className="h-8 w-8 opacity-40" />
-            <p className="text-sm">Ask anything about this workspace.</p>
+            <p className="text-sm">{t('askAnything')}</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -159,7 +161,7 @@ export function WorkspaceChat({ freelancerId, workspaceId }: WorkspaceChatProps)
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Message workspace assistant..."
+          placeholder={t('messagePlaceholder')}
           disabled={typing}
           className="flex-1"
         />
@@ -167,7 +169,7 @@ export function WorkspaceChat({ freelancerId, workspaceId }: WorkspaceChatProps)
           size="icon"
           onClick={handleSend}
           disabled={!input.trim() || typing}
-          aria-label="Send message"
+          aria-label={t('sendMessage')}
         >
           {typing ? (
             <Loader2 className="h-4 w-4 animate-spin" />
