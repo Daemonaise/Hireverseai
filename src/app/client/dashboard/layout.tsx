@@ -1,13 +1,15 @@
 'use client';
 
 import { useAuth } from '@/contexts/auth-context';
-import { useWorkspaces } from '@/hooks/hub/use-workspace';
 import { AppShell } from '@/components/app-shell/app-shell';
 import { Loader2 } from 'lucide-react';
 
-export default function HubLayout({ children }: { children: React.ReactNode }) {
+export default function ClientDashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { user, loading: authLoading } = useAuth();
-  const { data: workspaces = [] } = useWorkspaces(user?.uid ?? '');
 
   if (authLoading) {
     return (
@@ -20,21 +22,13 @@ export default function HubLayout({ children }: { children: React.ReactNode }) {
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-chrome">
-        <p className="text-chrome-foreground">Please log in to access the hub.</p>
+        <p className="text-chrome-foreground">Please log in to access the dashboard.</p>
       </div>
     );
   }
 
-  const groups = workspaces
-    .filter((w) => w.status === 'active')
-    .map((w) => ({
-      id: w.id,
-      label: w.name,
-      href: `/freelancer/hub/${w.id}`,
-    }));
-
   return (
-    <AppShell role="freelancer" title="Workspaces" groups={groups}>
+    <AppShell role="client" title="Dashboard">
       {children}
     </AppShell>
   );
