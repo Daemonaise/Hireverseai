@@ -1,0 +1,133 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "create": "Create",
+    "close": "Close",
+    "confirm": "Confirm",
+    "search": "Search",
+    "noResults": "No results found",
+    "error": "Something went wrong",
+    "retry": "Retry",
+    "showOriginal": "Show original",
+    "showTranslation": "Show translation"
+  },
+  "hub": {
+    "title": "Client Systems Hub",
+    "newWorkspace": "New Workspace",
+    "noWorkspaces": "No workspaces yet. Create one to get started.",
+    "workspaceName": "Workspace Name",
+    "clientName": "Client Name",
+    "engagementType": "Engagement Type",
+    "createWorkspace": "Create Workspace",
+    "active": "Active",
+    "archived": "Archived",
+    "overview": "Overview",
+    "apps": "Apps",
+    "notes": "Notes",
+    "tasks": "Tasks",
+    "appMessages": "App Messages",
+    "messages": "Messages",
+    "files": "Files",
+    "timeline": "Timeline",
+    "aiBriefing": "AI Briefing",
+    "accessPermissions": "Access & Permissions",
+    "backToHub": "Back to Hub",
+    "workspaceNotFound": "Workspace not found"
+  },
+  "sidebar": {
+    "newWorkspace": "New Workspace",
+    "archived": "Archived",
+    "noWorkspaces": "No workspaces"
+  },
+  "connections": {
+    "addConnection": "Add Connection",
+    "noConnections": "No integrations connected yet.",
+    "connectIntegration": "Connect an integration to get started.",
+    "launch": "Launch",
+    "disconnect": "Disconnect",
+    "confirmDisconnect": "Confirm",
+    "cancelDisconnect": "Cancel",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "error": "Error",
+    "selectProvider": "Select an integration to connect",
+    "connecting": "Connecting..."
+  },
+  "bookmarks": {
+    "title": "Bookmarks",
+    "addBookmark": "Add Bookmark",
+    "noBookmarks": "No bookmarks yet.",
+    "titleField": "Title",
+    "urlField": "URL",
+    "descriptionField": "Description (optional)"
+  },
+  "notes": {
+    "newNote": "New Note",
+    "noNotes": "No notes yet. Create one to get started.",
+    "untitled": "Untitled Note",
+    "titlePlaceholder": "Note title...",
+    "contentPlaceholder": "Start writing..."
+  },
+  "activity": {
+    "syncNow": "Sync Now",
+    "syncing": "Syncing...",
+    "allProviders": "All Providers",
+    "allTypes": "All Types",
+    "noActivity": "No activity yet. Connect an integration and sync to see activity here.",
+    "task": "Task",
+    "message": "Message",
+    "document": "Document",
+    "ticket": "Ticket",
+    "repositoryEvent": "Repository Event",
+    "connectionEvent": "Connection Event"
+  },
+  "briefing": {
+    "title": "AI Briefing",
+    "generate": "Generate Briefing",
+    "generating": "Generating...",
+    "from": "From",
+    "to": "To",
+    "summary": "Summary",
+    "actionItems": "Action Items",
+    "blockers": "Blockers",
+    "history": "Briefing History",
+    "noBriefing": "No briefing generated yet.",
+    "noHistory": "No briefing history."
+  },
+  "chat": {
+    "placeholder": "Ask about this workspace...",
+    "send": "Send",
+    "error": "Failed to send message. Please try again."
+  },
+  "permissions": {
+    "description": "These integrations have access to this workspace. Revoking access removes the connection from this workspace only.",
+    "noConnections": "No connected integrations",
+    "connectPrompt": "Connect an integration from the Integrations tab.",
+    "revokeAccess": "Revoke",
+    "revokeTitle": "Revoke {provider} access?",
+    "revokeDescription": "This will remove the {provider} connection from this workspace. You can reconnect it at any time from the Integrations tab.",
+    "auditLog": "Connection Audit Log",
+    "connectedSince": "Connected since {date}"
+  },
+  "messaging": {
+    "newThread": "New Thread",
+    "subject": "Subject",
+    "noThreads": "No messages yet. Start a conversation.",
+    "noMessages": "No messages in this thread.",
+    "composePlaceholder": "Type a message...",
+    "send": "Send",
+    "retryTranslation": "Retry translation",
+    "you": "You",
+    "client": "Client",
+    "freelancer": "Freelancer"
+  },
+  "locale": {
+    "switchLanguage": "Language",
+    "en": "English",
+    "es": "Español",
+    "ru": "Русский"
+  }
+}
