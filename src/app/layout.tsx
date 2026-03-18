@@ -1,32 +1,35 @@
-
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google'; // Using Inter for clean readability
+import { Inter } from 'next/font/google';
 import './globals.css';
-import { Toaster } from '@/components/ui/toaster'; // Import Toaster
+import { Toaster } from '@/components/ui/toaster';
+import { Providers } from '@/components/providers';
+import { getLocale, getMessages } from 'next-intl/server';
 
-// Use Inter font
 const inter = Inter({
   subsets: ['latin'],
-  variable: '--font-sans', // Define CSS variable for sans-serif font
+  variable: '--font-sans',
 });
 
-
 export const metadata: Metadata = {
-  title: 'Hireverse AI', // Update title
-  description: 'AI Hiring Solutions Built for Speed and Precision', // Updated description
+  title: 'Hireverse AI',
+  description: 'AI Hiring Solutions Built for Speed and Precision',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="en">
-      {/* Apply Inter font variable to body */}
+    <html lang={locale}>
       <body className={`${inter.variable} font-sans antialiased`}>
-        {children}
-        <Toaster /> {/* Add Toaster component */}
+        <Providers locale={locale} messages={messages}>
+          {children}
+          <Toaster />
+        </Providers>
       </body>
     </html>
   );
