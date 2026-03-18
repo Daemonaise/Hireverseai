@@ -13,10 +13,11 @@ import { generateProjectPlan } from './generate-project-plan';
 import type { AnalyzeProjectOutput } from '@/ai/schemas/analyze-project-schema';
 import type { GenerateProjectPlanOutput, PlanTask } from '@/ai/schemas/generate-project-plan-schema';
 import { matchFreelancersToTasks, type FreelancerCandidate, type MatchResult } from '@/lib/matching/freelancer-matcher';
-import { calculateTotalProjectCost, shouldAutoAssign } from '@/lib/matching/cost-calculator';
+import { shouldAutoAssign } from '@/lib/matching/cost-calculator';
 import { updateProjectStatus } from '@/services/firestore';
 import { createMilestone } from '@/services/milestones';
 import { storeAssignments } from '@/services/assignments';
+import { recordProjectEvent } from '@/services/project-events';
 import type { ServiceCategory, ClientPriority, Milestone, Microtask } from '@/types/project';
 import { Timestamp } from 'firebase/firestore';
 
@@ -96,6 +97,31 @@ export async function decomposeProject(input: DecomposeInput): Promise<Decompose
     // Store assignments
     if (matching.assignments.length > 0) {
       await storeAssignments(input.projectId, matching.assignments);
+    }
+
+    // Record analytics events
+    await recordProjectEvent(input.projectId, 'decomposition_complete', {
+      complexity: analysis.complexity,
+      milestoneCount: plan.milestones.length,
+      taskCount: allTasks.length,
+      estimatedTotalHours: analysis.estimatedTotalHours,
+      estimatedTotalCost: matching.totalCost,
+      rolesIdentified: analysis.requiredRoles,
+      categories: analysis.projectTypes,
+      clientPriority: input.clientPriority,
+    });
+
+    for (const assignment of matching.assignments) {
+      await recordProjectEvent(input.projectId, 'freelancer_matched', {
+        taskId: assignment.microtaskId,
+        milestoneId: assignment.milestoneId,
+        freelancerId: assignment.freelancerId,
+        certLevel: assignment.certificationLevel,
+        payMultiplier: assignment.payRateMultiplier,
+        skillScore: assignment.skillScore,
+        estimatedCost: assignment.estimatedCost,
+        priority: input.clientPriority,
+      });
     }
 
     // Update project status
