@@ -427,15 +427,14 @@ export async function getAssignedProjects(freelancerId: string): Promise<Project
 
 
 // Get top N freelancers based on XP
-export async function getTopFreelancers(count: number): Promise<Freelancer[]> {
-    try {
-        // Sort dummy data by XP in descending order
-        const sortedFreelancers = [...dummyFreelancers].sort((a, b) => (b.xp ?? 0) - (a.xp ?? 0));
-        // Return the top N freelancers
-        return Promise.resolve(sortedFreelancers.slice(0, count));
-    } catch (error) {
-        throw new Error('Failed to fetch leaderboard.');
-    }
+export async function getTopFreelancers(count: number = 10): Promise<Freelancer[]> {
+    const q = query(
+        collection(firestoreDB, 'freelancers'),
+        orderBy('xp', 'desc'),
+        limit(count),
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Freelancer));
 }
 
 // Update freelancer test score for a specific skill
