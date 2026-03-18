@@ -12,7 +12,7 @@ import { ValidationSchema, type ValidationResult } from '@/ai/schemas/validation
 import { ALL_MODELS, type ModelId } from '@/lib/ai-models';
 
 // Read environment variables once at the module level
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+const GOOGLE_CLOUD_PROJECT = process.env.GOOGLE_CLOUD_PROJECT;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
@@ -50,7 +50,7 @@ export async function validateAIOutput(
   const modelNameToIdMap = new Map<string, ModelId>(Object.values(ALL_MODELS).map(m => [m.name, m]));
 
   // Determine validator models based on API key availability and ensuring not to validate with the primary model itself
-  if (GOOGLE_API_KEY) {
+  if (GOOGLE_CLOUD_PROJECT) {
     if (primaryModelName !== ALL_MODELS.googleFlash.name) validatorModels.push(ALL_MODELS.googleFlash);
   }
   if (OPENAI_API_KEY) {

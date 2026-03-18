@@ -4,7 +4,7 @@ import { LRUCache } from 'lru-cache';
 
 
 // Read environment variables once at module load
-const GOOGLE_API_KEY    = process.env.GOOGLE_API_KEY;
+const GOOGLE_CLOUD_PROJECT    = process.env.GOOGLE_CLOUD_PROJECT;
 const OPENAI_API_KEY    = process.env.OPENAI_API_KEY;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
@@ -95,7 +95,7 @@ export async function chooseModelBasedOnPrompt(promptContent: string): Promise<M
   const feats = extractFeatures(prompt);
   // determine available models
   const availableModels: ModelId[] = Array.from(new Set([ // Explicitly type here
-    ...(GOOGLE_API_KEY    ? [ALL_MODELS.googleFlash] : []),
+    ...(GOOGLE_CLOUD_PROJECT    ? [ALL_MODELS.googleFlash] : []),
     ...(OPENAI_API_KEY    ? [ALL_MODELS.openaiMini] : []),
     ...(ANTHROPIC_API_KEY ? [ALL_MODELS.anthropicSonnet] : []),
   ]));

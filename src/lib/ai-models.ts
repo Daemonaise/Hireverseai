@@ -1,15 +1,15 @@
 /**
- * @fileoverview Centralized definitions for Genkit model objects using the latest patterns.
+ * @fileoverview Centralized definitions for Genkit model objects.
  */
 
-import { googleAI } from '@genkit-ai/google-genai';
+import { vertexAI } from '@genkit-ai/vertexai';
 import { openAI } from '@genkit-ai/compat-oai/openai';
 import { claude4Sonnet } from 'genkitx-anthropic';
 
 // Model references — plugins are initialized once in ai.ts
 export const MODEL_REGISTRY = {
   google: {
-    flash: googleAI.model('gemini-flash-latest'),
+    flash: vertexAI.model('gemini-2.0-flash'),
   },
   openai: {
     mini: openAI.model('gpt-5-mini-2025-08-07'),
