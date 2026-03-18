@@ -8,6 +8,47 @@
 
 ---
 
+## 0. Migration & Setup Prerequisites
+
+### 0.1 Firebase Setup
+
+The project does not currently have `firebase.json` or `.firebaserc`. Before implementation:
+
+1. Install `firebase-tools` globally: `npm install -g firebase-tools`
+2. Run `firebase init` at the project root to create `firebase.json` and `.firebaserc` with the existing Firebase project ID
+3. Select Functions + Firestore during init
+4. The `functions/` directory will have its own `package.json` with `firebase-functions` (v2) and `firebase-admin` as dependencies
+
+### 0.2 Legacy Code Decommission
+
+The following existing functions in `src/services/firestore.ts` must be **removed or stubbed** before the CF engine goes live. They currently write XP and badges directly to `freelancers/{id}`, which will conflict with the Cloud Functions engine:
+
+- `awardXp(freelancerId, amount)` (lines 234-244): Remove. XP writes become exclusive to Cloud Functions.
+- `awardBadge(freelancerId, badgeId)` (lines 246-256): Remove. Also awards 50 XP on every call, which would double-count.
+- `storeAssessmentResult()` (lines 259-288): Refactor to remove the `xp: increment(...)` and `badges: arrayUnion('onboarding-complete')` writes. The `onAssessmentCompleted` Cloud Function handles this instead. Keep the rest of `storeAssessmentResult` (assessment data storage).
+
+### 0.3 Existing Data Backfill
+
+Freelancers who earned XP and badges before the CF engine is live have data only on `freelancers/{id}`. A one-time migration script must:
+
+1. Read all `freelancers` documents that have `xp > 0` or `badges.length > 0`
+2. Create corresponding `freelancerStats/{freelancerId}` documents with the existing XP, badges, and `level` computed from `computeLevel(xp)`
+3. Run as a standalone script (`functions/src/scripts/backfill-stats.ts`), not a Cloud Function
+
+### 0.4 Badge Registry Replacement
+
+The existing badge registry in `src/types/badge.ts` (5 badges: `onboarding-complete`, `first-task-success`, `top-scorer-react`, `helpful-mentor`, `community-contributor`) is replaced wholesale by the new ~20 badge registry. Only `onboarding-complete` carries over with the same ID. The other 4 IDs are retired:
+- `first-task-success` -> replaced by `first-task`
+- `top-scorer-react` -> removed (no equivalent)
+- `helpful-mentor` -> replaced by `mentor-50`
+- `community-contributor` -> replaced by `first-post`
+
+### 0.5 Leaderboard Query Rewrite
+
+The existing `getTopFreelancers()` in `src/services/firestore.ts` returns dummy data. It must be rewritten (or a new `queryLeaderboard()` function created) as a real paginated Firestore query against the `freelancers` collection, ordered by `xp DESC`, with optional skill and level filters.
+
+---
+
 ## 1. Gamification Engine (Cloud Functions)
 
 ### 1.1 Infrastructure
@@ -66,8 +107,8 @@ functions/
 3. Collect all rewards (XP grants, badge awards, level changes, streak updates)
 4. Check for level-up: `computeLevel(newXp)` vs current level
 5. Batch write to Firestore:
-   - Update `freelancerStats/{freelancerId}` (XP, level, badges, streaks, counters)
-   - Update `freelancers/{freelancerId}` (sync `level`, `levelTitle`, `xp` for leaderboard queries)
+   - Update `freelancerStats/{freelancerId}` (XP, level, badges, streaks, counters) - source of truth
+   - Update `freelancers/{freelancerId}` (sync `xp`, `level`, `levelTitle`, `badges`, `rating` for leaderboard queries and profile display)
    - Write notification(s) to `notifications/{freelancerId}/items/{id}` for each reward
 6. Return reward summary
 
@@ -98,8 +139,8 @@ Level-up triggers a notification with type `level_up`.
 | Project completed | 100 | Bonus on top of task XP |
 | 5-star review received | 50 | Additional to base review XP |
 | Any review received | 10 + (rating * 10) | 1-star = 20, 5-star = 60 |
-| QA perfect score (100/100) | 30 | |
-| On-time delivery | 20 | Task completed within estimate |
+| QA perfect score (100/100) | 30 | Triggered inside `onTaskApproved` when microtask has `qaScore === 100` |
+| On-time delivery | 20 | Triggered inside `onTaskApproved` when `completedAt <= estimatedDeliveryDate` on the microtask doc |
 | Assessment completed | 50 + floor(score / 5) | Existing logic, moved to CF |
 | 7-day streak | 100 | One-time per streak |
 | 30-day streak | 500 | One-time per streak |
@@ -110,13 +151,19 @@ Level-up triggers a notification with type `level_up`.
 
 ### 1.7 Streaks
 
-Tracked via `onPresenceUpdate` trigger. When `freelancerPresence/{id}` updates with `status: 'active'`:
+Tracked via `onPresenceUpdate` trigger. The CF fires on every `freelancerPresence/{id}` write (presence heartbeats every 60s), so it must gate early:
 
-- Parse `lastActiveDate` from `freelancerStats`
-- If same day as today: no-op
-- If yesterday: increment `currentStreak`, update `longestStreak` if higher, check streak badge thresholds
-- If older: reset `currentStreak` to 1, preserve `longestStreak`
+**Guard logic (first thing in the function):**
+1. Read `freelancerStats/{id}.lastActiveDate`
+2. If `lastActiveDate === today (YYYY-MM-DD)`: return early (already processed today)
+3. Only proceed if the date has changed
+
+**Streak logic (runs only when date changed):**
+- If `lastActiveDate === yesterday`: increment `currentStreak`, update `longestStreak` if higher, check streak badge thresholds
+- If `lastActiveDate` is older than yesterday: reset `currentStreak` to 1, preserve `longestStreak`
 - Update `lastActiveDate` to today (YYYY-MM-DD)
+
+This means the CF fires ~1,440 times/day per active freelancer but does real work only once (the first heartbeat of each day). All subsequent calls hit the early return after a single Firestore read.
 
 ### 1.8 Badge Registry (~20 badges)
 
@@ -142,8 +189,8 @@ Each badge: `{ id, name, description, category, iconName, rarity, criteria }`.
 | Badge | Rarity | Criteria |
 |-------|--------|----------|
 | `qa-perfect` | uncommon | Score 100/100 on a QA check |
-| `zero-revisions-5` | rare | 5 consecutive tasks with zero revision requests |
-| `on-time-10` | rare | 10 consecutive on-time deliveries |
+| `zero-revisions-5` | rare | 5 consecutive tasks with zero revision requests. Counter `consecutiveZeroRevisions` increments in `onTaskApproved` when task has no revision history; resets to 0 when a task has revisions. |
+| `on-time-10` | rare | 10 consecutive on-time deliveries. Counter `consecutiveOnTime` increments in `onTaskApproved` when `completedAt <= estimatedDeliveryDate`; resets to 0 when late. |
 
 **Community:**
 | Badge | Rarity | Criteria |
@@ -169,12 +216,17 @@ Each badge: `{ id, name, description, category, iconName, rarity, criteria }`.
 
 Badge `iconName` maps to a Lucide icon string (e.g., `'Award'`, `'Star'`, `'Flame'`, `'Trophy'`).
 
-Rarity determines visual treatment:
-- common: `text-gray-500 border-gray-300`
-- uncommon: `text-emerald-500 border-emerald-300`
-- rare: `text-blue-500 border-blue-300`
-- epic: `text-purple-500 border-purple-300`
-- legendary: `text-amber-500 border-amber-300` with subtle glow animation
+Rarity determines visual treatment. Define as CSS custom properties in `globals.css` for consistency with the design system:
+
+```css
+--rarity-common: hsl(220 10% 60%);
+--rarity-uncommon: hsl(152 60% 45%);
+--rarity-rare: hsl(197 100% 50%);    /* matches primary */
+--rarity-epic: hsl(270 60% 55%);
+--rarity-legendary: hsl(40 95% 55%);
+```
+
+Tailwind usage: `text-[var(--rarity-common)]`, `border-[var(--rarity-common)]`, etc. Legendary adds `animate-pulse` for a subtle glow. All colors verified for contrast against both `bg-white` (light content) and `bg-chrome` (dark shell).
 
 ---
 
@@ -294,7 +346,7 @@ No back-and-forth. One response only.
 }
 ```
 
-**`communityPosts/{id}/votes/{odId}`** (one doc per voter for idempotency):
+**`communityPosts/{id}/votes/{voteId}`** (one doc per voter for idempotency):
 ```typescript
 {
   userId: string;
@@ -366,7 +418,7 @@ Caps per day:
 - Replies: 3 XP each, max 30 XP/day (10 replies)
 - Upvotes received: 10 XP each, max 100 XP/day
 
-Cloud Function checks caps before awarding and skips if exceeded.
+Cloud Function checks caps inside a **Firestore transaction** (`runTransaction`) on `freelancerStats/{id}`. The transaction reads `dailyCommunityXp` and `dailyCommunityXpDate`, resets if date changed, then conditionally increments. This prevents TOCTOU races from concurrent upvote triggers on popular posts.
 
 ---
 
@@ -519,7 +571,7 @@ Key rules for the new collections:
 - `freelancerStats/{id}`: read by anyone, write only by Cloud Functions (admin SDK)
 - `notifications/{userId}/items/{id}`: read/write only by the owner (`request.auth.uid == userId`), except `read` field which owner can update
 - `reviews/{id}`: read by anyone, create by authenticated client (`request.auth.uid == resource.data.clientId`), update only `freelancerReply` + `freelancerRepliedAt` by the freelancer
-- `communityPosts/{id}`: read by anyone, create by authenticated users, update only by author, delete by author
+- `communityPosts/{id}`: read by anyone, create by authenticated users, update only by author, delete by author. **Hiring category enforcement:** Firestore rule checks `request.resource.data.category != 'hiring' || exists(/databases/$(database)/documents/clients/$(request.auth.uid))` to restrict hiring posts to clients only.
 - `communityPosts/{id}/votes/{id}`: create by authenticated users (one per user enforced by doc ID = userId)
 - `communityPosts/{id}/replies/{id}`: read by anyone, create by authenticated users
 - `reviewPrompts/{clientId}/items/{id}`: read/write only by the client
