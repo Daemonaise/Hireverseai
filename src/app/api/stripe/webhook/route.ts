@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
-// Correctly import the handler functions from firestore service
-import { handleClientSubscriptionUpdate, handleProjectPaymentUpdate } from '@/services/firestore';
+import { handleClientSubscriptionUpdate, handleProjectPaymentUpdate, updateFreelancerByStripeAccount } from '@/services/firestore';
 
 // Define the relevant events to handle
 const relevantEvents = new Set([
@@ -11,6 +10,9 @@ const relevantEvents = new Set([
   'customer.subscription.updated',
   'payment_intent.succeeded',
   'payment_intent.payment_failed',
+  'account.updated',
+  'transfer.created',
+  'transfer.failed',
 ]);
 
 export async function POST(req: NextRequest) {
@@ -112,6 +114,23 @@ export async function POST(req: NextRequest) {
              // TODO: Potentially notify the client about the failure
           } else {
           }
+          break;
+
+        // --- Connect Account Events ---
+        case 'account.updated':
+          const account = event.data.object as Stripe.Account;
+          if (account.metadata?.freelancerId) {
+            await updateFreelancerByStripeAccount(account.id, {
+              stripeOnboardingComplete: account.details_submitted ?? false,
+              payoutsEnabled: account.payouts_enabled ?? false,
+            });
+          }
+          break;
+
+        case 'transfer.created':
+        case 'transfer.failed':
+          // Transfer events are logged for audit — no action needed
+          // The milestone service handles transfer status
           break;
 
         default:

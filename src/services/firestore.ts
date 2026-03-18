@@ -213,6 +213,24 @@ export async function updateFreelancerStatus(freelancerId: string, status?: Free
    }
 }
 
+export async function updateFreelancer(freelancerId: string, data: Record<string, unknown>) {
+  await updateDoc(getDocRef('freelancers', freelancerId), {
+    ...data,
+    updatedAt: now(),
+  });
+}
+
+export async function updateFreelancerByStripeAccount(stripeAccountId: string, data: Record<string, unknown>) {
+  const q = query(getColRef('freelancers'), where('stripeAccountId', '==', stripeAccountId), limit(1));
+  const snap = await getDocs(q);
+  if (snap.empty) return;
+  const freelancerDoc = snap.docs[0];
+  await updateDoc(freelancerDoc.ref, {
+    ...data,
+    updatedAt: now(),
+  });
+}
+
 export async function awardXp(freelancerId: string, amount: number) {
   if (amount === 0) return;
    try {
