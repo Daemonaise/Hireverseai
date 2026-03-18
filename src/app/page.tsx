@@ -1,14 +1,51 @@
 'use client';
 
 import Link from 'next/link';
+import { BrainCircuit, Split, ShieldCheck, Briefcase, DollarSign, TrendingUp } from 'lucide-react';
 import { SiteLogo } from '@/components/site-logo';
 import { SplashScreen } from '@/components/splash-screen';
 import { HeaderNavigationClient } from '@/components/header-navigation-client';
 import { HeroSection } from '@/components/landing/hero-section';
-import { FeaturesSection } from '@/components/landing/features-section';
+import { SocialProofBar } from '@/components/landing/social-proof-bar';
+import { AudienceBlock } from '@/components/landing/audience-block';
+import { DashboardMockup } from '@/components/landing/dashboard-mockup';
+import { HubMockup } from '@/components/landing/hub-mockup';
 import { WorkflowSection } from '@/components/landing/workflow-section';
-import { CommunitySection } from '@/components/landing/community-section';
-import { CtaSection } from '@/components/landing/cta-section';
+import { PricingPreview } from '@/components/landing/pricing-preview';
+import { TestimonialsSection } from '@/components/landing/testimonials-section';
+import { DualCtaSection } from '@/components/landing/dual-cta-section';
+
+const clientFeatures = [
+  { icon: BrainCircuit, title: 'AI-Powered Matching', description: 'No browsing profiles. AI finds the right talent instantly.' },
+  { icon: Split, title: 'Parallel Microtasks', description: 'Work gets decomposed and runs simultaneously. 3x faster delivery.' },
+  { icon: ShieldCheck, title: 'Built-In QA', description: 'Automated quality gates at every milestone. No surprises.' },
+];
+
+const freelancerFeatures = [
+  { icon: Briefcase, title: 'Auto-Assigned Projects', description: 'No bidding wars. Work finds you based on your verified skills.' },
+  { icon: DollarSign, title: 'Transparent Earnings', description: '100% of project cost goes to you. Clients pay the platform fee.' },
+  { icon: TrendingUp, title: 'Grow Your Reputation', description: 'XP, badges, leaderboard. Top performers get priority matching.' },
+];
+
+const footerLinks = {
+  Product: [
+    { label: 'Start a Project', href: '/client/signup' },
+    { label: 'Browse Freelancers', href: '/community' },
+    { label: 'Pricing', href: '#pricing' },
+    { label: 'Integrations', href: '#' },
+  ],
+  Company: [
+    { label: 'About', href: '#' },
+    { label: 'Careers', href: '#' },
+    { label: 'Community', href: '/community' },
+    { label: 'Blog', href: '#' },
+  ],
+  Legal: [
+    { label: 'Terms of Service', href: '#' },
+    { label: 'Privacy Policy', href: '#' },
+    { label: 'Cookie Policy', href: '#' },
+  ],
+};
 
 export default function Home() {
   return (
@@ -26,26 +63,84 @@ export default function Home() {
       </header>
 
       <main className="flex-1">
+        {/* 1 */}
         <HeroSection />
-        <FeaturesSection />
+        {/* 2 */}
+        <SocialProofBar />
+        {/* 3 - For Clients */}
+        <AudienceBlock
+          side="left"
+          label="For Clients"
+          heading="Post a project. Get results, not headaches."
+          features={clientFeatures}
+          ctaText="Start a Project"
+          ctaHref="/client/signup"
+        >
+          <DashboardMockup />
+        </AudienceBlock>
+        {/* 4 - For Freelancers */}
+        <AudienceBlock
+          side="right"
+          label="For Freelancers"
+          heading="Steady work. Fair pay. Zero chasing."
+          features={freelancerFeatures}
+          ctaText="Join as a Freelancer"
+          ctaHref="/freelancer/signup"
+          ctaVariant="outline"
+        >
+          <HubMockup />
+        </AudienceBlock>
+        {/* 5 */}
         <WorkflowSection />
-        <CommunitySection />
-        <CtaSection />
+        {/* 6 */}
+        <div id="pricing">
+          <PricingPreview />
+        </div>
+        {/* 7 */}
+        <TestimonialsSection />
+        {/* 8 */}
+        <DualCtaSection />
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-border bg-chrome py-8">
-        <div className="container mx-auto flex flex-col items-center justify-between px-4 text-center text-sm text-chrome-foreground/60 md:flex-row md:px-6">
-          <div className="flex items-center gap-3">
-            <SiteLogo variant="dark" className="h-7 w-auto" />
-            <p>&copy; {new Date().getFullYear()} Hireverse AI. All rights reserved.</p>
+      {/* Footer - Expanded */}
+      <footer className="bg-chrome border-t border-border py-12">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
+            {/* Brand */}
+            <div className="col-span-2 md:col-span-1">
+              <SiteLogo variant="dark" className="h-8 w-auto mb-3" />
+              <p className="text-sm text-chrome-foreground/60">
+                AI-powered freelancer marketplace. Expert work, delivered faster.
+              </p>
+            </div>
+
+            {/* Link columns */}
+            {Object.entries(footerLinks).map(([title, links]) => (
+              <div key={title}>
+                <h4 className="text-sm font-semibold text-chrome-foreground mb-3">{title}</h4>
+                <ul className="space-y-2">
+                  {links.map((link) => (
+                    <li key={link.label}>
+                      <Link
+                        href={link.href}
+                        className="text-sm text-chrome-foreground/60 hover:text-primary hover:underline"
+                      >
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
-          <div className="mt-4 md:mt-0">
+
+          <div className="border-t border-border pt-6 flex flex-col items-center justify-between text-center text-sm text-chrome-foreground/60 md:flex-row">
+            <p>&copy; {new Date().getFullYear()} Hireverse AI. All rights reserved.</p>
             <Link
               href="https://resume.hireverse.ai/"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-primary hover:underline"
+              className="mt-2 md:mt-0 hover:text-primary hover:underline"
             >
               Looking for help with your resume?
             </Link>
