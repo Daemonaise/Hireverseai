@@ -5,3 +5,8 @@ node_modules/
 tsconfig.tsbuildinfo
 *.bak
 .superpowers/
+# Firebase service account keys - NEVER commit
+.keys/
+*-adminsdk-*.json
+service-account*.json
+functions/lib/
