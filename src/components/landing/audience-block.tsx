@@ -61,7 +61,11 @@ export function AudienceBlock({
             </div>
           ))}
         </div>
-        <Button variant={ctaVariant} asChild>
+        <Button
+          variant={ctaVariant}
+          className={ctaVariant === 'outline' ? 'border-primary text-primary hover:bg-primary hover:text-white' : ''}
+          asChild
+        >
           <Link href={ctaHref}>{ctaText}</Link>
         </Button>
       </div>
