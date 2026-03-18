@@ -1,0 +1,164 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: is the request from an authenticated user?
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Helper: is the requester the document owner?
+    function isOwner(userId) {
+      return isAuth() && request.auth.uid == userId;
+    }
+
+    // Helper: does a client document exist for this user?
+    function isClient() {
+      return isAuth() && exists(/databases/$(database)/documents/clients/$(request.auth.uid));
+    }
+
+    // Freelancers: owner can read/write their own doc, anyone can read (for profiles/leaderboard)
+    match /freelancers/{freelancerId} {
+      allow read: if true;
+      allow create: if isOwner(freelancerId);
+      allow update: if isOwner(freelancerId);
+      allow delete: if false;
+    }
+
+    // Clients: owner can read/write their own doc
+    match /clients/{clientId} {
+      allow read: if isOwner(clientId);
+      allow create: if isOwner(clientId);
+      allow update: if isOwner(clientId);
+      allow delete: if false;
+    }
+
+    // Projects: client who owns it can read/write, assigned freelancer can read
+    match /projects/{projectId} {
+      allow read: if isAuth() && (
+        resource.data.clientId == request.auth.uid ||
+        resource.data.assignedFreelancerId == request.auth.uid
+      );
+      allow create: if isAuth();
+      allow update: if isAuth() && resource.data.clientId == request.auth.uid;
+      allow delete: if false;
+
+      // Microtasks
+      match /microtasks/{taskId} {
+        allow read: if isAuth();
+        allow write: if false; // Only Cloud Functions / Admin SDK
+      }
+
+      // Change requests
+      match /changeRequests/{changeId} {
+        allow read: if isAuth();
+        allow create: if isAuth();
+        allow update: if false; // Only server-side
+      }
+    }
+
+    // Assessments: only the freelancer who took it can read
+    match /assessments/{assessmentId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Freelancer stats: anyone can read (leaderboard), only Cloud Functions write
+    match /freelancerStats/{freelancerId} {
+      allow read: if true;
+      allow write: if false; // Only Admin SDK (Cloud Functions)
+    }
+
+    // Freelancer presence: owner writes, anyone reads
+    match /freelancerPresence/{freelancerId} {
+      allow read: if true;
+      allow write: if isOwner(freelancerId);
+    }
+
+    // Notifications: owner only
+    match /notifications/{userId}/items/{itemId} {
+      allow read: if isOwner(userId);
+      allow update: if isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow create, delete: if false; // Only Cloud Functions
+    }
+
+    // Reviews: anyone reads, client creates, freelancer adds reply
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuth() && request.resource.data.clientId == request.auth.uid;
+      allow update: if isAuth()
+        && resource.data.freelancerId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['freelancerReply', 'freelancerRepliedAt']);
+      allow delete: if false;
+    }
+
+    // Review prompts: client only
+    match /reviewPrompts/{clientId}/items/{projectId} {
+      allow read, write: if isOwner(clientId);
+    }
+
+    // Community posts: anyone reads, auth users create, author updates/deletes
+    match /communityPosts/{postId} {
+      allow read: if true;
+      allow create: if isAuth()
+        && (request.resource.data.category != 'hiring' || isClient());
+      allow update: if isAuth() && resource.data.authorId == request.auth.uid;
+      allow delete: if isAuth() && resource.data.authorId == request.auth.uid;
+
+      // Replies
+      match /replies/{replyId} {
+        allow read: if true;
+        allow create: if isAuth();
+        allow update: if isAuth() && resource.data.authorId == request.auth.uid;
+        allow delete: if false;
+      }
+
+      // Votes: one per user (doc ID = userId)
+      match /votes/{odId} {
+        allow read: if true;
+        allow create: if isAuth() && odId == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // Public activity feed: read-only (Cloud Functions write)
+    match /publicActivity/{activityId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Moderation queue: auth users can create reports
+    match /moderationQueue/{reportId} {
+      allow create: if isAuth();
+      allow read, update, delete: if false; // Admin only via console
+    }
+
+    // Workspace threads: participants only
+    match /workspaceThreads/{threadId} {
+      allow read: if isAuth() && (
+        request.auth.uid in resource.data.participants.keys()
+      );
+      allow create: if isAuth();
+      allow update: if isAuth() && request.auth.uid in resource.data.participants.keys();
+
+      match /messages/{messageId} {
+        allow read: if isAuth();
+        allow create: if isAuth();
+        allow update, delete: if false;
+      }
+    }
+
+    // Hub collections: workspace owner only
+    match /workspaces/{workspaceId} {
+      allow read, write: if isAuth() && resource.data.freelancerId == request.auth.uid;
+    }
+
+    // Catch-all: deny everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
