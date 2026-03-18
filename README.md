@@ -84,7 +84,13 @@ src/
 │   │   └── checkout/           # Stripe payment checkout
 │   └── api/
 │       ├── chat/                  # Client chat agent endpoint
+│       ├── presence/              # Freelancer presence scoring endpoint
 │       ├── stripe/
+│       │   ├── connect/
+│       │   │   ├── create-account/
+│       │   │   ├── create-account-session/
+│       │   │   └── account-status/
+│       │   ├── transfer/
 │       │   ├── create-payment-intent/
 │       │   ├── create-subscription/
 │       │   └── webhook/
@@ -118,6 +124,30 @@ src/
 │   │   ├── message-bubble.tsx
 │   │   ├── thread-list.tsx
 │   │   └── thread-view.tsx
+│   ├── landing/               # Landing page section components
+│   │   ├── hero-section.tsx       # Split hero: copy + ProjectBuilder
+│   │   ├── project-builder.tsx    # 3-step interactive form (category, describe, AI preview)
+│   │   ├── social-proof-bar.tsx   # Animated stat counters + integration pills
+│   │   ├── audience-block.tsx     # Reusable left/right feature block
+│   │   ├── dashboard-mockup.tsx   # CSS-only client dashboard illustration
+│   │   ├── hub-mockup.tsx         # CSS-only freelancer hub illustration
+│   │   ├── workflow-section.tsx   # 3-step "how it works"
+│   │   ├── pricing-preview.tsx    # 3-tier pricing cards
+│   │   ├── testimonials-section.tsx # Placeholder testimonial cards
+│   │   ├── dual-cta-section.tsx   # Split CTA (clients + freelancers)
+│   │   └── gradient-mesh.tsx      # Animated CSS gradient background
+│   ├── motion/                # Framer Motion utility components
+│   │   ├── scroll-reveal.tsx      # Scroll-triggered reveal wrapper
+│   │   ├── animate-list.tsx       # Staggered mount animation
+│   │   └── count-up.tsx           # Scroll-triggered number counter
+│   ├── stripe/                # Stripe Connect components
+│   │   ├── connect-onboarding.tsx
+│   │   ├── connect-account-management.tsx
+│   │   └── payment-breakdown.tsx
+│   ├── subscription/          # Subscription tier components
+│   │   ├── pricing-table.tsx
+│   │   ├── subscription-badge.tsx
+│   │   └── subscription-management.tsx
 │   ├── providers.tsx           # QueryClient + NextIntl + Auth wrapper
 │   ├── header-navigation-client.tsx
 │   ├── site-logo.tsx
@@ -125,7 +155,7 @@ src/
 │   ├── client-messages.tsx
 │   ├── freelancer-dashboard.tsx
 │   ├── freelancer-profile.tsx
-│   ├── ai-matcher.tsx
+│   ├── ai-matcher.tsx          # Legacy matcher (still used in client dashboard)
 │   ├── client-chat-agent.tsx
 │   ├── adaptive-skill-assessment.tsx
 │   ├── leaderboard.tsx
@@ -144,7 +174,9 @@ src/
 │   │   └── use-messages.ts
 │   ├── use-toast.ts
 │   ├── use-mobile.tsx
-│   └── use-freelancer-id.tsx
+│   ├── use-freelancer-id.tsx
+│   ├── use-stripe-account.ts   # React Query hook for Stripe Connect status
+│   └── use-presence.ts         # Background presence reporting (60s interval + beacon)
 ├── i18n/
 │   └── request.ts              # next-intl config (cookie-based locale)
 ├── messages/                   # i18n locale files
@@ -161,11 +193,21 @@ src/
 │   ├── ai-models.ts            # Centralized model registry
 │   ├── ai-server-helpers.ts    # Model selection logic
 │   ├── stripe.ts               # Stripe SDK initialization
+│   ├── stripe-connect.ts       # Stripe Connect account management
+│   ├── stripe-fees.ts          # Fee calculation (tier-aware, Stripe processing bundled)
+│   ├── subscription.ts         # Tier definitions, limits, feature flags
+│   ├── motion.ts               # Framer Motion animation presets
+│   ├── timestamp.ts            # Shared Firestore Timestamp utility
 │   ├── utils.ts                # cn() utility
+│   ├── presence/               # Freelancer presence monitoring
+│   │   ├── activity-collector.ts  # Captures mouse, click, keyboard, scroll signals
+│   │   ├── authenticity-scorer.ts # 8 heuristics detecting automation patterns
+│   │   └── index.ts
 │   └── dummy-data.ts           # Seed/demo freelancer data
 ├── services/
 │   ├── firestore.ts            # All Firestore reads/writes + Firebase Auth wrappers
 │   ├── freelancer.ts           # Freelancer-specific query helpers
+│   ├── presence.ts             # Firestore presence CRUD + suspicious count tracking
 │   ├── hub/                    # Hub Firestore services
 │   │   ├── workspaces.ts
 │   │   ├── connections.ts
@@ -218,7 +260,7 @@ The `<SiteLogo>` component (`src/components/site-logo.tsx`) renders `/public/hir
 
 ### Component Conventions
 
-- All buttons use **solid `bg-primary`** — no gradients
+- All buttons use **solid `bg-primary`**  - no gradients
 - Header: `sticky top-0 z-50 border-b bg-background/80 backdrop-blur` (glassmorphism)
 - Cards: `rounded-xl border border-border bg-card p-6` with hover lift (`hover:-translate-y-0.5`)
 - Feature/workflow cards: uniform grid layout, icon in a `rounded-lg bg-primary/15` swatch
@@ -230,7 +272,7 @@ The `<SiteLogo>` component (`src/components/site-logo.tsx`) renders `/public/hir
 
 | Route | Component | Description |
 |---|---|---|
-| `/` | `src/app/page.tsx` | Landing page: hero with AI matcher, feature cards, workflow steps, community CTA, footer |
+| `/` | `src/app/page.tsx` | Landing page: split-layout hero with interactive ProjectBuilder, social proof bar, audience blocks, pricing preview, testimonials, dual CTA, expanded footer |
 | `/community` | `src/app/community/page.tsx` | Public leaderboard showing top freelancers by XP |
 | `/client/login` | `src/app/client/login/page.tsx` | Client email/password login with optional MFA verification |
 | `/client/signup` | `src/app/client/signup/page.tsx` | Client registration + Stripe subscription checkout |
@@ -238,7 +280,7 @@ The `<SiteLogo>` component (`src/components/site-logo.tsx`) renders `/public/hir
 | `/freelancer/login` | `src/app/freelancer/login/page.tsx` | Freelancer email/password login |
 | `/freelancer/signup` | `src/app/freelancer/signup/page.tsx` | Freelancer registration + adaptive skill assessment |
 | `/freelancer/dashboard` | `src/app/freelancer/dashboard/page.tsx` | Redirects to `/freelancer/hub` |
-| `/freelancer/hub` | `src/app/freelancer/hub/page.tsx` | Client Systems Hub — workspace list + create |
+| `/freelancer/hub` | `src/app/freelancer/hub/page.tsx` | Client Systems Hub  - workspace list + create |
 | `/freelancer/hub/[workspaceId]` | `src/app/freelancer/hub/[workspaceId]/page.tsx` | Workspace detail with 9 tabs (Overview, Apps, Notes, Tasks, App Messages, Messages, Files, Timeline, AI Briefing, Access & Permissions) |
 | `/freelancer/[id]` | `src/app/freelancer/[id]/page.tsx` | Public freelancer profile (skills, XP, badges, ratings) |
 | `/(payment)/checkout` | `src/app/(payment)/checkout/page.tsx` | Stripe Elements payment form for one-time project payments |
@@ -329,10 +371,10 @@ All flows live in `src/ai/flows/` and are marked `'use server'`. Each flow has a
 Matches a client's project brief to the best available freelancer and produces a full pricing breakdown.
 
 **Steps**:
-1. **Skill Extraction** — If `requiredSkills` is not pre-supplied, an AI prompt extracts 1–7 skills from the plain-English brief.
-2. **Candidate Fetching** — Queries Firestore for freelancers who are `isLoggedIn: true`, `status: 'available'`, and have matching skills; ordered by XP descending.
-3. **Estimation & Selection** — A second AI prompt selects the best candidate and estimates hours and timeline.
-4. **Pricing Calculation** — Deterministic calculation:
+1. **Skill Extraction**  - If `requiredSkills` is not pre-supplied, an AI prompt extracts 1–7 skills from the plain-English brief.
+2. **Candidate Fetching**  - Queries Firestore for freelancers who are `isLoggedIn: true`, `status: 'available'`, and have matching skills; ordered by XP descending.
+3. **Estimation & Selection**  - A second AI prompt selects the best candidate and estimates hours and timeline.
+4. **Pricing Calculation**  - Deterministic calculation:
    - Base cost = `hours * hourlyRate`
    - Rating premium: +2% per rating point above 4.0
    - Complexity surcharge: +5% per skill beyond 3
@@ -414,9 +456,9 @@ Given a list of skills, selects the single most relevant primary skill. Used dur
 
 A tool-using conversational agent available in the client dashboard. The agent can:
 
-- `listClientProjects` — list the client's projects with status
-- `getProjectDetails` — retrieve full details for a specific project
-- `initiateNewProject` — trigger the full matching flow from a chat message
+- `listClientProjects`  - list the client's projects with status
+- `getProjectDetails`  - retrieve full details for a specific project
+- `initiateNewProject`  - trigger the full matching flow from a chat message
 
 The agent is defined as a Genkit prompt with the three tools registered and a system prompt establishing it as "Hireverse Agent".
 
@@ -624,23 +666,23 @@ Authentication is handled by **Firebase Auth** with email/password. The `AuthPro
 
 ### Sign-up flow
 
-1. `createAuthUser(email, password)` — creates a Firebase Auth user and returns `userId`
-2. `addFreelancer()` or `addClient()` — creates the corresponding Firestore document using the Firebase Auth UID as the document ID
+1. `createAuthUser(email, password)`  - creates a Firebase Auth user and returns `userId`
+2. `addFreelancer()` or `addClient()`  - creates the corresponding Firestore document using the Firebase Auth UID as the document ID
 3. Freelancers complete the adaptive skill assessment before accessing their dashboard
 
 ### Sign-in flow
 
-1. `signInAuthUser(email, password)` — signs in via Firebase Auth
+1. `signInAuthUser(email, password)`  - signs in via Firebase Auth
 2. App checks `isMfaEnabled` on the Firestore user document
 3. If MFA is enabled, the user is prompted to enter their TOTP code
-4. `verifyMfaToken(secret, token)` — validates the 6-digit code using `otplib`
+4. `verifyMfaToken(secret, token)`  - validates the 6-digit code using `otplib`
 
 ### MFA Setup
 
-1. `generateMfaSecret()` — generates a new TOTP secret
-2. `generateMfaUri(account, issuer, secret)` — generates an `otpauth://` URI for QR code display
+1. `generateMfaSecret()`  - generates a new TOTP secret
+2. `generateMfaUri(account, issuer, secret)`  - generates an `otpauth://` URI for QR code display
 3. User scans QR code in their authenticator app and confirms with a valid token
-4. `enableUserMfa(userId, userType)` — sets `isMfaEnabled: true` in Firestore
+4. `enableUserMfa(userId, userType)`  - sets `isMfaEnabled: true` in Firestore
 
 TOTP secrets are stored in Firestore on the user document (`mfaSecret` field). In production these should be encrypted at rest.
 
@@ -703,10 +745,10 @@ A Wavebox-inspired workspace layer where freelancers manage client engagements, 
 
 ### Architecture
 
-- **Workspaces** — Each client engagement gets a workspace with connected apps, notes, bookmarks, activity timeline, and AI briefings
-- **Nango OAuth** — External tool connections (Slack, GitHub, Google Drive, Trello, Notion) managed via Nango proxy. Connection ID convention: `{workspaceId}-{provider}`
-- **State management** — React Query for server state (all hub data), Zustand for UI state (filters, sidebar, locale)
-- **i18n** — next-intl with cookie-based locale (`NEXT_LOCALE`), 3 locales: English, Spanish, Russian. Locale switcher in header. AI-generated translations in `src/messages/`.
+- **Workspaces**  - Each client engagement gets a workspace with connected apps, notes, bookmarks, activity timeline, and AI briefings
+- **Nango OAuth**  - External tool connections (Slack, GitHub, Google Drive, Trello, Notion) managed via Nango proxy. Connection ID convention: `{workspaceId}-{provider}`
+- **State management**  - React Query for server state (all hub data), Zustand for UI state (filters, sidebar, locale)
+- **i18n**  - next-intl with cookie-based locale (`NEXT_LOCALE`), 3 locales: English, Spanish, Russian. Locale switcher in header. AI-generated translations in `src/messages/`.
 
 ### Workspace Tabs
 
@@ -729,8 +771,8 @@ Threaded messaging between freelancers and clients with AI translation on post.
 
 - **Data**: Top-level `workspaceThreads` collection with `messages` subcollection
 - **Translation**: `translateMessage` Genkit flow translates on send, stores in `translations` map on each message
-- **Freelancer view**: `workspace-messages.tsx` in the Messages tab — can create threads and reply
-- **Client view**: `client-messages.tsx` in the client dashboard — can reply to threads
+- **Freelancer view**: `workspace-messages.tsx` in the Messages tab  - can create threads and reply
+- **Client view**: `client-messages.tsx` in the client dashboard  - can reply to threads
 - **UI**: Shared components in `src/components/messaging/` (message-bubble, thread-list, thread-view)
 
 ### AI Flows (Hub)
@@ -799,14 +841,75 @@ ANTHROPIC_API_KEY=
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 STRIPE_PRICE_ID=                     # Subscription price ID
+STRIPE_PRO_PRICE_ID=                 # Pro tier Stripe price ID
+STRIPE_ENTERPRISE_PRICE_ID=          # Enterprise tier Stripe price ID
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
 
-# Nango — manages OAuth for all hub integrations
+# Nango - manages OAuth for all hub integrations
 NANGO_SECRET_KEY=
 NEXT_PUBLIC_NANGO_PUBLIC_KEY=
 ```
 
-The Genkit AI instance (`src/lib/ai.ts`) only loads plugins for providers whose API key is present, so all three providers are optional — at least one must be configured for AI features to function.
+The Genkit AI instance (`src/lib/ai.ts`) only loads plugins for providers whose API key is present, so all three providers are optional - at least one must be configured for AI features to function.
+
+---
+
+## Stripe Connect
+
+Freelancers onboard to Stripe Connect (Express accounts) to receive payouts. Clients pay via destination charges with the platform taking a tier-based fee.
+
+### Architecture
+
+- **Embedded onboarding**: `@stripe/connect-js` renders Stripe's onboarding UI inside the app
+- **Embedded account management**: Freelancers manage payouts/tax via embedded Stripe components
+- **Destination charges**: Client payment goes to the platform, then Stripe transfers the freelancer's share
+- **Fee structure**: Platform fee (15%/10%/volume) + Stripe processing (2.9% + $0.30) bundled as a single "Platform Fee" shown to the client
+
+### Subscription Tiers
+
+| Tier | Price | Platform Fee | Key Limits |
+|---|---|---|---|
+| Free | $0/mo | 15% | 3 active projects, $5K max |
+| Pro | $49/mo | 10% | Unlimited projects, $50K max, priority matching |
+| Enterprise | $299/mo | 10% > 8% > 6% volume | Unlimited, dedicated pool, custom SLA, API |
+
+Fee calculation: `src/lib/stripe-fees.ts` - `calculateFees(freelancerCost, tier, monthlySpend, taxRate)`
+
+### API Routes (Stripe Connect)
+
+| Route | Method | Description |
+|---|---|---|
+| `/api/stripe/connect/create-account` | POST | Creates Express Connect account for a freelancer |
+| `/api/stripe/connect/create-account-session` | POST | Creates session for embedded onboarding/management |
+| `/api/stripe/connect/account-status` | GET | Checks onboarding and payout status |
+| `/api/stripe/transfer` | POST | Creates milestone transfer to freelancer's Connect account |
+
+---
+
+## Freelancer Presence Monitoring
+
+Detects whether freelancers are genuinely active or using automation (mouse jigglers, auto-clickers).
+
+### How It Works
+
+1. `ActivityCollector` (`src/lib/presence/activity-collector.ts`) captures mouse movements, clicks, keystrokes, scroll events, and page navigation in the browser
+2. Every 60 seconds, `usePresence` hook sends the collected signals to `POST /api/presence`
+3. `scoreAuthenticity` (`src/lib/presence/authenticity-scorer.ts`) analyzes the signals with 8 heuristics:
+   - Mouse speed variance, direction change rate, repetitive patterns, mouse-only activity
+   - Click element hit rate, click position variance
+   - Keystroke timing variance
+   - Interaction rate (superhuman detection)
+4. Returns a score 0-100 and status: `active` (70+), `suspicious` (40-69), `idle`, or `away`
+5. `updatePresence` writes to `freelancerPresence` Firestore collection with rolling suspicious count
+
+### Scoring
+
+| Score | Status | Meaning |
+|---|---|---|
+| 90-100 | active | Clearly human |
+| 70-89 | active | Probably human |
+| 40-69 | suspicious | Low-quality activity |
+| 0-39 | suspicious | Likely automated |
 
 ---
 
@@ -825,7 +928,7 @@ npm run dev
 # Runs on http://localhost:9002
 ```
 
-### Start the Genkit dev UI (optional — for testing AI flows)
+### Start the Genkit dev UI (optional  - for testing AI flows)
 
 ```bash
 npm run genkit:dev
