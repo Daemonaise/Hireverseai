@@ -23,6 +23,7 @@ import { Label } from '@/components/ui/label';
 import { estimateProjectChangeImpact } from '@/ai/flows/request-project-change'; // Import the AI flow
 import { Badge } from '@/components/ui/badge'; // Use the imported Badge component
 import { ClientChatAgent } from '@/components/client-chat-agent';
+import { ClientMessages } from '@/components/client-messages';
 
 interface ClientDashboardProps {
   clientId: string; // ID of the logged-in client
@@ -405,6 +406,14 @@ export function ClientDashboard({ clientId }: ClientDashboardProps) {
                             ))}
                         </div>
                     )}
+                </section>
+
+                <Separator />
+
+                {/* Messages Section */}
+                <section>
+                    <h2 className="text-2xl font-semibold mb-4">Messages</h2>
+                    <ClientMessages clientId={clientId} />
                 </section>
             </div>
              {/* AI Agent Column */}
