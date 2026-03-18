@@ -32,9 +32,10 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   BookOpen,
 };
 
+import { toDate } from '@/lib/timestamp';
+
 function formatDate(ts: Timestamp): string {
-  const date = ts instanceof Timestamp ? ts.toDate() : new Date(ts as unknown as string);
-  return date.toLocaleDateString(undefined, {
+  return toDate(ts).toLocaleDateString(undefined, {
     month: 'long',
     day: 'numeric',
     year: 'numeric',

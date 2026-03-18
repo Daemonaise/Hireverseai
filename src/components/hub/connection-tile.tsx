@@ -17,19 +17,11 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   BookOpen,
 };
 
+import { formatRelative } from '@/lib/timestamp';
+
 function formatLastSync(ts: Timestamp | null): string {
   if (!ts) return 'Never synced';
-  const date = ts instanceof Timestamp ? ts.toDate() : new Date(ts as unknown as string);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return 'Just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHrs = Math.floor(diffMin / 60);
-  if (diffHrs < 24) return `${diffHrs}h ago`;
-  const diffDays = Math.floor(diffHrs / 24);
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString();
+  return formatRelative(ts);
 }
 
 interface ConnectionTileProps {

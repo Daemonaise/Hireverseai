@@ -6,23 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
 import type { ThreadMessage } from '@/types/hub';
-import { Timestamp } from 'firebase/firestore';
+import { formatTime, formatShortDate } from '@/lib/timestamp';
 
 interface MessageBubbleProps {
   message: ThreadMessage;
   currentUserId: string;
   currentLocale: string;
   onRetryTranslation?: (messageId: string) => void;
-}
-
-function formatTime(ts: Timestamp): string {
-  const date = ts instanceof Timestamp ? ts.toDate() : new Date(ts as unknown as string);
-  return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatDate(ts: Timestamp): string {
-  const date = ts instanceof Timestamp ? ts.toDate() : new Date(ts as unknown as string);
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 export function MessageBubble({
@@ -59,7 +49,7 @@ export function MessageBubble({
           {isOwn ? t('you') : message.authorRole === 'client' ? t('client') : t('freelancer')}
         </Badge>
         <span className="text-[10px] text-muted-foreground">
-          {formatDate(message.createdAt)} {formatTime(message.createdAt)}
+          {formatShortDate(message.createdAt)} {formatTime(message.createdAt)}
         </span>
         {hasTranslation && (
           <button

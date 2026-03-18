@@ -5,27 +5,13 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Plus, MessageSquare } from 'lucide-react';
 import type { Thread } from '@/types/hub';
-import { Timestamp } from 'firebase/firestore';
+import { formatRelative } from '@/lib/timestamp';
 
 interface ThreadListProps {
   threads: Thread[];
   selectedThreadId: string | null;
   onSelectThread: (threadId: string) => void;
   onNewThread: () => void;
-}
-
-function formatRelative(ts: Timestamp): string {
-  const date = ts instanceof Timestamp ? ts.toDate() : new Date(ts as unknown as string);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return 'just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 export function ThreadList({
