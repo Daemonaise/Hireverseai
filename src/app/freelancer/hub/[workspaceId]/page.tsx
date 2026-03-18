@@ -3,7 +3,7 @@
 import { use } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { WorkspaceDetail } from '@/components/hub/workspace-detail';
-import { Loader2 } from 'lucide-react';
+import { SkeletonTabs } from '@/components/ui/skeleton-tabs';
 
 export default function WorkspacePage({
   params,
@@ -14,11 +14,7 @@ export default function WorkspacePage({
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <SkeletonTabs tabs={6} className="max-w-6xl mx-auto p-6" />;
   }
 
   if (!user) return null;

@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Loader2 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useTranslations } from 'next-intl';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useWorkspace } from '@/hooks/hub/use-workspace';
 import { useConnections, useConnectionMutations } from '@/hooks/hub/use-connections';
-import { useTranslations } from 'next-intl';
+import { useShell } from '@/components/app-shell/shell-context';
+import { TabTransition } from '@/components/motion/tab-transition';
+import { PageTransition } from '@/components/motion/page-transition';
+import { SkeletonTabs } from '@/components/ui/skeleton-tabs';
 import { updateLastVisitedAt } from '@/services/hub/workspaces';
 import type { Workspace } from '@/types/hub';
 import { BookmarkList } from '@/components/hub/bookmark-list';
@@ -28,31 +30,61 @@ interface WorkspaceDetailProps {
 
 function statusVariant(status: Workspace['status']): 'default' | 'secondary' | 'outline' {
   switch (status) {
-    case 'active':
-      return 'default';
-    case 'archived':
-      return 'secondary';
-    default:
-      return 'outline';
+    case 'active': return 'default';
+    case 'archived': return 'secondary';
+    default: return 'outline';
   }
 }
 
 function formatDate(ts: Workspace['createdAt']): string {
   if (!ts) return '—';
-  // Firestore Timestamp has .toDate()
   const date = typeof (ts as { toDate?: () => Date }).toDate === 'function'
     ? (ts as { toDate: () => Date }).toDate()
     : new Date(ts as unknown as string);
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
+const WORKSPACE_TABS = [
+  { id: 'overview', labelKey: 'overview' },
+  { id: 'apps', labelKey: 'apps' },
+  { id: 'notes', labelKey: 'notes' },
+  { id: 'tasks', labelKey: 'tasks' },
+  { id: 'app-messages', labelKey: 'appMessages' },
+  { id: 'messages', labelKey: 'messages' },
+  { id: 'files', labelKey: 'files' },
+  { id: 'timeline', labelKey: 'timeline' },
+  { id: 'ai-briefing', labelKey: 'aiBriefing' },
+  { id: 'access', labelKey: 'accessPermissions' },
+];
+
 export function WorkspaceDetail({ freelancerId, workspaceId }: WorkspaceDetailProps) {
   const { data: workspace, isLoading: loading } = useWorkspace(freelancerId, workspaceId);
   const { data: connections = [] } = useConnections(freelancerId, workspaceId);
   const { remove: removeConnection } = useConnectionMutations(freelancerId, workspaceId);
   const t = useTranslations('hub');
+  const shell = useShell();
 
   const [setupDialogOpen, setSetupDialogOpen] = useState(false);
+
+  // Register tabs in the toolbar via shell context
+  useEffect(() => {
+    const tabs = WORKSPACE_TABS.map((tab) => ({
+      id: tab.id,
+      label: t(tab.labelKey),
+    }));
+    shell.setTabs(tabs);
+    if (!shell.activeTab) shell.setActiveTab('overview');
+    return () => {
+      shell.setTabs([]);
+      shell.setActiveTab('');
+      shell.setTitle('');
+    };
+  }, [t]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Set toolbar title to workspace name
+  useEffect(() => {
+    if (workspace?.name) shell.setTitle(workspace.name);
+  }, [workspace?.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     updateLastVisitedAt(freelancerId, workspaceId).catch(() => {});
@@ -67,25 +99,14 @@ export function WorkspaceDetail({ freelancerId, workspaceId }: WorkspaceDetailPr
     });
   }
 
-  function handleConnectionCreated() {
-    setSetupDialogOpen(false);
-  }
-
   if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <SkeletonTabs tabs={6} className="max-w-6xl mx-auto" />;
   }
 
   if (!workspace) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-4 text-center">
-        <p className="text-lg font-medium text-gray-900">{t('workspaceNotFound')}</p>
-        <p className="text-sm text-gray-500">
-          {t('workspaceNotFoundDescription')}
-        </p>
+        <p className="text-lg font-medium">{t('workspaceNotFound')}</p>
         <Link href="/freelancer/hub" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
           {t('backToHub')}
         </Link>
@@ -94,155 +115,117 @@ export function WorkspaceDetail({ freelancerId, workspaceId }: WorkspaceDetailPr
   }
 
   const existingProviders = connections.map((c) => c.provider);
+  const activeTab = shell.activeTab || 'overview';
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold text-gray-900">{workspace.name}</h1>
-            <Badge variant={statusVariant(workspace.status)} className="capitalize">
-              {workspace.status}
-            </Badge>
-          </div>
-          <p className="text-sm text-gray-500">{workspace.clientName}</p>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="mb-6">
-          <TabsTrigger value="overview">{t('overview')}</TabsTrigger>
-          <TabsTrigger value="apps">{t('apps')}</TabsTrigger>
-          <TabsTrigger value="notes">{t('notes')}</TabsTrigger>
-          <TabsTrigger value="tasks">{t('tasks')}</TabsTrigger>
-          <TabsTrigger value="app-messages">{t('appMessages')}</TabsTrigger>
-          <TabsTrigger value="messages">{t('messages')}</TabsTrigger>
-          <TabsTrigger value="files">{t('files')}</TabsTrigger>
-          <TabsTrigger value="timeline">{t('timeline')}</TabsTrigger>
-          <TabsTrigger value="ai-briefing">{t('aiBriefing')}</TabsTrigger>
-          <TabsTrigger value="access">{t('accessPermissions')}</TabsTrigger>
-        </TabsList>
-
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-8">
-          <div className="rounded-lg border border-gray-200 bg-white p-6">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">
-              {t('workspaceInfo')}
-            </h2>
-            <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-              <div>
-                <dt className="text-xs font-medium text-gray-500">{t('name')}</dt>
-                <dd className="mt-0.5 text-sm text-gray-900">{workspace.name}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-gray-500">{t('client')}</dt>
-                <dd className="mt-0.5 text-sm text-gray-900">{workspace.clientName}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-gray-500">{t('engagementType')}</dt>
-                <dd className="mt-0.5 text-sm capitalize text-gray-900">
-                  {workspace.engagementType}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-gray-500">{t('status')}</dt>
-                <dd className="mt-0.5">
+    <PageTransition>
+      <div className="max-w-6xl mx-auto">
+        <TabTransition activeKey={activeTab}>
+          {activeTab === 'overview' && (
+            <div className="space-y-8">
+              <div className="rounded-lg border border-border bg-card p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    Workspace Info
+                  </h2>
                   <Badge variant={statusVariant(workspace.status)} className="capitalize">
                     {workspace.status}
                   </Badge>
-                </dd>
+                </div>
+                <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+                  <div>
+                    <dt className="text-xs font-medium text-muted-foreground">Name</dt>
+                    <dd className="mt-0.5 text-sm">{workspace.name}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-medium text-muted-foreground">Client</dt>
+                    <dd className="mt-0.5 text-sm">{workspace.clientName}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-medium text-muted-foreground">Engagement</dt>
+                    <dd className="mt-0.5 text-sm capitalize">{workspace.engagementType}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-medium text-muted-foreground">Created</dt>
+                    <dd className="mt-0.5 text-sm">{formatDate(workspace.createdAt)}</dd>
+                  </div>
+                </dl>
               </div>
               <div>
-                <dt className="text-xs font-medium text-gray-500">{t('created')}</dt>
-                <dd className="mt-0.5 text-sm text-gray-900">{formatDate(workspace.createdAt)}</dd>
+                <h2 className="mb-4 text-base font-semibold">Bookmarks</h2>
+                <BookmarkList freelancerId={freelancerId} workspaceId={workspaceId} />
               </div>
-            </dl>
-          </div>
-
-          <div>
-            <h2 className="mb-4 text-base font-semibold text-gray-900">{t('bookmarks')}</h2>
-            <BookmarkList freelancerId={freelancerId} workspaceId={workspaceId} />
-          </div>
-        </TabsContent>
-
-        {/* Apps Tab */}
-        <TabsContent value="apps" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900">{t('connectedApps')}</h2>
-            <Button onClick={() => setSetupDialogOpen(true)}>{t('addConnection')}</Button>
-          </div>
-
-          {connections.length === 0 ? (
-            <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50">
-              <p className="text-sm text-gray-500">{t('noAppsConnected')}</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {connections.map((connection) => (
-                <ConnectionTile
-                  key={connection.id}
-                  connection={connection}
-                  onDelete={() => handleDeleteConnection(connection.id)}
-                />
-              ))}
             </div>
           )}
 
-          <ConnectionSetupDialog
-            open={setupDialogOpen}
-            onOpenChange={setSetupDialogOpen}
-            freelancerId={freelancerId}
-            workspaceId={workspaceId}
-            existingProviders={existingProviders}
-            onConnectionCreated={handleConnectionCreated}
-          />
-        </TabsContent>
+          {activeTab === 'apps' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold">Connected Apps</h2>
+                <Button onClick={() => setSetupDialogOpen(true)}>Add Connection</Button>
+              </div>
+              {connections.length === 0 ? (
+                <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-border">
+                  <p className="text-sm text-muted-foreground">No integrations connected yet.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {connections.map((connection) => (
+                    <ConnectionTile
+                      key={connection.id}
+                      connection={connection}
+                      onDelete={() => handleDeleteConnection(connection.id)}
+                    />
+                  ))}
+                </div>
+              )}
+              <ConnectionSetupDialog
+                open={setupDialogOpen}
+                onOpenChange={setSetupDialogOpen}
+                freelancerId={freelancerId}
+                workspaceId={workspaceId}
+                existingProviders={existingProviders}
+                onConnectionCreated={() => setSetupDialogOpen(false)}
+              />
+            </div>
+          )}
 
-        {/* Notes Tab */}
-        <TabsContent value="notes">
-          <NoteEditor freelancerId={freelancerId} workspaceId={workspaceId} />
-        </TabsContent>
+          {activeTab === 'notes' && (
+            <NoteEditor freelancerId={freelancerId} workspaceId={workspaceId} />
+          )}
 
-        {/* Tasks Tab */}
-        <TabsContent value="tasks">
-          <ActivityTimeline freelancerId={freelancerId} workspaceId={workspaceId} filterSourceType={['task', 'ticket']} />
-        </TabsContent>
+          {activeTab === 'tasks' && (
+            <ActivityTimeline freelancerId={freelancerId} workspaceId={workspaceId} filterSourceType={['task', 'ticket']} />
+          )}
 
-        {/* App Messages Tab */}
-        <TabsContent value="app-messages">
-          <ActivityTimeline freelancerId={freelancerId} workspaceId={workspaceId} filterSourceType="message" />
-        </TabsContent>
+          {activeTab === 'app-messages' && (
+            <ActivityTimeline freelancerId={freelancerId} workspaceId={workspaceId} filterSourceType="message" />
+          )}
 
-        {/* Messages Tab */}
-        <TabsContent value="messages">
-          <WorkspaceMessages freelancerId={freelancerId} workspaceId={workspaceId} />
-        </TabsContent>
+          {activeTab === 'messages' && (
+            <WorkspaceMessages freelancerId={freelancerId} workspaceId={workspaceId} />
+          )}
 
-        {/* Files Tab */}
-        <TabsContent value="files">
-          <ActivityTimeline freelancerId={freelancerId} workspaceId={workspaceId} filterSourceType="document" />
-        </TabsContent>
+          {activeTab === 'files' && (
+            <ActivityTimeline freelancerId={freelancerId} workspaceId={workspaceId} filterSourceType="document" />
+          )}
 
-        {/* Timeline Tab */}
-        <TabsContent value="timeline">
-          <ActivityTimeline freelancerId={freelancerId} workspaceId={workspaceId} />
-        </TabsContent>
+          {activeTab === 'timeline' && (
+            <ActivityTimeline freelancerId={freelancerId} workspaceId={workspaceId} />
+          )}
 
-        {/* AI Briefing Tab */}
-        <TabsContent value="ai-briefing">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <AiBriefingPanel freelancerId={freelancerId} workspaceId={workspaceId} />
-            <WorkspaceChat freelancerId={freelancerId} workspaceId={workspaceId} />
-          </div>
-        </TabsContent>
+          {activeTab === 'ai-briefing' && (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <AiBriefingPanel freelancerId={freelancerId} workspaceId={workspaceId} />
+              <WorkspaceChat freelancerId={freelancerId} workspaceId={workspaceId} />
+            </div>
+          )}
 
-        {/* Access & Permissions Tab */}
-        <TabsContent value="access">
-          <AccessPermissions freelancerId={freelancerId} workspaceId={workspaceId} />
-        </TabsContent>
-      </Tabs>
-    </div>
+          {activeTab === 'access' && (
+            <AccessPermissions freelancerId={freelancerId} workspaceId={workspaceId} />
+          )}
+        </TabTransition>
+      </div>
+    </PageTransition>
   );
 }
