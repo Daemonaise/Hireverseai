@@ -302,7 +302,7 @@ export default function Home() {
                 <Star className="h-4 w-4 text-primary" />
               </div>
               <h3 className="text-xl font-bold mb-2">
-                Join 500+ freelancers already growing with Hireverse
+                Join freelancers already growing with Hireverse
               </h3>
               <p className="text-sm text-muted-foreground mb-6 max-w-lg mx-auto">
                 Whether you&apos;re a designer, developer, writer, or marketer — there&apos;s a place for you here.
