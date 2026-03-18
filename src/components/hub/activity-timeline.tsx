@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   RefreshCw,
   ExternalLink,
@@ -46,13 +46,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { listActivityEvents } from '@/services/hub/activity';
+import { useActivityEvents } from '@/hooks/hub/use-activity';
+import { useConnections } from '@/hooks/hub/use-connections';
+import { useHubStore } from '@/stores/hub-store';
+import { useTranslations } from 'next-intl';
 import { syncWorkspaceActivity } from '@/services/hub/sync';
 import { getProviderConfig, PROVIDER_CONFIGS } from '@/services/integrations/types';
 import type {
   ProviderId,
   ActivitySourceType,
-  NormalizedActivity,
   WorkspaceConnection,
   CreateItemPayload,
 } from '@/types/hub';
@@ -230,22 +232,35 @@ interface ActivityTimelineProps {
   freelancerId: string;
   workspaceId: string;
   filterSourceType?: string | string[];
-  connections?: WorkspaceConnection[];
 }
 
 export function ActivityTimeline({
   freelancerId,
   workspaceId,
   filterSourceType,
-  connections = [],
 }: ActivityTimelineProps) {
   const { toast } = useToast();
+  const t = useTranslations('activity');
+  const { activeFilters, setFilter } = useHubStore();
 
-  const [events, setEvents] = useState<NormalizedActivity[]>([]);
-  const [loading, setLoading] = useState(true);
+  const providerFilter = activeFilters.provider;
+  const sourceTypeFilter = filterSourceType || activeFilters.sourceType;
+
+  // Resolve the prop-driven source type filter (use first value if array)
+  const resolvedSourceType: ActivitySourceType | undefined = Array.isArray(sourceTypeFilter)
+    ? (sourceTypeFilter[0] as ActivitySourceType | undefined)
+    : (sourceTypeFilter as ActivitySourceType | undefined);
+
+  const { data: events = [], isLoading: loading, refetch } = useActivityEvents(
+    freelancerId, workspaceId,
+    {
+      provider: (providerFilter && providerFilter !== 'all' ? providerFilter : undefined) as ProviderId | undefined,
+      sourceType: resolvedSourceType && resolvedSourceType !== 'all' ? resolvedSourceType : undefined,
+    }
+  );
+  const { data: connections = [] } = useConnections(freelancerId, workspaceId);
+
   const [syncing, setSyncing] = useState(false);
-  const [providerFilter, setProviderFilter] = useState<'all' | ProviderId>('all');
-  const [sourceTypeFilter, setSourceTypeFilter] = useState<'all' | ActivitySourceType>('all');
 
   // Write action state
   const [activeAction, setActiveAction] = useState<ActionDef | null>(null);
@@ -256,55 +271,33 @@ export function ActivityTimeline({
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Resolve the prop-driven source type filter (use first value if array)
-  const propSourceType: ActivitySourceType | undefined = Array.isArray(filterSourceType)
-    ? (filterSourceType[0] as ActivitySourceType | undefined)
-    : (filterSourceType as ActivitySourceType | undefined);
-
-  const fetchEvents = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await listActivityEvents(freelancerId, workspaceId, {
-        provider: providerFilter === 'all' ? undefined : providerFilter,
-        sourceType: propSourceType ?? (sourceTypeFilter === 'all' ? undefined : sourceTypeFilter),
-      });
-      setEvents(data);
-    } finally {
-      setLoading(false);
-    }
-  }, [freelancerId, workspaceId, providerFilter, sourceTypeFilter, propSourceType]);
-
-  useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
-
   const handleSync = useCallback(async () => {
     setSyncing(true);
     try {
       const result = await syncWorkspaceActivity(freelancerId, workspaceId);
       if (result.failed.length === 0) {
         toast({
-          title: 'Sync complete',
-          description: `Synced ${result.totalEvents} event${result.totalEvents !== 1 ? 's' : ''} from ${result.synced.length} provider${result.synced.length !== 1 ? 's' : ''}.`,
+          title: t('syncComplete'),
+          description: `${t('synced')} ${result.totalEvents} ${t('eventsFrom')} ${result.synced.length} ${t('providers')}.`,
         });
       } else {
         toast({
-          title: 'Sync finished with errors',
-          description: `Synced ${result.synced.length} provider${result.synced.length !== 1 ? 's' : ''}. Failed: ${result.failed.join(', ')}.`,
+          title: t('syncFinishedWithErrors'),
+          description: `${t('synced')} ${result.synced.length} ${t('providers')}. ${t('failed')}: ${result.failed.join(', ')}.`,
           variant: 'destructive',
         });
       }
-      await fetchEvents();
+      await refetch();
     } catch {
       toast({
-        title: 'Sync failed',
-        description: 'An unexpected error occurred while syncing activity.',
+        title: t('syncFailed'),
+        description: t('syncFailedDescription'),
         variant: 'destructive',
       });
     } finally {
       setSyncing(false);
     }
-  }, [freelancerId, workspaceId, fetchEvents, toast]);
+  }, [freelancerId, workspaceId, refetch, toast, t]);
 
   // Open create dialog for a given action
   const openActionDialog = useCallback((action: ActionDef) => {
@@ -342,8 +335,8 @@ export function ActivityTimeline({
     );
     if (!connection) {
       toast({
-        title: 'No active connection',
-        description: `No connected ${activeAction.provider} account found.`,
+        title: t('noActiveConnection'),
+        description: `${t('noConnectedAccount')} ${activeAction.provider}.`,
         variant: 'destructive',
       });
       setSubmitting(false);
@@ -362,23 +355,23 @@ export function ActivityTimeline({
       const createItem = await getCreateItemFn(activeAction.provider);
       await createItem(connection.nangoConnectionId, payload);
       toast({
-        title: 'Created successfully',
-        description: `${activeAction.label} was created in ${getProviderConfig(activeAction.provider).name}.`,
+        title: t('createdSuccessfully'),
+        description: `${activeAction.label} ${t('wasCreatedIn')} ${getProviderConfig(activeAction.provider).name}.`,
       });
       closeActionDialog();
     } catch (err) {
       toast({
-        title: 'Create failed',
-        description: err instanceof Error ? err.message : 'An unexpected error occurred.',
+        title: t('createFailed'),
+        description: err instanceof Error ? err.message : t('unexpectedError'),
         variant: 'destructive',
       });
     } finally {
       setSubmitting(false);
       setPendingSubmit(false);
     }
-  }, [activeAction, connections, formTitle, formBody, formExtras, toast, closeActionDialog]);
+  }, [activeAction, connections, formTitle, formBody, formExtras, toast, closeActionDialog, t]);
 
-  const showSourceTypeDropdown = !propSourceType;
+  const showSourceTypeDropdown = !filterSourceType;
   const visibleActions = getVisibleActions(filterSourceType, connections);
 
   // Provider display name for confirm dialog
@@ -390,7 +383,7 @@ export function ActivityTimeline({
     <Card className="border border-gray-200 bg-white">
       <CardHeader className="pb-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="text-base font-semibold text-gray-900">Activity Timeline</CardTitle>
+          <CardTitle className="text-base font-semibold text-gray-900">{t('activityTimeline')}</CardTitle>
           <div className="flex flex-wrap items-center gap-2">
             {/* Write action buttons */}
             {visibleActions.map((action) => (
@@ -418,7 +411,7 @@ export function ActivityTimeline({
               ) : (
                 <RefreshCw className="mr-2 h-4 w-4" />
               )}
-              {syncing ? 'Syncing…' : 'Sync Now'}
+              {syncing ? t('syncing') : t('syncNow')}
             </Button>
           </div>
         </div>
@@ -427,11 +420,11 @@ export function ActivityTimeline({
         <div className="flex flex-wrap gap-2 pt-1">
           {/* Provider filter */}
           <Select
-            value={providerFilter}
-            onValueChange={(v) => setProviderFilter(v as 'all' | ProviderId)}
+            value={providerFilter || 'all'}
+            onValueChange={(v) => setFilter('provider', v === 'all' ? undefined : v)}
           >
             <SelectTrigger className="h-8 w-44 text-sm">
-              <SelectValue placeholder="All providers" />
+              <SelectValue placeholder={t('allProviders')} />
             </SelectTrigger>
             <SelectContent>
               {PROVIDER_OPTIONS.map((opt) => (
@@ -445,11 +438,11 @@ export function ActivityTimeline({
           {/* Source type filter — hidden when controlled by prop */}
           {showSourceTypeDropdown && (
             <Select
-              value={sourceTypeFilter}
-              onValueChange={(v) => setSourceTypeFilter(v as 'all' | ActivitySourceType)}
+              value={(activeFilters.sourceType as string) || 'all'}
+              onValueChange={(v) => setFilter('sourceType', v === 'all' ? undefined : v)}
             >
               <SelectTrigger className="h-8 w-44 text-sm">
-                <SelectValue placeholder="All types" />
+                <SelectValue placeholder={t('allTypes')} />
               </SelectTrigger>
               <SelectContent>
                 {SOURCE_TYPE_OPTIONS.map((opt) => (
@@ -471,7 +464,7 @@ export function ActivityTimeline({
         ) : events.length === 0 ? (
           <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50">
             <p className="px-6 text-center text-sm text-gray-500">
-              No activity yet. Connect an app and sync to get started.
+              {t('noActivityYet')}
             </p>
           </div>
         ) : (
@@ -500,7 +493,7 @@ export function ActivityTimeline({
                           target="_blank"
                           rel="noopener noreferrer"
                           className="shrink-0 text-primary hover:opacity-80"
-                          aria-label="Open source"
+                          aria-label={t('openSource')}
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                         </a>
@@ -536,24 +529,24 @@ export function ActivityTimeline({
             <form onSubmit={handleFormSubmit} className="flex flex-col gap-4 pt-2">
               {/* Title */}
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="action-title">Title</Label>
+                <Label htmlFor="action-title">{t('title')}</Label>
                 <Input
                   id="action-title"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="Enter title"
+                  placeholder={t('enterTitle')}
                   required
                 />
               </div>
 
               {/* Body */}
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="action-body">Body (optional)</Label>
+                <Label htmlFor="action-body">{t('bodyOptional')}</Label>
                 <Textarea
                   id="action-body"
                   value={formBody}
                   onChange={(e) => setFormBody(e.target.value)}
-                  placeholder="Enter description or message body"
+                  placeholder={t('enterDescription')}
                   rows={3}
                 />
               </div>
@@ -576,11 +569,11 @@ export function ActivityTimeline({
 
               <DialogFooter className="pt-2">
                 <Button type="button" variant="outline" onClick={closeActionDialog}>
-                  Cancel
+                  {t('cancel')}
                 </Button>
                 <Button type="submit" disabled={pendingSubmit || submitting}>
                   {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  {submitting ? 'Creating…' : 'Create'}
+                  {submitting ? t('creating') : t('create')}
                 </Button>
               </DialogFooter>
             </form>
@@ -592,17 +585,17 @@ export function ActivityTimeline({
       <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Action</AlertDialogTitle>
+            <AlertDialogTitle>{t('confirmAction')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will create a {activeAction?.payloadType} in {confirmProviderName}. Continue?
+              {t('confirmCreateDescription', { type: activeAction?.payloadType, provider: confirmProviderName })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => { setShowConfirm(false); setPendingSubmit(false); }}>
-              Cancel
+              {t('cancel')}
             </AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmedSubmit}>
-              Continue
+              {t('continue')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
