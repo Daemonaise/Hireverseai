@@ -27,18 +27,27 @@ export const metadata: Metadata = {
     'remote work',
   ],
   openGraph: {
-    title: 'Hireverse AI - Expert Freelance Work, Delivered Faster',
+    title: 'Hireverse AI | Expert Freelance Work, Delivered Faster',
     description:
       'Describe your project in plain English. AI matches you with vetted freelancers, decomposes work into parallel tasks, and delivers quality-assured results.',
     url: 'https://hireverse.ai',
     siteName: 'Hireverse AI',
     type: 'website',
+    images: [
+      {
+        url: '/opengraph-image',
+        width: 1200,
+        height: 630,
+        alt: 'Hireverse AI | Expert Freelance Work, Delivered Faster',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Hireverse AI - Expert Freelance Work, Delivered Faster',
+    title: 'Hireverse AI | Expert Freelance Work, Delivered Faster',
     description:
       'AI-powered freelancer marketplace. Post a project, get matched instantly, receive quality-checked deliverables.',
+    images: ['/opengraph-image'],
   },
   robots: {
     index: true,
