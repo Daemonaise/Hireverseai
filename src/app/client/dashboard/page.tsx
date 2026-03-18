@@ -1,124 +1,81 @@
-
 'use client';
 
+import React from 'react';
+import { useAuth } from '@/contexts/auth-context';
 import { ClientDashboard } from '@/components/client-dashboard';
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation'; // Import useSearchParams
-import React, { useEffect } from 'react'; // Import React and useEffect
-import { Loader2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast'; // Import toast
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import Alert
-import { AlertCircle, CheckCircle } from "lucide-react"; // Import icons
+import { PageTransition } from '@/components/motion/page-transition';
+import { SkeletonCard } from '@/components/ui/skeleton-card';
+import { useSearchParams } from 'next/navigation';
+import { useEffect } from 'react';
+import { useToast } from '@/hooks/use-toast';
 
-// TODO: Replace with actual authentication logic
-const useAuthentication = () => {
-     // For demo purposes, we always return an authenticated state with a default user ID.
-     const simulatedClientId = 'test-client-001';
-     console.log("Simulated auth hook: using default client ID -", simulatedClientId);
-     const isAuthenticated = true;
-     return { isAuthenticated, userId: simulatedClientId };
-};
+function DashboardContent() {
+  const { user, loading } = useAuth();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
 
-export function ClientDashboardLoader() {
-     const { isAuthenticated, userId } = useAuthentication();
-     const searchParams = useSearchParams();
-     const { toast } = useToast();
+  // Handle redirects from Stripe Checkout/Payment Intent
+  useEffect(() => {
+    const subscriptionStatus = searchParams?.get('subscription');
+    const paymentIntentStatus = searchParams?.get('payment_intent_status');
+    const projectId = searchParams?.get('project_id');
 
-     // Handle redirects from Stripe Checkout/Payment Intent
-     useEffect(() => {
-         const subscriptionStatus = searchParams?.get('subscription');
-         const paymentIntentStatus = searchParams?.get('payment_intent_status');
-         const projectId = searchParams?.get('project_id');
+    if (subscriptionStatus === 'success') {
+      toast({
+        title: 'Subscription Activated!',
+        description: 'Your Hireverse AI subscription is now active.',
+      });
+    } else if (subscriptionStatus === 'cancelled') {
+      toast({
+        title: 'Subscription Cancelled',
+        description: 'Your subscription setup was cancelled. You can try again.',
+        variant: 'destructive',
+      });
+    }
 
-         if (subscriptionStatus === 'success') {
-             toast({
-                 title: 'Subscription Activated!',
-                 description: 'Your Hireverse AI subscription is now active.',
-                 variant: 'default', // Use 'success' variant if available
-             });
-             // TODO: Potentially trigger MFA setup here if needed after subscription
-         } else if (subscriptionStatus === 'cancelled') {
-             toast({
-                 title: 'Subscription Cancelled',
-                 description: 'Your subscription setup was cancelled. You can try again.',
-                 variant: 'destructive',
-             });
-         }
+    if (paymentIntentStatus === 'succeeded' && projectId) {
+      toast({
+        title: 'Payment Successful!',
+        description: `Payment for project ${projectId} received. Work will begin shortly.`,
+      });
+    }
+  }, [searchParams, toast]);
 
-          if (paymentIntentStatus === 'succeeded' && projectId) {
-             toast({
-                 title: 'Payment Successful!',
-                 description: `Payment for project ${projectId} received. Work will begin shortly.`,
-                 variant: 'default', // Use 'success' variant if available
-             });
-         }
-         // Note: Failed payment intents usually redirect back to the checkout page
-         // with an error message handled by Stripe Elements.
+  if (loading) {
+    return (
+      <SkeletonCard
+        count={4}
+        className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-6xl mx-auto"
+      />
+    );
+  }
 
-     }, [searchParams, toast]);
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center py-12 text-muted-foreground">
+        Please log in to view the dashboard.
+      </div>
+    );
+  }
 
-
-     if (!isAuthenticated || !userId) {
-          return (
-               <div className="flex flex-col items-center justify-center py-12">
-                   <Alert variant="destructive" className="mb-4 max-w-md">
-                       <AlertCircle className="h-4 w-4" />
-                       <AlertTitle>Authentication Required</AlertTitle>
-                       <AlertDescription>
-                           You need to be logged in to view the dashboard.
-                       </AlertDescription>
-                   </Alert>
-                    <Link href="/client/login">
-                         <Button>Go to Client Login</Button>
-                    </Link>
-               </div>
-          );
-     }
-
-     // Render the actual dashboard component, passing the authenticated client ID
-     return <ClientDashboard clientId={userId} />;
+  return (
+    <PageTransition>
+      <ClientDashboard clientId={user.uid} />
+    </PageTransition>
+  );
 }
 
-
-// Main Page Component
 export default function ClientDashboardPage() {
-     return (
-          <div className="flex min-h-screen flex-col">
-               {/* Header */}
-               <header className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6 sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-                    <Link href="/" aria-label="Hireverse AI Home" className="flex items-center gap-2">
-                        <span className="text-xl font-bold text-foreground">Hireverse AI</span>
-                    </Link>
-                    <nav className="flex items-center gap-4">
-                         {/* TODO: Implement actual logout functionality */}
-                         <Button variant="outline" disabled> {/* Placeholder/disabled Logout */}
-                           Logout
-                         </Button>
-                    </nav>
-               </header>
-
-               {/* Main Content */}
-               <main className="flex-1 py-8 md:py-12">
-                    <div className="container mx-auto px-4 md:px-6">
-                         {/* Wrap the component using client hooks in Suspense */}
-                         <React.Suspense fallback={
-                               <div className="flex justify-center items-center py-12">
-                                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                   <span className="ml-2 text-muted-foreground">Loading Dashboard...</span>
-                               </div>
-                           }>
-                              <ClientDashboardLoader />
-                         </React.Suspense>
-                    </div>
-               </main>
-
-               {/* Footer */}
-               <footer className="border-t bg-muted/40 py-6 mt-12">
-                    <div className="container mx-auto flex flex-col items-center justify-between px-4 text-center text-sm text-muted-foreground md:flex-row md:px-6">
-                        <p>&copy; {new Date().getFullYear()} Hireverse AI. All rights reserved.</p>
-                    </div>
-               </footer>
-          </div>
-     );
+  return (
+    <React.Suspense
+      fallback={
+        <SkeletonCard
+          count={4}
+          className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-6xl mx-auto"
+        />
+      }
+    >
+      <DashboardContent />
+    </React.Suspense>
+  );
 }
