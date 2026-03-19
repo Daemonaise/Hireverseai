@@ -2,24 +2,25 @@ import { initializeApp, getApps, cert, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
-let app: App;
+function getApp(): App {
+  if (getApps().length) return getApps()[0];
 
-if (!getApps().length) {
-  const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-
-  if (credPath) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const serviceAccount = require(
-      credPath.startsWith('/') ? credPath : `${process.cwd()}/${credPath}`
-    );
-    app = initializeApp({ credential: cert(serviceAccount) });
-  } else {
-    // Falls back to Application Default Credentials (works in Cloud Functions, Cloud Run, etc.)
-    app = initializeApp();
+  // Option 1: Service account JSON passed as env var (for deployed environments)
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (serviceAccountJson) {
+    try {
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      return initializeApp({ credential: cert(serviceAccount) });
+    } catch {
+      // Fall through to default credentials
+    }
   }
-} else {
-  app = getApps()[0];
+
+  // Option 2: Application Default Credentials (Firebase Studio, Cloud Run, Cloud Functions)
+  return initializeApp();
 }
+
+const app = getApp();
 
 export const adminAuth = getAuth(app);
 export const adminDb = getFirestore(app);
